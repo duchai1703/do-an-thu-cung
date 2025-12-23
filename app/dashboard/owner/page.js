@@ -5,6 +5,7 @@ import { PawPrint, Calendar, CreditCard, Zap } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import StatsCard from "@/components/dashboard/StatsCard";
 import QuickActions from "@/components/dashboard/QuickActions";
+import { petApi, appointmentApi, paymentApi, getToken } from "@/lib/api";
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -13,14 +14,53 @@ export default function OwnerDashboard() {
     upcomingAppointments: 0,
     pendingPayments: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("Chủ thú cưng");
 
   useEffect(() => {
-    setStats({
-      totalPets: 3,
-      upcomingAppointments: 2,
-      pendingPayments: 1
-    });
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Fetch owner's pets
+      const petsResponse = await petApi.getAll();
+      const totalPets = petsResponse.success ? (petsResponse.data?.length || 0) : 0;
+
+      // Fetch owner's appointments
+      const appointmentsResponse = await appointmentApi.getAll();
+      const appointments = appointmentsResponse.success ? (appointmentsResponse.data || []) : [];
+      
+      // Filter upcoming appointments (PENDING or CONFIRMED status)
+      const upcomingAppointments = appointments.filter(
+        apt => apt.status === 'PENDING' || apt.status === 'CONFIRMED'
+      ).length;
+
+      // Fetch pending payments
+      const paymentsResponse = await paymentApi?.getAll ? await paymentApi.getAll() : { success: true, data: [] };
+      const payments = paymentsResponse.success ? (paymentsResponse.data || []) : [];
+      const pendingPayments = payments.filter(p => p.status === 'PENDING').length;
+
+      setStats({
+        totalPets,
+        upcomingAppointments,
+        pendingPayments
+      });
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      // Keep default values on error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const quickActions = [
     {
@@ -49,7 +89,7 @@ export default function OwnerDashboard() {
     <div className="p-6 space-y-6">
       <DashboardHeader
         title="Tổng quan"
-        subtitle={`Xin chào, ${router.query?.userName || 'Chủ thú cưng'} - Chúc bạn một ngày tốt lành!`}
+        subtitle={`Xin chào, ${userName} - Chúc bạn một ngày tốt lành!`}
       />
 
       {/* Stats Cards */}
@@ -57,19 +97,19 @@ export default function OwnerDashboard() {
         <StatsCard
           icon={PawPrint}
           title="Thú cưng của tôi"
-          value={stats.totalPets}
+          value={loading ? "..." : stats.totalPets}
           color="primary"
         />
         <StatsCard
           icon={Calendar}
           title="Lịch sắp tới"
-          value={stats.upcomingAppointments}
+          value={loading ? "..." : stats.upcomingAppointments}
           color="info"
         />
         <StatsCard
           icon={CreditCard}
           title="Chờ thanh toán"
-          value={stats.pendingPayments}
+          value={loading ? "..." : stats.pendingPayments}
           color="warning"
         />
       </div>

@@ -672,6 +672,129 @@ export interface AuditLogResponse {
 }
 
 // ============================================================================
+// QUERY PARAMETER TYPES
+// ============================================================================
+
+/**
+ * Query parameters for GET /api/appointments
+ */
+export interface GetAppointmentsQuery {
+  status?: AppointmentStatus;
+  petId?: number;
+  employeeId?: number;
+  date?: string;
+}
+
+/**
+ * Query parameters for GET /api/appointments/by-date-range
+ */
+export interface GetAppointmentsByDateRangeQuery {
+  startDate: string;
+  endDate: string;
+  employeeId?: number;
+}
+
+/**
+ * Query parameters for GET /api/appointments/by-status
+ */
+export interface GetAppointmentsByStatusQuery {
+  status: AppointmentStatus;
+}
+
+/**
+ * Query parameters for GET /api/invoices
+ */
+export interface GetInvoicesQuery {
+  status?: InvoiceStatus;
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Query parameters for GET /api/payments
+ */
+export interface GetPaymentsQuery {
+  status?: PaymentStatus;
+  method?: PaymentMethod;
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Query parameters for GET /api/cages
+ */
+export interface GetCagesQuery {
+  size?: CageSize;
+  isAvailable?: boolean;
+}
+
+/**
+ * Query parameters for GET /api/cages/available
+ */
+export interface GetAvailableCagesQuery {
+  size?: CageSize;
+  dateRange?: string;
+}
+
+/**
+ * Query parameters for GET /api/reports/financial
+ */
+export interface GetFinancialReportQuery {
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Query parameters for GET /api/reports/revenue
+ */
+export interface GetRevenueByPeriodQuery {
+  period: "month" | "quarter" | "year";
+  year: number;
+}
+
+/**
+ * Query parameters for GET /api/reports/appointments
+ */
+export interface GetAppointmentStatisticsQuery {
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Query parameters for GET /api/reports/services/top
+ */
+export interface GetTopServicesQuery {
+  limit?: number;
+  startDate: string;
+  endDate: string;
+  sortBy?: "count" | "revenue";
+}
+
+/**
+ * Query parameters for GET /api/reports/services/performance
+ */
+export interface GetServicePerformanceQuery {
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Query parameters for GET /api/reports/employees/workload
+ */
+export interface GetEmployeeWorkloadQuery {
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Query parameters for GET /api/reports/customers/retention
+ */
+export interface GetCustomerRetentionQuery {
+  startDate: string;
+  endDate: string;
+}
+
+// ============================================================================
 // REPORT TYPES (Ad-hoc structures)
 // ============================================================================
 

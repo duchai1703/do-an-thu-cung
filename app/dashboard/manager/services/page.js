@@ -23,15 +23,19 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import AddServiceModal from "@/components/modals/AddServiceModal";
 import EditServiceModal from "@/components/modals/EditServiceModal";
 import { cn } from "@/lib/utils";
+import { serviceApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerServicesPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [services, setServices] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (searchParams.get("action") === "add") {
@@ -40,75 +44,45 @@ export default function ManagerServicesPage() {
     loadServices();
   }, [searchParams]);
 
-  const loadServices = () => {
-    setServices([
-      {
-        id: "SRV001",
-        name: "Khám sức khỏe tổng quát",
-        category: "medical",
-        categoryLabel: "Khám bệnh & điều trị",
-        categoryIcon: "🏥",
-        price: 200000,
-        duration: 30,
-        description: "Kiểm tra sức khỏe tổng quát, khám lâm sàng",
-        isActive: true,
-      },
-      {
-        id: "SRV002",
-        name: "Tắm spa cao cấp",
-        category: "health",
-        categoryLabel: "Tắm & vệ sinh",
-        categoryIcon: "🛁",
-        price: 150000,
-        duration: 60,
-        description: "Tắm sạch, massage thư giãn, sấy khô",
-        isActive: true,
-      },
-      {
-        id: "SRV003",
-        name: "Cắt tỉa lông tạo kiểu",
-        category: "grooming",
-        categoryLabel: "Cắt tỉa & làm đẹp",
-        categoryIcon: "✂️",
-        price: 180000,
-        duration: 45,
-        description: "Cắt tỉa lông theo yêu cầu, tạo kiểu chuyên nghiệp",
-        isActive: true,
-      },
-      {
-        id: "SRV004",
-        name: "Tiêm phòng dại",
-        category: "medical",
-        categoryLabel: "Tiêm phòng & xét nghiệm",
-        categoryIcon: "💉",
-        price: 120000,
-        duration: 15,
-        description: "Tiêm phòng bệnh dại cho chó mèo",
-        isActive: false,
-      },
-      {
-        id: "SRV005",
-        name: "Massage thư giãn",
-        category: "boarding",
-        categoryLabel: "Spa & massage",
-        categoryIcon: "💆",
-        price: 250000,
-        duration: 90,
-        description: "Massage toàn thân cho thú cưng",
-        isActive: true,
-      },
-      {
-        id: "SRV006",
-        name: "Lưu trú qua đêm",
-        category: "boarding",
-        categoryLabel: "Lưu trú & chăm sóc",
-        categoryIcon: "🏠",
-        price: 300000,
-        duration: 1440,
-        description: "Chăm sóc thú cưng qua đêm, môi trường an toàn",
-        isActive: true,
-      },
-    ]);
+  const loadServices = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await serviceApi.getAll();
+      
+      if (response.success && response.data) {
+        const mappedServices = response.data.map(svc => {
+          const categoryData = getCategoryData(svc.categoryID || svc.category);
+          return {
+            id: svc.serviceID || svc.id,
+            name: svc.name,
+            category: svc.categoryID || svc.category,
+            categoryLabel: categoryData.label,
+            categoryIcon: categoryData.icon,
+            price: parseFloat(svc.basePrice || svc.price || 0),
+            duration: parseInt(svc.estimatedDuration || svc.duration || 30),
+            description: svc.description || '',
+            isActive: svc.isActive !== false,
+          };
+        });
+        
+        setServices(mappedServices);
+      } else {
+        console.error("Failed to load services:", response.error);
+        showToast("Không thể tải danh sách dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error("Error loading services:", error);
+      showToast("Lỗi khi tải danh sách dịch vụ", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const showToast = (message, type = "success") => {
@@ -126,43 +100,36 @@ export default function ManagerServicesPage() {
     return categories[categoryValue] || { label: "Khác", icon: "✨" };
   };
 
-  const handleAddService = (newService) => {
-    const categoryData = getCategoryData(newService.category);
-    const service = {
-      id: `SRV${String(services.length + 1).padStart(3, "0")}`,
-      name: newService.name,
-      category: newService.category,
-      categoryLabel: categoryData.label,
-      categoryIcon: categoryData.icon,
-      price: parseFloat(newService.price),
-      duration: parseInt(newService.duration),
-      description: newService.description,
-      isActive: true,
-    };
-    setServices([...services, service]);
-    showToast("Đã thêm dịch vụ thành công!", "success");
+  const handleAddService = async (newService) => {
+    try {
+      const response = await serviceApi.create(newService);
+      
+      if (response.success) {
+        showToast("Đã thêm dịch vụ thành công!", "success");
+        loadServices();
+      } else {
+        showToast(response.error || "Không thể thêm dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error("Error adding service:", error);
+      showToast("Lỗi khi thêm dịch vụ", "error");
+    }
   };
 
-  const handleEditService = (updatedData) => {
-    const categoryData = getCategoryData(updatedData.category);
-
-    setServices(
-      services.map((service) =>
-        service.id === updatedData.id
-          ? {
-              ...service,
-              name: updatedData.name,
-              category: updatedData.category,
-              categoryLabel: categoryData.label,
-              categoryIcon: categoryData.icon,
-              price: parseFloat(updatedData.price),
-              duration: parseInt(updatedData.duration),
-              description: updatedData.description,
-            }
-          : service
-      )
-    );
-    showToast("Đã cập nhật dịch vụ thành công!", "success");
+  const handleEditService = async (updatedData) => {
+    try {
+      const response = await serviceApi.update(updatedData.id, updatedData);
+      
+      if (response.success) {
+        showToast("Đã cập nhật dịch vụ thành công!", "success");
+        loadServices();
+      } else {
+        showToast(response.error || "Không thể cập nhật dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error("Error updating service:", error);
+      showToast("Lỗi khi cập nhật dịch vụ", "error");
+    }
   };
 
   const handleOpenEdit = (service) => {
@@ -170,20 +137,25 @@ export default function ManagerServicesPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleToggleService = (serviceId) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return;
-
-    const newActiveStatus = !service.isActive;
-    setServices(
-      services.map((s) =>
-        s.id === serviceId ? { ...s, isActive: newActiveStatus } : s
-      )
-    );
-    showToast(
-      `Đã ${newActiveStatus ? "kích hoạt" : "tạm ngưng"} dịch vụ`,
-      "success"
-    );
+  const handleToggleService = async (serviceId) => {
+    try {
+      const response = await serviceApi.toggleAvailability(serviceId);
+      
+      if (response.success) {
+        const service = services.find((s) => s.id === serviceId);
+        const newActiveStatus = !service?.isActive;
+        showToast(
+          `Đã ${newActiveStatus ? "kích hoạt" : "tạm ngưng"} dịch vụ`,
+          "success"
+        );
+        loadServices();
+      } else {
+        showToast(response.error || "Không thể thay đổi trạng thái dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error("Error toggling service:", error);
+      showToast("Lỗi khi thay đổi trạng thái dịch vụ", "error");
+    }
   };
 
   const filteredServices = services.filter(

@@ -31,101 +31,110 @@ import {
 import AddStaffModal from "@/components/modals/AddStaffModal";
 import EditStaffModal from "@/components/modals/EditStaffModal";
 import { cn } from "@/lib/utils";
+import { employeeApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerStaffPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (searchParams.get("action") === "add") {
       setIsAddModalOpen(true);
     }
 
-    setStaffList([
-      {
-        id: "EMP001",
-        name: "Nguyễn Văn A",
-        email: "vet@pawlovers.com",
-        phone: "0901234567",
-        role: "veterinarian",
-        isActive: true,
-        joinDate: "2024-01-15",
-        specialization: "Bác sĩ thú y tổng quát",
-      },
-      {
-        id: "EMP002",
-        name: "Trần Thị B",
-        email: "staff@pawlovers.com",
-        phone: "0909876543",
-        role: "care_staff",
-        isActive: true,
-        joinDate: "2024-03-20",
-        specialization: "Chăm sóc chó mèo",
-      },
-      {
-        id: "EMP003",
-        name: "Lê Văn C",
-        email: "reception@pawlovers.com",
-        phone: "0912345678",
-        role: "receptionist",
-        isActive: true,
-        joinDate: "2024-05-10",
-        specialization: "Lễ tân - Tư vấn",
-      },
-      {
-        id: "EMP004",
-        name: "Phạm Thị D",
-        email: "staff2@pawlovers.com",
-        phone: "0923456789",
-        role: "care_staff",
-        isActive: false,
-        joinDate: "2023-11-05",
-        specialization: "Grooming chuyên sâu",
-      },
-    ]);
+    loadStaff();
   }, [searchParams]);
+
+  const loadStaff = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await employeeApi.getAll();
+      
+      if (response.success && response.data) {
+        const mappedStaff = response.data.map(emp => ({
+          id: emp.employeeID || emp.id,
+          name: emp.account?.email?.split('@')[0] || emp.fullName || 'Unknown',
+          email: emp.account?.email || 'N/A',
+          phone: emp.phoneNumber || 'N/A',
+          role: mapRole(emp.account?.userType),
+          isActive: emp.account?.isActive !== false,
+          joinDate: emp.createdAt ? new Date(emp.createdAt).toISOString().split('T')[0] : 'N/A',
+          specialization: emp.specialization || 'N/A',
+        }));
+        
+        setStaffList(mappedStaff);
+      } else {
+        console.error("Failed to load staff:", response.error);
+        showToast("Không thể tải danh sách nhân viên", "error");
+      }
+    } catch (error) {
+      console.error("Error loading staff:", error);
+      showToast("Lỗi khi tải danh sách nhân viên", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mapRole = (userType) => {
+    const roleMap = {
+      'VETERINARIAN': 'veterinarian',
+      'CARE_STAFF': 'care_staff',
+      'RECEPTIONIST': 'receptionist',
+      'MANAGER': 'manager'
+    };
+    return roleMap[userType] || 'care_staff';
+  };
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
-  const handleAddStaff = (newStaff) => {
-    const staff = {
-      id: `EMP${String(staffList.length + 1).padStart(3, "0")}`,
-      name: newStaff.fullName,
-      email: newStaff.email,
-      phone: newStaff.phone,
-      role: newStaff.role,
-      specialization: newStaff.specialization || "",
-      isActive: true,
-      joinDate: new Date().toISOString().split("T")[0],
-    };
-    setStaffList([...staffList, staff]);
-    showToast("Đã thêm nhân viên thành công!", "success");
+  const handleAddStaff = async (newStaff) => {
+    try {
+      const response = await employeeApi.create(newStaff);
+      
+      if (response.success) {
+        showToast("Đã thêm nhân viên thành công!", "success");
+        loadStaff();
+      } else {
+        showToast(response.error || "Không thể thêm nhân viên", "error");
+      }
+    } catch (error) {
+      console.error("Error adding staff:", error);
+      showToast("Lỗi khi thêm nhân viên", "error");
+    }
   };
 
-  const handleEditStaff = (updatedData) => {
-    setStaffList(
-      staffList.map((staff) =>
-        staff.id === updatedData.id
-          ? {
-              ...staff,
-              name: updatedData.fullName,
-              phone: updatedData.phone,
-              role: updatedData.role,
-              specialization:
-                updatedData.specialization || staff.specialization,
-            }
-          : staff
-      )
-    );
-    showToast("Cập nhật nhân viên thành công!", "success");
+  const handleEditStaff = async (updatedData) => {
+    try {
+      const response = await employeeApi.update(updatedData.id, updatedData);
+      
+      if (response.success) {
+        showToast("Cập nhật nhân viên thành công!", "success");
+        loadStaff();
+      } else {
+        showToast(response.error || "Không thể cập nhật nhân viên", "error");
+      }
+    } catch (error) {
+      console.error("Error updating staff:", error);
+      showToast("Lỗi khi cập nhật nhân viên", "error");
+    }
   };
 
   const handleToggleStatus = (staffId) => {

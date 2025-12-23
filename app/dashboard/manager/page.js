@@ -15,6 +15,7 @@ import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { petApi, petOwnerApi, serviceApi, employeeApi, appointmentApi, getToken } from "@/lib/api";
 
 export default function ManagerDashboard() {
   const router = useRouter();
@@ -38,17 +39,60 @@ export default function ManagerDashboard() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
+  // TODO: Load staff,Service,Appointments,...
   useEffect(() => {
-    setStats({
-      totalPets: 156,
-      totalCustomers: 89,
-      totalServices: 12,
-      monthlyRevenue: 45600000,
-      todayAppointments: 8,
-      activeStaff: 15
-    });
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      console.log("Token in Manager Dashboard:", token);
+      if (!token) {
+        // router.push('/login');
+        return;
+      }
+
+      // Fetch all data in parallel
+      const [petsRes, customersRes, servicesRes, employeesRes, appointmentsRes] = await Promise.all([
+        petApi.getAll(),
+        petOwnerApi?.getAll ? petOwnerApi.getAll() : Promise.resolve({ success: true, data: [] }),
+        serviceApi.getAll(),
+        employeeApi.getAll(),
+        appointmentApi.getAll()
+      ]);
+
+      const totalPets = petsRes.success ? (petsRes.data?.length || 0) : 0;
+      const totalCustomers = customersRes.success ? (customersRes.data?.length || 0) : 0;
+      const totalServices = servicesRes.success ? (servicesRes.data?.length || 0) : 0;
+      const activeStaff = employeesRes.success ? (employeesRes.data?.filter(e => e.isActive !== false).length || 0) : 0;
+      
+      // Get today's appointments
+      const today = new Date().toISOString().split('T')[0];
+      const appointments = appointmentsRes.success ? (appointmentsRes.data || []) : [];
+      const todayAppointments = appointments.filter(apt => {
+        const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+        return aptDate === today;
+      }).length;
+
+      setStats({
+        totalPets,
+        totalCustomers,
+        totalServices,
+        monthlyRevenue: 0, // TODO: Calculate from invoice/payment API
+        todayAppointments,
+        activeStaff
+      });
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });

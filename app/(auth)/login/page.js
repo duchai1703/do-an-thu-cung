@@ -40,13 +40,14 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    console.log("🚀 Submitting login form:", form);
     const response = await AccountController.handleLogin(form);
     setLoading(false);
 
     if (response.success) {
       setMessage({ type: "success", text: response.message });
       setTimeout(() => {
-        router.push(response.data.redirectTo);
+        router.push('/dashboard');
       }, 1000);
     } else {
       setMessage({ type: "error", text: response.message });

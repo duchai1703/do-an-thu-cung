@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import StatsCard from "@/components/dashboard/StatsCard";
@@ -8,16 +8,69 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Phone, Mail, Users, CheckCircle2, Clock, XCircle, Sparkles, ClipboardList, Bell, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { appointmentApi, petOwnerApi, getToken } from "@/lib/api";
 
 export default function ReceptionistDashboardPage() {
   const router = useRouter();
-  const todayStats = {
-    newCustomers: 3,
-    totalCalls: 12,
-    emailsSent: 8,
-    appointmentsConfirmed: 5,
-    appointmentsPending: 2,
-    appointmentsCancelled: 1
+  const [loading, setLoading] = useState(true);
+  const [todayStats, setTodayStats] = useState({
+    newCustomers: 0,
+    totalCalls: 0,
+    emailsSent: 0,
+    appointmentsConfirmed: 0,
+    appointmentsPending: 0,
+    appointmentsCancelled: 0
+  });
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Fetch appointments
+      const appointmentsRes = await appointmentApi.getAll();
+      
+      if (appointmentsRes.success && appointmentsRes.data) {
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = appointmentsRes.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          return aptDate === today;
+        });
+
+        const confirmed = todayAppointments.filter(a => a.status === 'CONFIRMED' || a.status === 'COMPLETED').length;
+        const pending = todayAppointments.filter(a => a.status === 'PENDING').length;
+        const cancelled = todayAppointments.filter(a => a.status === 'CANCELLED').length;
+
+        // Fetch customers (pet owners)
+        const customersRes = await petOwnerApi?.getAll ? await petOwnerApi.getAll() : { success: true, data: [] };
+        const newCustomersToday = customersRes.success ? (customersRes.data?.filter(c => {
+          const createdDate = c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : '';
+          return createdDate === today;
+        }).length || 0) : 0;
+
+        setTodayStats({
+          newCustomers: newCustomersToday,
+          totalCalls: 0, // Not tracked by backend yet
+          emailsSent: 0, // Not tracked by backend yet
+          appointmentsConfirmed: confirmed,
+          appointmentsPending: pending,
+          appointmentsCancelled: cancelled
+        });
+      }
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const quickActions = [

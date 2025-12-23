@@ -2,7 +2,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { AccountController } from "@/lib/controllers/AccountController";
+import { getToken, removeToken } from "@/lib/api/client";
+import { authApi } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import "@/styles/dashboard.css";
 
@@ -13,49 +14,86 @@ export default function DashboardLayout({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check authentication
-    const currentUser = AccountController.getCurrentUser();
-    
-    if (!currentUser) {
-      router.push("/login");
-      return;
-    }
+    const initializeDashboard = async () => {
+      try {
+        // 1. Check if user has valid token
+        const token = getToken();
+        if (!token) {
+          console.log("❌ No token found, redirecting to login");
+          router.push("/login");
+          return;
+        }
 
-    // Get role from URL
-    const pathSegments = pathname.split('/');
-    const urlRole = pathSegments[2]; // /dashboard/[role]/...
-    const userRole = currentUser.account.role;
+        // 2. Fetch current user from API
+        const response = await authApi.getCurrentUser();
+        
+        if (!response.success || !response.data) {
+          console.log("❌ Failed to get current user, redirecting to login");
+          removeToken();
+          router.push("/login");
+          return;
+        }
 
-    console.log('🔍 Debug - URL role:', urlRole, '| User role:', userRole, '| Full path:', pathname);
+        const currentUser = response.data;
+        const userType = currentUser.userType;
 
-    // ✅ FIX: Nếu chỉ vào /dashboard (không có role), redirect đến dashboard đúng
-    if (!urlRole || pathname === '/dashboard') {
-      const correctPath = currentUser.redirectTo;
-      console.log('⚠️ No role in URL, redirecting to:', correctPath);
-      router.push(correctPath);
-      return;
-    }
+        // 3. Map backend userType to frontend dashboard role
+        const userTypeToPath = {
+          'MANAGER': '/dashboard/manager',
+          'VETERINARIAN': '/dashboard/vet',
+          'CARE_STAFF': '/dashboard/care-staff',
+          'RECEPTIONIST': '/dashboard/receptionist',
+          'PET_OWNER': '/dashboard/owner'
+        };
 
-    // Check if user is accessing correct dashboard
-    const roleMap = {
-      'manager': 'manager',
-      'vet': 'veterinarian',
-      'care-staff': 'care_staff',
-      'receptionist': 'receptionist',
-      'owner': 'pet_owner'
+        const userTypeToRole = {
+          'MANAGER': 'manager',
+          'VETERINARIAN': 'veterinarian',
+          'CARE_STAFF': 'care_staff',
+          'RECEPTIONIST': 'receptionist',
+          'PET_OWNER': 'pet_owner'
+        };
+
+        const correctPath = userTypeToPath[userType];
+        const userRole = userTypeToRole[userType];
+
+        console.log('🔍 Debug - User type:', userType, '| Correct path:', correctPath, '| Current path:', pathname);
+
+        // 4. Get role from URL
+        const pathSegments = pathname.split('/');
+        const urlRole = pathSegments[2]; // /dashboard/[role]/...
+
+        // 5. If accessing /dashboard without role, redirect to user's correct dashboard
+        if (!urlRole || pathname === '/dashboard') {
+          console.log('⚠️ No role in URL, redirecting to:', correctPath);
+          router.push(correctPath);
+          return;
+        }
+
+        // 6. If accessing wrong dashboard, redirect to correct one
+        if (!pathname.startsWith(correctPath)) {
+          console.log('⚠️ Wrong dashboard access, redirecting to:', correctPath);
+          router.push(correctPath);
+          return;
+        }
+
+        // 7. User is authorized and on correct dashboard
+        console.log('✅ Correct dashboard, loading user');
+        setUser({
+          account: {
+            ...currentUser,
+            role: userRole
+          }
+        });
+        setLoading(false);
+      } catch (error) {
+        console.error('❌ Dashboard initialization error:', error);
+        removeToken();
+        router.push("/login");
+      }
     };
 
-    // ✅ FIX: Nếu role không khớp, redirect về dashboard đúng
-    if (roleMap[urlRole] !== userRole) {
-      const correctPath = currentUser.redirectTo;
-      console.log('⚠️ Wrong dashboard access, redirecting to:', correctPath);
-      router.push(correctPath);
-      return;
-    }
-
-    console.log('✅ Correct dashboard, loading user');
-    setUser(currentUser);
-    setLoading(false);
+    initializeDashboard();
   }, [router, pathname]);
 
   if (loading) {

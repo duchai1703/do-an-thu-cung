@@ -15,6 +15,7 @@ import BookAppointmentModal from "@/components/modals/BookAppointmentModal";
 import AppointmentDetailModal from "@/components/modals/AppointmentDetailModal";
 import CancelAppointmentOwnerModal from "@/components/modals/CancelAppointmentOwnerModal";
 import { cn } from "@/lib/utils";
+import { appointmentApi, getToken } from "@/lib/api";
 
 export default function OwnerAppointmentsPage() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function OwnerAppointmentsPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadAppointments();
@@ -36,72 +38,72 @@ export default function OwnerAppointmentsPage() {
     }
   }, [searchParams]);
 
-  const loadAppointments = () => {
-    setAppointments([
-      {
-        id: "APT001",
-        code: "APT001",
-        petId: "PET001",
-        petName: "Lucky",
-        petIcon: "🐕",
-        serviceId: "SRV001",
-        serviceName: "Khám sức khỏe tổng quát",
-        serviceIcon: "🏥",
-        date: "2025-11-05",
-        time: "09:00",
-        status: "upcoming",
-        notes: "Khám tổng quát định kỳ",
-        createdAt: "2025-10-20"
-      },
-      {
-        id: "APT002",
-        code: "APT002",
-        petId: "PET002",
-        petName: "Miu",
-        petIcon: "🐈",
-        serviceId: "SRV003",
-        serviceName: "Tắm spa cao cấp",
-        serviceIcon: "🛁",
-        date: "2025-11-10",
-        time: "14:00",
-        status: "upcoming",
-        notes: "",
-        createdAt: "2025-10-22"
-      },
-      {
-        id: "APT003",
-        code: "APT003",
-        petId: "PET001",
-        petName: "Lucky",
-        petIcon: "🐕",
-        serviceId: "SRV002",
-        serviceName: "Tiêm phòng dại",
-        serviceIcon: "💉",
-        date: "2025-10-20",
-        time: "10:30",
-        status: "completed",
-        notes: "Đã hoàn thành tốt",
-        createdAt: "2025-10-15",
-        completedAt: "2025-10-20"
-      },
-      {
-        id: "APT004",
-        code: "APT004",
-        petId: "PET003",
-        petName: "Coco",
-        petIcon: "🐩",
-        serviceId: "SRV004",
-        serviceName: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        date: "2025-10-25",
-        time: "15:00",
-        status: "cancelled",
-        notes: "Khách hủy do bận đột xuất",
-        cancelReason: "Bận đột xuất, sẽ đặt lại sau",
-        createdAt: "2025-10-18",
-        cancelledAt: "2025-10-23"
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const response = await appointmentApi.getAll();
+      
+      if (response.success && response.data) {
+        // Map backend data to frontend format
+        const mappedAppointments = response.data.map(apt => ({
+          id: apt.appointmentID || apt.id,
+          code: apt.appointmentID || apt.id,
+          petId: apt.petID || apt.pet?.petID,
+          petName: apt.pet?.name || 'Unknown',
+          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          serviceId: apt.serviceID || apt.service?.serviceID,
+          serviceName: apt.service?.name || 'Unknown Service',
+          serviceIcon: getServiceIcon(apt.service?.categoryID),
+          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '',
+          time: apt.startTime || '',
+          status: mapStatus(apt.status),
+          notes: apt.notes || '',
+          createdAt: apt.createdAt || new Date().toISOString(),
+          completedAt: apt.status === 'COMPLETED' ? apt.updatedAt : null,
+          cancelledAt: apt.status === 'CANCELLED' ? apt.updatedAt : null,
+          cancelReason: apt.cancellationReason || ''
+        }));
+        
+        setAppointments(mappedAppointments);
+      } else {
+        console.error("Failed to load appointments:", response.error);
+        showToast("Không thể tải danh sách lịch đặt", "error");
+      }
+    } catch (error) {
+      console.error("Error loading appointments:", error);
+      showToast("Lỗi khi tải danh sách lịch đặt", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mapStatus = (backendStatus) => {
+    const statusMap = {
+      'PENDING': 'upcoming',
+      'CONFIRMED': 'upcoming',
+      'IN_PROGRESS': 'upcoming',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled'
+    };
+    return statusMap[backendStatus] || 'upcoming';
+  };
+
+  const getServiceIcon = (categoryId) => {
+    // Map service categories to icons
+    const iconMap = {
+      1: '🏥', // Medical
+      2: '🛁', // Grooming
+      3: '💉', // Vaccination
+      4: '✂️', // Styling
+    };
+    return iconMap[categoryId] || '🩺';
   };
 
   const showToast = (message, type = "success") => {
@@ -109,16 +111,20 @@ export default function OwnerAppointmentsPage() {
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
-  const handleBookAppointment = (data) => {
-    const newAppointment = {
-      id: `APT${String(appointments.length + 1).padStart(3, '0')}`,
-      code: `APT${String(appointments.length + 1).padStart(3, '0')}`,
-      ...data,
-      status: "upcoming",
-      createdAt: new Date().toISOString()
-    };
-    setAppointments([...appointments, newAppointment]);
-    showToast("Đặt lịch thành công!", "success");
+  const handleBookAppointment = async (data) => {
+    try {
+      const response = await appointmentApi.create(data);
+      
+      if (response.success) {
+        showToast("Đặt lịch thành công!", "success");
+        loadAppointments(); // Reload the list
+      } else {
+        showToast(response.error || "Không thể đặt lịch", "error");
+      }
+    } catch (error) {
+      console.error("Error booking appointment:", error);
+      showToast("Lỗi khi đặt lịch", "error");
+    }
   };
 
   const handleViewDetail = (appointment) => {
@@ -131,13 +137,20 @@ export default function OwnerAppointmentsPage() {
     setIsCancelModalOpen(true);
   };
 
-  const handleCancelSuccess = (data) => {
-    setAppointments(appointments.map(apt =>
-      apt.id === data.appointmentId
-        ? { ...apt, status: "cancelled", cancelReason: data.reason, cancelledAt: new Date().toISOString() }
-        : apt
-    ));
-    showToast("Đã hủy lịch hẹn", "success");
+  const handleCancelSuccess = async (data) => {
+    try {
+      const response = await appointmentApi.cancel(data.appointmentId, data.reason);
+      
+      if (response.success) {
+        showToast("Đã hủy lịch hẹn", "success");
+        loadAppointments(); // Reload the list
+      } else {
+        showToast(response.error || "Không thể hủy lịch hẹn", "error");
+      }
+    } catch (error) {
+      console.error("Error cancelling appointment:", error);
+      showToast("Lỗi khi hủy lịch hẹn", "error");
+    }
   };
 
   const filteredAppointments = appointments.filter(apt => {

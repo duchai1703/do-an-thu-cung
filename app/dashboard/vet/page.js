@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
 
 export default function VeterinarianDashboard() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     todayAppointments: 0,
     inProgress: 0,
@@ -25,80 +27,99 @@ export default function VeterinarianDashboard() {
 
   useEffect(() => {
     loadDashboardData();
-    checkUpcomingAppointments();
   }, []);
 
-  const loadDashboardData = () => {
-    // Mock stats - UPDATED
-    setStats({
-      todayAppointments: 5,
-      inProgress: 1,
-      completed: 2,
-      newRecords: 3
-    });
-
-    // Mock today schedule - NGÀY HÔM NAY: 2025-10-27
-    setTodaySchedule([
-      {
-        id: "APT001",
-        time: "09:00",
-        petName: "Lucky",
-        petIcon: "🐕",
-        ownerName: "Nguyễn Văn A",
-        service: "Khám sức khỏe tổng quát",
-        serviceIcon: "🏥",
-        status: "completed"
-      },
-      {
-        id: "APT002",
-        time: "10:30",
-        petName: "Miu",
-        petIcon: "🐈",
-        ownerName: "Trần Thị B",
-        service: "Tiêm phòng dại",
-        serviceIcon: "💉",
-        status: "completed"
-      },
-      {
-        id: "APT003",
-        time: "14:00",
-        petName: "Coco",
-        petIcon: "🐩",
-        ownerName: "Lê Văn C",
-        service: "Tái khám",
-        serviceIcon: "🔄",
-        status: "in_progress"
-      },
-      {
-        id: "APT004",
-        time: "15:30",
-        petName: "Max",
-        petIcon: "🐕",
-        ownerName: "Phạm Thị D",
-        service: "Khám da liễu",
-        serviceIcon: "🩺",
-        status: "waiting"
-      },
-      {
-        id: "APT005",
-        time: "16:30",
-        petName: "Bella",
-        petIcon: "🐈",
-        ownerName: "Hoàng Thị E",
-        service: "Xét nghiệm máu",
-        serviceIcon: "💉",
-        status: "waiting"
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Fetch appointments
+      const appointmentsRes = await appointmentApi.getAll();
+      
+      if (appointmentsRes.success && appointmentsRes.data) {
+        const todayAppointments = appointmentsRes.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          return aptDate === today;
+        });
+
+        const inProgress = todayAppointments.filter(a => a.status === 'IN_PROGRESS').length;
+        const completed = todayAppointments.filter(a => a.status === 'COMPLETED').length;
+
+        // Map schedule
+        const mappedSchedule = todayAppointments.map(apt => ({
+          id: apt.appointmentID || apt.id,
+          time: apt.startTime || '',
+          petName: apt.pet?.name || 'Unknown',
+          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          ownerName: apt.petOwner?.account?.email?.split('@')[0] || 'Unknown',
+          service: apt.service?.name || 'Unknown Service',
+          serviceIcon: '🏥',
+          status: mapStatus(apt.status)
+        }));
+
+        setTodaySchedule(mappedSchedule);
+
+        // Fetch medical records
+        const recordsRes = await medicalRecordApi?.getAll ? await medicalRecordApi.getAll() : { success: true, data: [] };
+        const newRecords = recordsRes.success ? (recordsRes.data?.filter(r => {
+          const createdDate = r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : '';
+          return createdDate === today;
+        }).length || 0) : 0;
+
+        setStats({
+          todayAppointments: todayAppointments.length,
+          inProgress,
+          completed,
+          newRecords
+        });
+
+        // Check for upcoming appointments (within 30 minutes)
+        checkUpcomingAppointments(mappedSchedule);
+      }
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const checkUpcomingAppointments = () => {
-    // Current time: 08:31 (UTC)
-    // Show alert for 09:00 appointment (within 30 minutes)
-    setUpcomingAlert({
-      petName: "Lucky",
-      time: "09:00"
+  const mapStatus = (backendStatus) => {
+    const statusMap = {
+      'PENDING': 'waiting',
+      'CONFIRMED': 'waiting',
+      'IN_PROGRESS': 'in_progress',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled'
+    };
+    return statusMap[backendStatus] || 'waiting';
+  };
+
+  const checkUpcomingAppointments = (schedule) => {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const upcoming = schedule.find(apt => {
+      if (!apt.time) return false;
+      const [hours, minutes] = apt.time.split(':').map(Number);
+      const aptTime = hours * 60 + minutes;
+      const diff = aptTime - currentTime;
+      return diff > 0 && diff <= 30 && apt.status === 'waiting';
     });
+
+    if (upcoming) {
+      setUpcomingAlert({
+        petName: upcoming.petName,
+        time: upcoming.time
+      });
+    }
   };
 
   const quickActions = [

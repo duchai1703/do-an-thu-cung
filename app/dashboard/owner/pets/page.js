@@ -14,6 +14,7 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import AddPetModal from "@/components/modals/AddPetModal";
 import EditPetModal from "@/components/modals/EditPetModal";
 import { cn } from "@/lib/utils";
+import { petApi, getToken } from "@/lib/api";
 
 export default function OwnerPetsPage() {
   const router = useRouter();
@@ -23,56 +24,67 @@ export default function OwnerPetsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPet, setEditingPet] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadPets();
   }, []);
 
-  const loadPets = () => {
-    setPets([
-      {
-        id: "PET001",
-        name: "Lucky",
-        icon: "🐕",
-        type: "Chó",
-        breed: "Golden Retriever",
-        age: "2 tuổi",
-        gender: "Đực",
-        weight: "28 kg",
-        color: "Vàng",
-        dateOfBirth: "2023-03-15",
-        medicalHistory: "Đã tiêm phòng đầy đủ",
-        notes: "Rất thân thiện, thích chơi đùa"
-      },
-      {
-        id: "PET002",
-        name: "Miu",
-        icon: "🐈",
-        type: "Mèo",
-        breed: "Mèo Ba Tư",
-        age: "1 tuổi",
-        gender: "Cái",
-        weight: "4 kg",
-        color: "Trắng",
-        dateOfBirth: "2024-01-20",
-        medicalHistory: "Tiêm phòng cơ bản",
-        notes: "Ngoan, ít kêu"
-      },
-      {
-        id: "PET003",
-        name: "Coco",
-        icon: "🐩",
-        type: "Chó",
-        breed: "Poodle",
-        age: "3 tuổi",
-        gender: "Cái",
-        weight: "6 kg",
-        color: "Nâu",
-        dateOfBirth: "2022-07-10",
-        medicalHistory: "Đã triệt sản, tiêm phòng đầy đủ",
-        notes: "Thích được chải lông"
+  const loadPets = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const response = await petApi.getAll();
+      
+      if (response.success && response.data) {
+        // Map backend data to frontend format
+        const mappedPets = response.data.map(pet => ({
+          id: pet.petID || pet.id,
+          name: pet.name,
+          icon: pet.species?.toLowerCase() === 'dog' || pet.species?.toLowerCase() === 'chó' ? '🐕' : '🐈',
+          type: pet.species || 'Unknown',
+          breed: pet.breed || 'Unknown',
+          age: calculateAge(pet.birthDate) || 'N/A',
+          gender: pet.gender || 'Unknown',
+          weight: pet.weight ? `${pet.weight} kg` : 'N/A',
+          color: pet.color || 'Unknown',
+          dateOfBirth: pet.birthDate || '',
+          medicalHistory: pet.medicalHistory || 'Chưa có thông tin',
+          notes: pet.notes || ''
+        }));
+        
+        setPets(mappedPets);
+      } else {
+        console.error("Failed to load pets:", response.error);
+        showToast("Không thể tải danh sách thú cưng", "error");
+      }
+    } catch (error) {
+      console.error("Error loading pets:", error);
+      showToast("Lỗi khi tải danh sách thú cưng", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const ageInYears = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (ageInYears < 1) {
+      const ageInMonths = (today.getFullYear() - birth.getFullYear()) * 12 + monthDiff;
+      return `${ageInMonths} tháng`;
+    }
+    
+    return `${ageInYears} tuổi`;
   };
 
   const showToast = (message, type = "success") => {
@@ -80,21 +92,38 @@ export default function OwnerPetsPage() {
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
-  const handleAddPet = (newPet) => {
-    const pet = {
-      id: `PET${String(pets.length + 1).padStart(3, '0')}`,
-      ...newPet,
-      icon: newPet.type === 'Chó' ? '🐕' : '🐈'
-    };
-    setPets([...pets, pet]);
-    showToast("Đã thêm thú cưng thành công!", "success");
+  const handleAddPet = async (newPet) => {
+    try {
+      const response = await petApi.create(newPet);
+      
+      if (response.success) {
+        showToast("Đã thêm thú cưng thành công!", "success");
+        loadPets(); // Reload the list
+      } else {
+        showToast(response.error || "Không thể thêm thú cưng", "error");
+      }
+    } catch (error) {
+      console.error("Error adding pet:", error);
+      showToast("Lỗi khi thêm thú cưng", "error");
+    }
   };
 
-  const handleEditPet = (updatedPet) => {
-    setPets(pets.map(pet =>
-      pet.id === updatedPet.id ? updatedPet : pet
-    ));
-    showToast("Đã cập nhật thông tin thú cưng!", "success");
+  const handleEditPet = async (updatedPet) => {
+    try {
+      const response = await petApi.update(updatedPet.id, updatedPet);
+      
+      if (response.success) {
+        showToast("Đã cập nhật thông tin thú cưng!", "success");
+        // TODO: change this to manual edit instead of reloading all
+        // Ask the AI where that is better or not?
+        loadPets(); // Reload the list
+      } else {
+        showToast(response.error || "Không thể cập nhật thú cưng", "error");
+      }
+    } catch (error) {
+      console.error("Error updating pet:", error);
+      showToast("Lỗi khi cập nhật thú cưng", "error");
+    }
   };
 
   const handleOpenEdit = (pet) => {
