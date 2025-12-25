@@ -55,14 +55,16 @@ export default function ManagerServicesPage() {
       }
 
       const response = await serviceApi.getAll();
+      console.log("Service API response:", response);
       
       if (response.success && response.data) {
         const mappedServices = response.data.map(svc => {
-          const categoryData = getCategoryData(svc.categoryID || svc.category);
+          const categoryData = getCategoryData(svc.categoryId);
+          // TODO: should this be mapped or kept the same type as API?
           return {
-            id: svc.serviceID || svc.id,
-            name: svc.name,
-            category: svc.categoryID || svc.category,
+            id: svc.id,
+            name: svc.serviceName,
+            category: svc.categoryName,
             categoryLabel: categoryData.label,
             categoryIcon: categoryData.icon,
             price: parseFloat(svc.basePrice || svc.price || 0),
@@ -92,10 +94,11 @@ export default function ManagerServicesPage() {
 
   const getCategoryData = (categoryValue) => {
     const categories = {
-      health: { label: "Tắm & vệ sinh", icon: "🛁" },
-      grooming: { label: "Cắt tỉa & làm đẹp", icon: "✂️" },
-      medical: { label: "Y tế & khám bệnh", icon: "💊" },
-      boarding: { label: "Lưu trú & chăm sóc", icon: "🏠" },
+      1: { label: "Khám bệnh & Điều trị", icon: "🏥" },
+      2: { label: "Tiêm phòng & Xét nghiệm", icon: "💉" },
+      3: { label: "Spa & Làm đẹp", icon: "✂️" },
+      4: { label: "Khách sạn thú cưng", icon: "🏠" },
+      5: { label: "Phẫu thuật", icon: "⚕️" },
     };
     return categories[categoryValue] || { label: "Khác", icon: "✨" };
   };
@@ -158,10 +161,14 @@ export default function ManagerServicesPage() {
     }
   };
 
+  console.log("Services:", services);
   const filteredServices = services.filter(
-    (service) =>
+    (service) => {
+      console.log("Filtering service:", service);
+      return (
       service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.categoryLabel.toLowerCase().includes(searchTerm.toLowerCase())
+      service.category.toLowerCase().includes(searchTerm.toLowerCase())
+    ); }
   );
 
   const formatCurrency = (amount) => {

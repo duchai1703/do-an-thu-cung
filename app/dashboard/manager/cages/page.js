@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { 
   Home, Plus, Edit, Eye, Trash2, CheckCircle2, 
-  XCircle, AlertTriangle, ClipboardList, BarChart3 
+  XCircle, AlertTriangle, ClipboardList, BarChart3, RefreshCw 
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,67 +13,97 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CageFormModal from "@/components/modals/CageFormModal";
 import CageDetailModal from "@/components/modals/CageDetailModal";
 import { cn } from "@/lib/utils";
+import { cageApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerCagesPage() {
+  const router = useRouter();
   const [cages, setCages] = useState([]);
   const [selectedCage, setSelectedCage] = useState(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingCage, setEditingCage] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadCages();
   }, []);
 
-  const loadCages = () => {
-    setCages([
-      {
-        id: "CAGE001",
-        code: "A01",
-        type: "small",
-        capacity: 1,
-        status: "available",
-        notes: "Gần cửa sổ, nhiều ánh sáng",
-        pets: []
-      },
-      {
-        id: "CAGE002",
-        code: "B02",
-        type: "medium",
-        capacity: 2,
-        status: "occupied",
-        notes: "Khu vực yên tĩnh",
-        pets: [
-          {
-            name: "Lucky",
-            icon: "🐕",
-            breed: "Golden Retriever",
-            ownerName: "Nguyễn Văn A",
-            checkInDate: "2025-11-10",
-            checkOutDate: "2025-11-20"
-          }
-        ]
-      },
-      {
-        id: "CAGE003",
-        code: "C03",
-        type: "large",
-        capacity: 3,
-        status: "maintenance",
-        notes: "Đang sửa chữa hệ thống điều hòa",
-        pets: []
-      },
-      {
-        id: "CAGE004",
-        code: "A02",
-        type: "small",
-        capacity: 1,
-        status: "available",
-        notes: "",
-        pets: []
+  const loadCages = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      // Load cages and active assignments in parallel
+      const [cagesResponse, assignmentsResponse] = await Promise.all([
+        cageApi.getAll(),
+        cageApi.getActiveAssignments()
+      ]);
+
+      if (cagesResponse.success && cagesResponse.data) {
+        const mappedCages = cagesResponse.data.map(cage => {
+          // Map cage size from backend format
+          const sizeMap = {
+            'SMALL': 'small',
+            'MEDIUM': 'medium',
+            'LARGE': 'large',
+            'EXTRA_LARGE': 'large'
+          };
+
+          // Map cage status from backend format
+          const statusMap = {
+            'AVAILABLE': 'available',
+            'OCCUPIED': 'occupied',
+            'MAINTENANCE': 'maintenance'
+          };
+
+          // Find active assignments for this cage
+          const assignments = assignmentsResponse.success && assignmentsResponse.data
+            ? assignmentsResponse.data.filter(a => a.cageId === cage.cageId && !a.checkOutDate)
+            : [];
+
+          // Map assignments to pets
+          const pets = assignments.map(assignment => {
+            const pet = assignment.pet;
+            return {
+              name: pet?.name || 'N/A',
+              icon: pet?.species === 'Dog' ? '🐕' : pet?.species === 'Cat' ? '🐈' : '🐾',
+              breed: pet?.breed || 'N/A',
+              ownerName: pet?.petOwner?.fullName || 'N/A',
+              checkInDate: assignment.checkInDate || '',
+              checkOutDate: assignment.expectedCheckOutDate || ''
+            };
+          });
+
+          return {
+            id: cage.cageId,
+            code: cage.cageNumber || `CAGE${cage.cageId}`,
+            type: sizeMap[cage.size] || 'small',
+            capacity: 1,
+            status: statusMap[cage.status] || 'available',
+            notes: cage.location || '',
+            dailyRate: cage.dailyRate || 0,
+            pets: pets
+          };
+        });
+        
+        setCages(mappedCages);
+      } else {
+        console.error("Failed to load cages:", cagesResponse.error);
+        showToast("Không thể tải danh sách chuồng", "error");
+      }
+    } catch (error) {
+      console.error("Error loading cages:", error);
+      showToast("Lỗi khi tải danh sách chuồng", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const showToast = (message, type = "success") => {
@@ -81,30 +111,74 @@ export default function ManagerCagesPage() {
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
-  const handleAddCage = (cageData) => {
-    if (cages.some(c => c.code === cageData.code)) {
-      showToast("Mã chuồng đã tồn tại", "error");
-      return;
+  const handleAddCage = async (cageData) => {
+    try {
+      const sizeMap = {
+        'small': 'SMALL',
+        'medium': 'MEDIUM',
+        'large': 'LARGE'
+      };
+
+      const payload = {
+        cageNumber: cageData.code,
+        size: sizeMap[cageData.type] || 'SMALL',
+        dailyRate: cageData.dailyRate || 0,
+        location: cageData.notes || '',
+        status: 'AVAILABLE'
+      };
+
+      const response = await cageApi.create(payload);
+      
+      if (response.success) {
+        showToast("Đã thêm chuồng thành công!", "success");
+        loadCages();
+      } else {
+        showToast(response.error || "Không thể thêm chuồng", "error");
+      }
+    } catch (error) {
+      console.error("Error adding cage:", error);
+      showToast("Lỗi khi thêm chuồng", "error");
     }
-
-    const newCage = {
-      id: `CAGE${String(cages.length + 1).padStart(3, '0')}`,
-      ...cageData,
-      pets: []
-    };
-    setCages([...cages, newCage]);
-    showToast("Đã thêm chuồng thành công!", "success");
   };
 
-  const handleUpdateCage = (cageData) => {
-    setCages(cages.map(cage =>
-      cage.id === editingCage.id ? { ...cage, ...cageData } : cage
-    ));
-    showToast("Cập nhật chuồng thành công!", "success");
-    setEditingCage(null);
+  const handleUpdateCage = async (cageData) => {
+    try {
+      const sizeMap = {
+        'small': 'SMALL',
+        'medium': 'MEDIUM',
+        'large': 'LARGE'
+      };
+
+      const statusMap = {
+        'available': 'AVAILABLE',
+        'occupied': 'OCCUPIED',
+        'maintenance': 'MAINTENANCE'
+      };
+
+      const payload = {
+        cageNumber: cageData.code,
+        size: sizeMap[cageData.type] || 'SMALL',
+        dailyRate: cageData.dailyRate || 0,
+        location: cageData.notes || '',
+        status: statusMap[cageData.status] || 'AVAILABLE'
+      };
+
+      const response = await cageApi.update(editingCage.id, payload);
+      
+      if (response.success) {
+        showToast("Cập nhật chuồng thành công!", "success");
+        loadCages();
+        setEditingCage(null);
+      } else {
+        showToast(response.error || "Không thể cập nhật chuồng", "error");
+      }
+    } catch (error) {
+      console.error("Error updating cage:", error);
+      showToast("Lỗi khi cập nhật chuồng", "error");
+    }
   };
 
-  const handleDeleteCage = (cageId) => {
+  const handleDeleteCage = async (cageId) => {
     const cage = cages.find(c => c.id === cageId);
     if (cage.status === 'occupied') {
       showToast("Không thể xóa chuồng đang có thú cưng", "error");
@@ -112,8 +186,19 @@ export default function ManagerCagesPage() {
     }
 
     if (confirm(`Xác nhận xóa chuồng ${cage.code}?`)) {
-      setCages(cages.filter(c => c.id !== cageId));
-      showToast("Đã xóa chuồng", "success");
+      try {
+        const response = await cageApi.remove(cageId);
+        
+        if (response.success) {
+          showToast("Đã xóa chuồng", "success");
+          loadCages();
+        } else {
+          showToast(response.error || "Không thể xóa chuồng", "error");
+        }
+      } catch (error) {
+        console.error("Error deleting cage:", error);
+        showToast("Lỗi khi xóa chuồng", "error");
+      }
     }
   };
 
@@ -227,7 +312,16 @@ export default function ManagerCagesPage() {
           </Badge>
         </div>
 
-        {cages.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
+              <p className="text-muted-foreground font-medium">
+                Đang tải dữ liệu...
+              </p>
+            </CardContent>
+          </Card>
+        ) : cages.length > 0 ? (
           <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>

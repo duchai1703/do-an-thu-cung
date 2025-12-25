@@ -13,76 +13,109 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import UpdateAppointmentModal from "@/components/modals/UpdateAppointmentModal";
 import { cn } from "@/lib/utils";
+import { appointmentApi, employeeApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerAppointmentsPage() {
+  const router = useRouter();
   const [appointments, setAppointments] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    setStaffList([
-      { id: "EMP001", name: "Nguyễn Văn A", role: "veterinarian" },
-      { id: "EMP002", name: "Trần Thị B", role: "care_staff" },
-      { id: "EMP003", name: "Lê Văn C", role: "care_staff" }
-    ]);
-
-    setAppointments([
-      {
-        id: "APT001",
-        code: "APT001",
-        customerName: "Nguyễn Văn A",
-        customerPhone: "0901234567",
-        petName: "Lucky",
-        petIcon: "🐕",
-        serviceName: "Khám sức khỏe",
-        serviceIcon: "🏥",
-        serviceCategory: "medical",
-        date: "2025-11-15",
-        time: "10:00",
-        status: "pending",
-        assignedStaffName: "",
-        notes: ""
-      },
-      {
-        id: "APT002",
-        code: "APT002",
-        customerName: "Trần Thị B",
-        customerPhone: "0909876543",
-        petName: "Miu",
-        petIcon: "🐈",
-        serviceName: "Tắm spa",
-        serviceIcon: "🛁",
-        serviceCategory: "care",
-        date: "2025-11-16",
-        time: "14:00",
-        status: "confirmed",
-        assignedStaffName: "Trần Thị B",
-        notes: ""
-      },
-      {
-        id: "APT003",
-        code: "APT003",
-        customerName: "Lê Văn C",
-        customerPhone: "0912345678",
-        petName: "Coco",
-        petIcon: "🐩",
-        serviceName: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        serviceCategory: "care",
-        date: "2025-11-17",
-        time: "09:00",
-        status: "in_progress",
-        assignedStaffName: "Lê Văn C",
-        notes: ""
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      // TODO: Remove Customer Column
+      // Load staff and appointments in parallel
+      const [staffResponse, appointmentsResponse] = await Promise.all([
+        employeeApi.getAll(),
+        appointmentApi.getAll()
+      ]);
+
+      // Process staff data
+      if (staffResponse.success && staffResponse.data) {
+        const mappedStaff = staffResponse.data.map(emp => ({
+          id: emp.employeeID || emp.id,
+          name: emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          role: emp.userType || emp.role
+        }));
+        setStaffList(mappedStaff);
+      } else {
+        console.error("Failed to load staff:", staffResponse.error);
+      }
+
+      // Process appointments data
+      if (appointmentsResponse.success && appointmentsResponse.data) {
+        const mappedAppointments = appointmentsResponse.data.map(apt => {
+          // Map status from backend format to frontend format
+          const statusMap = {
+            'PENDING': 'pending',
+            'CONFIRMED': 'confirmed',
+            'IN_PROGRESS': 'in_progress',
+            'COMPLETED': 'completed',
+            'CANCELLED': 'cancelled'
+          };
+
+          // Get pet icon based on species
+          const petIcon = apt.pet?.species === 'DOG' ? '🐕' : 
+                         apt.pet?.species === 'CAT' ? '🐈' : '🐾';
+
+          // Get service category and icon
+          const categoryMap = {
+            'health': { category: 'medical', icon: '🛁' },
+            'grooming': { category: 'care', icon: '✂️' },
+            'medical': { category: 'medical', icon: '🏥' },
+            'boarding': { category: 'care', icon: '🏠' }
+          };
+          
+          const serviceCat = apt.service?.categoryName?.toLowerCase() || 'medical';
+          const categoryData = categoryMap[serviceCat] || { category: 'medical', icon: '✨' };
+
+          console.log(apt);
+          return {
+            id: apt.appointmentId || apt.id,
+            code: `APT${String(apt.appointmentId || apt.id).padStart(3, '0')}`,
+            customerName: apt.petOwner?.name || apt.pet?.petOwner?.name || 'N/A',
+            customerPhone: apt.petOwner?.phoneNumber || apt.pet?.petOwner?.phoneNumber || 'N/A',
+            petName: apt.pet?.name || 'N/A',
+            petIcon: petIcon,
+            serviceName: apt.service?.serviceName || apt.service?.name || 'N/A',
+            serviceIcon: categoryData.icon,
+            serviceCategory: categoryData.category,
+            date: apt.appointmentDate || new Date().toISOString().split('T')[0],
+            time: apt.startTime || '09:00',
+            status: statusMap[apt.status] || 'pending',
+            assignedStaffId: apt.employeeID || apt.employee?.employeeID,
+            assignedStaffName: apt.employee?.name || '',
+            notes: apt.notes || ''
+          };
+        });
+        setAppointments(mappedAppointments);
+      } else {
+        console.error("Failed to load appointments:", appointmentsResponse.error);
+        showToast("Không thể tải danh sách lịch hẹn", "error");
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      showToast("Lỗi khi tải dữ liệu", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const showToast = (message, type = "success") => {
@@ -90,21 +123,35 @@ export default function ManagerAppointmentsPage() {
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
-  const handleUpdateAppointment = (data) => {
-    setAppointments(appointments.map(apt => {
-      if (apt.id === data.appointmentId) {
-        const staff = staffList.find(s => s.id === data.assignedStaffId);
-        return {
-          ...apt,
-          status: data.status,
-          assignedStaffId: data.assignedStaffId,
-          assignedStaffName: staff ? staff.name : "",
-          notes: data.notes
-        };
+  const handleUpdateAppointment = async (data) => {
+    try {
+      // Map frontend status to backend status
+      const statusMap = {
+        'pending': 'PENDING',
+        'confirmed': 'CONFIRMED',
+        'in_progress': 'IN_PROGRESS',
+        'completed': 'COMPLETED',
+        'cancelled': 'CANCELLED'
+      };
+
+      const updateData = {
+        status: statusMap[data.status] || data.status,
+        employeeID: data.assignedStaffId,
+        notes: data.notes
+      };
+
+      const response = await appointmentApi.update(data.appointmentId, updateData);
+
+      if (response.success) {
+        showToast("Cập nhật lịch hẹn thành công!", "success");
+        loadData(); // Reload to get fresh data
+      } else {
+        showToast(response.error || "Không thể cập nhật lịch hẹn", "error");
       }
-      return apt;
-    }));
-    showToast("Cập nhật lịch hẹn thành công!", "success");
+    } catch (error) {
+      console.error("Error updating appointment:", error);
+      showToast("Lỗi khi cập nhật lịch hẹn", "error");
+    }
   };
 
   const handleOpenUpdate = (appointment) => {
@@ -216,13 +263,22 @@ export default function ManagerAppointmentsPage() {
           </Badge>
         </div>
 
-        {filteredAppointments.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
+              <p className="text-muted-foreground font-medium">
+                Đang tải dữ liệu...
+              </p>
+            </CardContent>
+          </Card>
+        ) : filteredAppointments.length > 0 ? (
           <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[100px]">Mã lịch</TableHead>
-                  <TableHead className="min-w-[150px]">Khách hàng</TableHead>
+                  {/* <TableHead className="min-w-[150px]">Khách hàng</TableHead> */}
                   <TableHead className="min-w-[120px]">Thú cưng</TableHead>
                   <TableHead className="min-w-[150px]">Dịch vụ</TableHead>
                   <TableHead className="min-w-[120px]">Ngày & Giờ</TableHead>
@@ -242,12 +298,12 @@ export default function ManagerAppointmentsPage() {
                           {apt.code}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         <div>
                           <p className="font-semibold text-foreground">{apt.customerName}</p>
                           <p className="text-xs text-muted-foreground">{apt.customerPhone}</p>
                         </div>
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="text-xl">{apt.petIcon}</span>

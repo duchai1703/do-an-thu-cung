@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { 
   Receipt, Search, Eye, FileDown, CheckCircle2, 
-  Hourglass, ClipboardList, DollarSign 
+  Hourglass, ClipboardList, DollarSign, RefreshCw 
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,82 +13,107 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
 import { cn } from "@/lib/utils";
+import { invoiceApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerInvoicesPage() {
+  const router = useRouter();
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setInvoices([
-      {
-        id: "INV-2025-001",
-        customerName: "Nguyễn Văn A",
-        customerPhone: "0901234567",
-        customerEmail: "nguyenvana@gmail.com",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petBreed: "Golden Retriever",
-        petAge: 3,
-        date: "2025-01-15T10:30:00",
-        services: [
-          { icon: "🏥", name: "Khám sức khỏe tổng quát", quantity: 1, price: 200000 },
-          { icon: "💉", name: "Tiêm phòng dại", quantity: 1, price: 120000 }
-        ],
-        subtotal: 320000,
-        discount: 0,
-        total: 320000,
-        isPaid: true,
-        paymentMethod: "Tiền mặt",
-        paymentDate: "2025-01-15T11:00:00",
-        notes: ""
-      },
-      {
-        id: "INV-2025-002",
-        customerName: "Trần Thị B",
-        customerPhone: "0909876543",
-        customerEmail: "tranthib@gmail.com",
-        petName: "Miu",
-        petIcon: "🐈",
-        petBreed: "Mèo Anh lông ngắn",
-        petAge: 2,
-        date: "2025-01-16T14:00:00",
-        services: [
-          { icon: "🛁", name: "Tắm spa cao cấp", quantity: 1, price: 150000 },
-          { icon: "✂️", name: "Cắt tỉa lông", quantity: 1, price: 180000 }
-        ],
-        subtotal: 330000,
-        discount: 30000,
-        total: 300000,
-        isPaid: false,
-        paymentMethod: null,
-        paymentDate: null,
-        notes: "Khách yêu cầu gọi trước khi đến"
-      },
-      {
-        id: "INV-2025-003",
-        customerName: "Lê Văn C",
-        customerPhone: "0912345678",
-        customerEmail: "levanc@gmail.com",
-        petName: "Coco",
-        petIcon: "🐩",
-        petBreed: "Poodle",
-        petAge: 1,
-        date: "2025-01-17T09:00:00",
-        services: [
-          { icon: "🏠", name: "Lưu trú theo ngày", quantity: 3, price: 100000 }
-        ],
-        subtotal: 300000,
-        discount: 0,
-        total: 300000,
-        isPaid: true,
-        paymentMethod: "Chuyển khoản",
-        paymentDate: "2025-01-17T09:30:00",
-        notes: ""
-      }
-    ]);
+    loadInvoices();
   }, []);
+
+  const loadInvoices = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await invoiceApi.getAll();
+
+      // TODO: This is very wrong
+      if (response.success && response.data) {
+        const mappedInvoices = response.data.map(inv => {
+          // Get pet icon based on species
+          const petIcon = inv.appointment?.pet?.species === 'Dog' ? '🐕' : 
+                         inv.appointment?.pet?.species === 'Cat' ? '🐈' : '🐾';
+
+          // Map services from invoice items or appointment
+          const services = inv.invoiceItems?.map(item => ({
+            icon: getServiceIcon(item.serviceName),
+            name: item.serviceName || item.description,
+            quantity: item.quantity || 1,
+            price: parseFloat(item.unitPrice || 0)
+          })) || [];
+
+          return {
+            id: inv.invoiceNumber || `INV-${inv.invoiceID}`,
+            customerName: inv.appointment?.petOwner?.fullName || inv.petOwner?.fullName || 'N/A',
+            customerPhone: inv.appointment?.petOwner?.phoneNumber || inv.petOwner?.phoneNumber || 'N/A',
+            customerEmail: inv.appointment?.petOwner?.account?.email || 'N/A',
+            petName: inv.appointment?.pet?.name || 'N/A',
+            petIcon: petIcon,
+            petBreed: inv.appointment?.pet?.breed || 'N/A',
+            petAge: calculateAge(inv.appointment?.pet?.birthDate),
+            date: inv.invoiceDate || inv.createdAt,
+            services: services,
+            subtotal: parseFloat(inv.subtotal || 0),
+            discount: parseFloat(inv.discountAmount || 0),
+            total: parseFloat(inv.totalAmount || 0),
+            isPaid: inv.isPaid || false,
+            paymentMethod: inv.payment?.paymentMethod || null,
+            paymentDate: inv.payment?.paymentDate || null,
+            notes: inv.notes || '',
+            rawData: inv
+          };
+        });
+        
+        setInvoices(mappedInvoices);
+      } else {
+        console.error("Failed to load invoices:", response.error);
+        showToast("Không thể tải danh sách hóa đơn", "error");
+      }
+    } catch (error) {
+      console.error("Error loading invoices:", error);
+      showToast("Lỗi khi tải danh sách hóa đơn", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getServiceIcon = (serviceName) => {
+    if (!serviceName) return '✨';
+    const name = serviceName.toLowerCase();
+    if (name.includes('khám') || name.includes('điều trị')) return '🏥';
+    if (name.includes('tiêm') || name.includes('vaccine')) return '💉';
+    if (name.includes('tắm') || name.includes('spa')) return '🛁';
+    if (name.includes('cắt') || name.includes('tỉa')) return '✂️';
+    if (name.includes('lưu trú') || name.includes('khách sạn')) return '🏠';
+    return '✨';
+  };
+
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 0;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Removed mock data - now using API
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -120,8 +145,31 @@ export default function ManagerInvoicesPage() {
     setSelectedInvoice(invoice);
   };
 
-  const handleExportPDF = (invoice) => {
-    showToast(`Đang xuất hóa đơn ${invoice.id} ra PDF...`, "info");
+  const handleExportPDF = async (invoice) => {
+    try {
+      const invoiceId = invoice.rawData?.invoiceID || invoice.id;
+      const response = await invoiceApi.generatePdf(invoiceId);
+      
+      if (response.success && response.data) {
+        // Create blob and download
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${invoice.id}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        showToast(`Đã xuất hóa đơn ${invoice.id} thành công`, "success");
+      } else {
+        showToast(response.error || "Không thể xuất PDF", "error");
+      }
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      showToast("Lỗi khi xuất PDF", "error");
+    }
   };
 
   const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + (inv.isPaid ? inv.total : 0), 0);
@@ -197,7 +245,16 @@ export default function ManagerInvoicesPage() {
           </Badge>
         </div>
 
-        {filteredInvoices.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
+              <p className="text-muted-foreground font-medium">
+                Đang tải dữ liệu...
+              </p>
+            </CardContent>
+          </Card>
+        ) : filteredInvoices.length > 0 ? (
           <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>

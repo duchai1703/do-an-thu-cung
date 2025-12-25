@@ -229,7 +229,7 @@ export interface UpdateAppointmentDto {
 }
 
 export interface AppointmentResponse {
-  id: number;
+  appointmentId: number;
   petId: number;
   employeeId: number;
   serviceId: number;
