@@ -9,73 +9,47 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { careStaffApi } from "@/lib/api/care-staff";
 
 export default function CareStaffSchedulePage() {
-  const [selectedDate, setSelectedDate] = useState("2025-10-27");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [schedule, setSchedule] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Get current employee ID from localStorage or session
+  const getEmployeeId = () => {
+    if (typeof window !== 'undefined') {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return user.employeeId || user.id || 1; // Default to 1 for testing
+    }
+    return 1;
+  };
 
   useEffect(() => {
     loadSchedule();
   }, [selectedDate]);
 
-  const loadSchedule = () => {
-    // Mock data
-    setSchedule([
-      {
-        id: "SCH001",
-        time: "09:00",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petType: "Chó Golden Retriever",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        service: "Tắm & Spa",
-        serviceIcon: "🛁",
-        status: "completed",
-        notes: "Đã hoàn thành tốt"
-      },
-      {
-        id: "SCH002",
-        time: "10:30",
-        petName: "Miu",
-        petIcon: "🐈",
-        petType: "Mèo Ba Tư",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        service: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        status: "in_progress",
-        notes: ""
-      },
-      {
-        id: "SCH003",
-        time: "14:00",
-        petName: "Coco",
-        petIcon: "🐩",
-        petType: "Chó Poodle",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        service: "Vệ sinh tai",
-        serviceIcon: "🧼",
-        status: "pending",
-        notes: ""
-      },
-      {
-        id: "SCH004",
-        time: "15:30",
-        petName: "Max",
-        petIcon: "🐕",
-        petType: "Chó Husky",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        service: "Chải lông",
-        serviceIcon: "🪮",
-        status: "pending",
-        notes: ""
+  const loadSchedule = async () => {
+    setLoading(true);
+    const employeeId = getEmployeeId();
+
+    try {
+      const result = await careStaffApi.getSchedule(employeeId, {
+        date: selectedDate,
+      });
+
+      if (result.success) {
+        setSchedule(result.data);
+      } else {
+        console.error('Error loading schedule:', result.error);
       }
-    ]);
+    } catch (error) {
+      console.error('Error loading schedule:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredSchedule = schedule.filter(item => {

@@ -1,6 +1,7 @@
 // app/(dashboard)/vet/schedule/page.js
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
 import VetRecordModal from "@/components/modals/VetRecordModal";
@@ -12,147 +13,90 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { appointmentApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function VeterinarianSchedulePage() {
-  const [selectedDate, setSelectedDate] = useState("2025-10-27");
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointments, setAppointments] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadAppointments();
   }, [selectedDate]);
 
-  const loadAppointments = () => {
-    // Mock data - NGÀY 2025-10-27
-    setAppointments([
-      {
-        id: "APT001",
-        code: "APT001",
-        time: "09:00",
-        petId: "PET001",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petType: "Chó Golden Retriever",
-        petAge: "2 tuổi",
-        petWeight: "28 kg",
-        ownerId: "CUS001",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        serviceId: "SRV001",
-        serviceName: "Khám sức khỏe tổng quát",
-        serviceIcon: "🏥",
-        status: "completed",
-        symptoms: "Ăn uống kém, uể oải",
-        notes: "Đã khỏe, tiếp tục theo dõi",
-        previousRecords: [
-          {
-            date: "2025-09-15",
-            diagnosis: "Cảm lạnh nhẹ",
-            treatment: "Đã kê đơn thuốc kháng sinh"
-          }
-        ]
-      },
-      {
-        id: "APT002",
-        code: "APT002",
-        time: "10:30",
-        petId: "PET002",
-        petName: "Miu",
-        petIcon: "🐈",
-        petType: "Mèo Ba Tư",
-        petAge: "1 tuổi",
-        petWeight: "4 kg",
-        ownerId: "CUS002",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        serviceId: "SRV002",
-        serviceName: "Tiêm phòng dại",
-        serviceIcon: "💉",
-        status: "completed",
-        symptoms: "Tiêm phòng định kỳ",
-        notes: "Đã tiêm thành công",
-        previousRecords: []
-      },
-      {
-        id: "APT003",
-        code: "APT003",
-        time: "14:00",
-        petId: "PET003",
-        petName: "Coco",
-        petIcon: "🐩",
-        petType: "Chó Poodle",
-        petAge: "3 tuổi",
-        petWeight: "6 kg",
-        ownerId: "CUS003",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        serviceId: "SRV003",
-        serviceName: "Tái khám",
-        serviceIcon: "🔄",
-        status: "in_progress",
-        symptoms: "Kiểm tra sau điều trị",
-        notes: "",
-        previousRecords: [
-          {
-            date: "2025-10-20",
-            diagnosis: "Viêm da",
-            treatment: "Đã điều trị thành công"
-          }
-        ]
-      },
-      {
-        id: "APT004",
-        code: "APT004",
-        time: "15:30",
-        petId: "PET004",
-        petName: "Max",
-        petIcon: "🐕",
-        petType: "Chó Husky",
-        petAge: "4 tuổi",
-        petWeight: "32 kg",
-        ownerId: "CUS004",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        serviceId: "SRV004",
-        serviceName: "Khám da liễu",
-        serviceIcon: "🩺",
-        status: "waiting",
-        symptoms: "Ngứa ngáy, rụng lông",
-        notes: "",
-        previousRecords: []
-      },
-      {
-        id: "APT005",
-        code: "APT005",
-        time: "16:30",
-        petId: "PET005",
-        petName: "Bella",
-        petIcon: "🐈",
-        petType: "Mèo Anh lông ngắn",
-        petAge: "2 tuổi",
-        petWeight: "5 kg",
-        ownerId: "CUS005",
-        ownerName: "Hoàng Thị E",
-        ownerPhone: "0934567890",
-        serviceId: "SRV005",
-        serviceName: "Xét nghiệm máu",
-        serviceIcon: "💉",
-        status: "waiting",
-        symptoms: "Kiểm tra sức khỏe định kỳ",
-        notes: "",
-        previousRecords: []
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      // Fetch appointments for selected date
+      const response = await appointmentApi.getAll({ date: selectedDate });
+      
+      if (response.success && response.data) {
+        const mappedAppointments = response.data.map(apt => ({
+          id: apt.appointmentId || apt.id,
+          code: `APT${String(apt.appointmentId || apt.id).padStart(3, '0')}`,
+          time: apt.startTime || '',
+          petId: apt.pet?.petId || apt.pet?.id,
+          petName: apt.pet?.name || 'Unknown',
+          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
+          petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
+          petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
+          ownerId: apt.petOwner?.petOwnerId || apt.petOwner?.id,
+          ownerName: apt.petOwner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: apt.petOwner?.phoneNumber || 'N/A',
+          serviceId: apt.service?.serviceId || apt.service?.id,
+          serviceName: apt.service?.name || 'Unknown Service',
+          serviceIcon: getServiceIcon(apt.service?.name),
+          status: mapStatus(apt.status),
+          symptoms: apt.notes || 'N/A',
+          notes: apt.notes || '',
+          previousRecords: []
+        }));
+        
+        setAppointments(mappedAppointments);
+      }
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  const calculateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      return `${age - 1} tuổi`;
+    }
+    return `${age} tuổi`;
+  };
+
+  const mapStatus = (backendStatus) => {
+    const statusMap = {
+      'PENDING': 'waiting',
+      'CONFIRMED': 'waiting',
+      'IN_PROGRESS': 'in_progress',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled'
+    };
+    return statusMap[backendStatus] || 'waiting';
   };
 
   const handleStartExam = (appointmentId) => {
@@ -431,13 +375,6 @@ export default function VeterinarianSchedulePage() {
           onSuccess={handleRecordSuccess}
           appointment={selectedAppointment}
         />
-      )}
-
-      {/* Toast */}
-      {toast.show && (
-        <div className={cn("fixed bottom-4 right-4 p-3 rounded-md shadow-lg text-white", toast.type === "success" ? "bg-green-500" : "bg-red-500")}>
-          {toast.message}
-        </div>
       )}
     </div>
   );

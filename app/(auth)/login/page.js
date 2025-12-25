@@ -5,7 +5,7 @@ import Link from "next/link";
 import { validateLogin } from "@/lib/utils/validation";
 import { AccountController } from "@/lib/controllers/AccountController";
 import { getMockAccounts } from "@/lib/api/auth";
-import { RoleLabels } from "@/lib/utils/constants";
+import { RoleDashboards, RoleLabels } from "@/lib/utils/constants";
 import { Mail, LockKeyhole, PawPrint, ChevronDown, ChevronUp, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,11 +44,12 @@ export default function LoginPage() {
     const response = await AccountController.handleLogin(form);
     setLoading(false);
 
+    console.log("🚀 Login response:", response) ;
     if (response.success) {
       setMessage({ type: "success", text: response.message });
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 1000);
+      const correctPath = RoleDashboards[response.data.account.role];
+      console.log("➡️ Redirecting to:", correctPath);
+      router.push(correctPath);
     } else {
       setMessage({ type: "error", text: response.message });
     }

@@ -1,6 +1,7 @@
 // app/(dashboard)/veterinarian/patients/page.js
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetPatientDetailModal from "@/components/modals/VetPatientDetailModal";
 import { PawPrint, Cat, Search, Eye, Calendar, Cake, ClipboardList, User } from "lucide-react";
@@ -11,142 +12,106 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
 
 export default function VeterinarianPatientsPage() {
+  const router = useRouter();
   const [patients, setPatients] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadPatients();
   }, []);
 
-  const loadPatients = () => {
-    // Mock data - thú cưng do bác sĩ duchai1703 đã khám
-    setPatients([
-      {
-        id: "PET001",
-        code: "PET001",
-        name: "Lucky",
-        icon: "🐕",
-        type: "dog",
-        breed: "Golden Retriever",
-        age: "2 tuổi",
-        gender: "Đực",
-        weight: "28 kg",
-        color: "Vàng",
-        dateOfBirth: "2023-03-15",
-        ownerId: "CUS001",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        lastVisit: "2025-10-27",
-        totalVisits: 3,
-        medicalHistory: [
-          {
-            date: "2025-10-27",
-            diagnosis: "Viêm dạ dày cấp",
-            treatment: "Tiêm thuốc giảm đau, truyền dịch"
-          },
-          {
-            date: "2025-09-15",
-            diagnosis: "Cảm lạnh nhẹ",
-            treatment: "Kê đơn thuốc kháng sinh"
-          },
-          {
-            date: "2025-08-10",
-            diagnosis: "Tiêm phòng định kỳ",
-            treatment: "Tiêm vaccine 7 bệnh"
-          }
-        ]
-      },
-      {
-        id: "PET002",
-        code: "PET002",
-        name: "Miu",
-        icon: "🐈",
-        type: "cat",
-        breed: "Mèo Ba Tư",
-        age: "1 tuổi",
-        gender: "Cái",
-        weight: "4 kg",
-        color: "Trắng",
-        dateOfBirth: "2024-01-20",
-        ownerId: "CUS002",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        lastVisit: "2025-10-27",
-        totalVisits: 2,
-        medicalHistory: [
-          {
-            date: "2025-10-27",
-            diagnosis: "Tiêm phòng dại",
-            treatment: "Tiêm vaccine dại"
-          },
-          {
-            date: "2025-05-10",
-            diagnosis: "Khám sức khỏe",
-            treatment: "Khỏe mạnh"
-          }
-        ]
-      },
-      {
-        id: "PET003",
-        code: "PET003",
-        name: "Coco",
-        icon: "🐩",
-        type: "dog",
-        breed: "Poodle",
-        age: "3 tuổi",
-        gender: "Cái",
-        weight: "6 kg",
-        color: "Nâu",
-        dateOfBirth: "2022-07-10",
-        ownerId: "CUS003",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        lastVisit: "2025-10-25",
-        totalVisits: 5,
-        medicalHistory: [
-          {
-            date: "2025-10-25",
-            diagnosis: "Viêm da do nấm",
-            treatment: "Bôi thuốc, tắm thuốc"
-          },
-          {
-            date: "2025-10-10",
-            diagnosis: "Tái khám viêm da",
-            treatment: "Đã khỏi 80%"
-          }
-        ]
-      },
-      {
-        id: "PET004",
-        code: "PET004",
-        name: "Max",
-        icon: "🐕",
-        type: "dog",
-        breed: "Husky",
-        age: "4 tuổi",
-        gender: "Đực",
-        weight: "32 kg",
-        color: "Xám trắng",
-        dateOfBirth: "2021-05-20",
-        ownerId: "CUS004",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        lastVisit: "2025-10-20",
-        totalVisits: 4,
-        medicalHistory: [
-          {
-            date: "2025-10-20",
-            diagnosis: "Khám răng miệng",
-            treatment: "Lấy cao răng"
-          }
-        ]
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      // Fetch all appointments to get unique pets
+      const appointmentsRes = await appointmentApi.getAll();
+      
+      if (appointmentsRes.success && appointmentsRes.data) {
+        // Get unique pets from appointments
+        const petMap = new Map();
+        
+        appointmentsRes.data.forEach(apt => {
+          if (apt.pet) {
+            const petId = apt.pet.petId || apt.pet.id;
+            if (!petMap.has(petId)) {
+              petMap.set(petId, {
+                pet: apt.pet,
+                owner: apt.petOwner,
+                appointments: []
+              });
+            }
+            petMap.get(petId).appointments.push(apt);
+          }
+        });
+
+        // Fetch medical records for each pet
+        const patientsData = [];
+        for (const [petId, data] of petMap.entries()) {
+          const recordsRes = await medicalRecordApi.getByPet(petId);
+          const medicalHistory = recordsRes.success && recordsRes.data ? 
+            recordsRes.data.map(record => ({
+              date: record.recordDate || record.createdAt,
+              diagnosis: record.diagnosis || 'N/A',
+              treatment: record.treatment || 'N/A'
+            })) : [];
+
+          const sortedAppointments = data.appointments.sort((a, b) => 
+            new Date(b.appointmentDate) - new Date(a.appointmentDate)
+          );
+
+          patientsData.push({
+            id: petId,
+            code: `PET${String(petId).padStart(3, '0')}`,
+            name: data.pet.name || 'Unknown',
+            icon: data.pet.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+            type: data.pet.species?.toLowerCase() || 'unknown',
+            breed: data.pet.breed || 'Mixed',
+            age: data.pet.birthDate ? calculateAge(data.pet.birthDate) : 'N/A',
+            gender: data.pet.gender || 'N/A',
+            weight: data.pet.weight ? `${data.pet.weight} kg` : 'N/A',
+            color: data.pet.color || 'N/A',
+            dateOfBirth: data.pet.birthDate || 'N/A',
+            ownerId: data.owner?.petOwnerID || data.owner?.id,
+            ownerName: data.owner?.account?.email?.split('@')[0] || 'Unknown',
+            ownerPhone: data.owner?.phoneNumber || 'N/A',
+            lastVisit: sortedAppointments[0]?.appointmentDate || 'N/A',
+            totalVisits: data.appointments.length,
+            medicalHistory
+          });
+        }
+
+        setPatients(patientsData);
+      }
+    } catch (error) {
+      console.error('Error loading patients:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      return `${age - 1} tuổi`;
+    }
+    return `${age} tuổi`;
   };
 
   const handleViewDetail = (patient) => {

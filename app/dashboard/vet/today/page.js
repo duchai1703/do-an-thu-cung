@@ -9,137 +9,96 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
 
 export default function VetTodayPage() {
   const router = useRouter();
   const [todayTasks, setTodayTasks] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadTodayTasks();
   }, []);
 
-  const loadTodayTasks = () => {
-    // Mock data - Công việc hôm nay 2025-10-27
-    setTodayTasks([
-      {
-        id: "TASK001",
-        time: "09:00",
-        type: "appointment",
-        title: "Khám sức khỏe cho Lucky",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petType: "Chó Golden Retriever",
-        petAge: "2 tuổi",
-        petWeight: "28 kg",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        serviceName: "Khám sức khỏe tổng quát",
-        serviceIcon: "🏥",
-        status: "completed",
-        priority: "high",
-        symptoms: "Ăn uống kém, uể oải",
-        previousRecords: [
-          {
-            date: "2025-09-15",
-            diagnosis: "Cảm lạnh nhẹ",
-            treatment: "Đã kê đơn thuốc kháng sinh"
-          }
-        ]
-      },
-      {
-        id: "TASK002",
-        time: "10:30",
-        type: "appointment",
-        title: "Tiêm phòng dại cho Miu",
-        petName: "Miu",
-        petIcon: "🐈",
-        petType: "Mèo Ba Tư",
-        petAge: "1 tuổi",
-        petWeight: "4 kg",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        serviceName: "Tiêm phòng dại",
-        serviceIcon: "💉",
-        status: "completed",
-        priority: "normal",
-        symptoms: "Tiêm phòng định kỳ",
-        previousRecords: []
-      },
-      {
-        id: "TASK003",
-        time: "14:00",
-        type: "appointment",
-        title: "Tái khám cho Coco",
-        petName: "Coco",
-        petIcon: "🐩",
-        petType: "Chó Poodle",
-        petAge: "3 tuổi",
-        petWeight: "6 kg",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        serviceName: "Tái khám",
-        serviceIcon: "🔄",
-        status: "in_progress",
-        priority: "normal",
-        symptoms: "Kiểm tra sau điều trị",
-        previousRecords: [
-          {
-            date: "2025-10-20",
-            diagnosis: "Viêm da",
-            treatment: "Đã điều trị thành công"
-          }
-        ]
-      },
-      {
-        id: "TASK004",
-        time: "15:30",
-        type: "appointment",
-        title: "Khám da liễu cho Max",
-        petName: "Max",
-        petIcon: "🐕",
-        petType: "Chó Husky",
-        petAge: "4 tuổi",
-        petWeight: "32 kg",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        serviceName: "Khám da liễu",
-        serviceIcon: "🩺",
-        status: "pending",
-        priority: "high",
-        symptoms: "Ngứa ngáy, rụng lông",
-        previousRecords: []
-      },
-      {
-        id: "TASK005",
-        time: "16:30",
-        type: "appointment",
-        title: "Xét nghiệm máu cho Bella",
-        petName: "Bella",
-        petIcon: "🐈",
-        petType: "Mèo Anh lông ngắn",
-        petAge: "2 tuổi",
-        petWeight: "5 kg",
-        ownerName: "Hoàng Thị E",
-        ownerPhone: "0934567890",
-        serviceName: "Xét nghiệm máu",
-        serviceIcon: "💉",
-        status: "pending",
-        priority: "normal",
-        symptoms: "Kiểm tra sức khỏe định kỳ",
-        previousRecords: []
-      },
-      {
-        id: "TASK006",
-        time: "17:00",
-        type: "reminder",
-        title: "Cập nhật hồ sơ bệnh án",
-        description: "Hoàn thiện 3 hồ sơ bệnh án chưa lưu",
-        status: "pending",
-        priority: "high"
+  const loadTodayTasks = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch today's appointments
+      const response = await appointmentApi.getAll({ date: today });
+      
+      if (response.success && response.data) {
+        const mappedTasks = response.data.map(apt => ({
+          id: apt.appointmentId || apt.id,
+          time: apt.startTime || '',
+          type: 'appointment',
+          title: `${getServiceTitle(apt.service?.name)} cho ${apt.pet?.name || 'Unknown'}`,
+          petName: apt.pet?.name || 'Unknown',
+          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
+          petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
+          petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
+          ownerName: apt.petOwner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: apt.petOwner?.phoneNumber || 'N/A',
+          serviceName: apt.service?.name || 'Unknown Service',
+          serviceIcon: getServiceIcon(apt.service?.name),
+          status: mapStatus(apt.status),
+          priority: apt.status === 'IN_PROGRESS' ? 'high' : 'normal',
+          symptoms: apt.notes || 'N/A',
+          previousRecords: []
+        }));
+        
+        setTodayTasks(mappedTasks);
+      }
+    } catch (error) {
+      console.error('Error loading today tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      return `${age - 1} tuổi`;
+    }
+    return `${age} tuổi`;
+  };
+
+  const getServiceTitle = (serviceName) => {
+    const titles = {
+      'General Checkup': 'Khám sức khỏe',
+      'Vaccination': 'Tiêm phòng',
+      'Surgery': 'Phẫu thuật',
+      'Dental': 'Khám răng',
+      'Grooming': 'Tắm và chăm sóc'
+    };
+    return titles[serviceName] || serviceName || 'Khám tổng quát';
+  };
+
+
+  const mapStatus = (backendStatus) => {
+    const statusMap = {
+      'PENDING': 'waiting',
+      'CONFIRMED': 'waiting',
+      'IN_PROGRESS': 'in_progress',
+      'COMPLETED': 'completed',
+      'CANCELLED': 'cancelled'
+    };
+    return statusMap[backendStatus] || 'waiting';
   };
 
   const handleViewDetail = (task) => {

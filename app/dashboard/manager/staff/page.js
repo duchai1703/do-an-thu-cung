@@ -33,16 +33,17 @@ import EditStaffModal from "@/components/modals/EditStaffModal";
 import { cn } from "@/lib/utils";
 import { employeeApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function ManagerStaffPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [staffList, setStaffList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export default function ManagerStaffPage() {
       
       if (response.success && response.data) {
         const mappedStaff = response.data.map(emp => ({
-          id: emp.employeeID || emp.id,
+          id: `NV${String(emp.employeeId || emp.id).padStart(4, '0')}`,
           name: emp.account?.email?.split('@')[0] || emp.fullName || 'Unknown',
           email: emp.account?.email || 'N/A',
           phone: emp.phoneNumber || 'N/A',
@@ -98,11 +99,6 @@ export default function ManagerStaffPage() {
       'MANAGER': 'manager'
     };
     return roleMap[userType] || 'care_staff';
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
   const handleAddStaff = async (newStaff) => {
@@ -378,27 +374,6 @@ export default function ManagerStaffPage() {
         onSuccess={handleEditStaff}
         staff={editingStaff}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div
-          className={cn(
-            "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-            toast.type === "success"
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-              : "bg-red-100 text-red-800 border border-red-200"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <XCircle className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

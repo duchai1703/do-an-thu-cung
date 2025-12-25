@@ -44,6 +44,7 @@ export default function VeterinarianDashboard() {
       // Fetch appointments
       const appointmentsRes = await appointmentApi.getAll();
       
+
       if (appointmentsRes.success && appointmentsRes.data) {
         const todayAppointments = appointmentsRes.data.filter(apt => {
           const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';

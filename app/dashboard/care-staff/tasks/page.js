@@ -8,98 +8,101 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { careStaffApi } from "@/lib/api/care-staff";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function CareStaffTasksPage() {
+  const { showToast } = useToast();
   const [tasks, setTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
+
+  // Get current employee ID from localStorage or session
+  const getEmployeeId = () => {
+    if (typeof window !== 'undefined') {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return user.employeeId || user.id || 1; // Default to 1 for testing
+    }
+    return 1;
+  };
 
   useEffect(() => {
     loadTasks();
   }, []);
 
-  const loadTasks = () => {
-    setTasks([
-      {
-        id: 1,
-        time: "09:00 AM",
-        pet: "Lucky",
-        petIcon: "🐕",
-        owner: "Nguyễn Văn A",
-        service: "Tắm & Spa",
-        serviceIcon: "🛁",
-        status: "pending",
-        priority: "normal",
-        notes: []
-      },
-      {
-        id: 2,
-        time: "10:30 AM",
-        pet: "Miu",
-        petIcon: "🐈",
-        owner: "Trần Thị B",
-        service: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        status: "in_progress",
-        priority: "normal",
-        notes: [
-          {
-            type: "pre",
-            content: "Thú cưng hoạt bát, khỏe mạnh"
-          }
-        ]
-      },
-      {
-        id: 3,
-        time: "02:00 PM",
-        pet: "Coco",
-        petIcon: "🐩",
-        owner: "Lê Văn C",
-        service: "Lưu trú 3 ngày",
-        serviceIcon: "🏠",
-        status: "pending",
-        priority: "high",
-        notes: []
-      },
-      {
-        id: 4,
-        time: "03:30 PM",
-        pet: "Max",
-        petIcon: "🐕",
-        owner: "Phạm Thị D",
-        service: "Spa massage",
-        serviceIcon: "💆",
-        status: "pending",
-        priority: "normal",
-        notes: []
+  const loadTasks = async () => {
+    setLoading(true);
+    const employeeId = getEmployeeId();
+
+    try {
+      const result = await careStaffApi.getAllTasks(employeeId);
+      if (result.success) {
+        // Transform to match the expected format
+        const transformedTasks = result.data.map(task => ({
+          ...task,
+          pet: task.petName,
+          owner: task.ownerName,
+          notes: task.notes ? [{ type: 'pre', content: task.notes }] : [],
+        }));
+        setTasks(transformedTasks);
+      } else {
+        showToast(result.error || "Không thể tải danh sách công việc", "error");
       }
-    ]);
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
-  };
-
-  const handleStartTask = (taskId) => {
-    setTasks(tasks.map(task =>
-      task.id === taskId ? { ...task, status: 'in_progress' } : task
-    ));
-    showToast("Đã bắt đầu dịch vụ");
-  };
-
-  const handleCompleteTask = (taskId) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task.notes || task.notes.length === 0) {
-      showToast("Vui lòng ghi chú trước khi hoàn thành", "error");
-      return;
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    } finally {
+      setLoading(false);
     }
-    
-    setTasks(tasks.map(task =>
-      task.id === taskId ? { ...task, status: 'completed' } : task
-    ));
-    showToast("Đã hoàn thành dịch vụ");
+  };
+
+
+  const handleStartTask = async (taskId) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const result = await careStaffApi.startTask(task.appointmentId);
+      if (result.success) {
+        setTasks(tasks.map(t =>
+          t.id === taskId ? { ...t, status: 'in_progress' } : t
+        ));
+        showToast("Đã bắt đầu dịch vụ");
+      } else {
+        showToast(result.error || "Không thể bắt đầu dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error('Error starting task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
+  };
+
+  const handleCompleteTask = async (taskId) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      if (!task.notes || task.notes.length === 0) {
+        showToast("Vui lòng ghi chú trước khi hoàn thành", "error");
+        return;
+      }
+
+      const notesContent = task.notes.map(n => n.content).join('\n');
+      const result = await careStaffApi.completeTask(task.appointmentId, notesContent);
+      
+      if (result.success) {
+        setTasks(tasks.map(t =>
+          t.id === taskId ? { ...t, status: 'completed' } : t
+        ));
+        showToast("Đã hoàn thành dịch vụ");
+      } else {
+        showToast(result.error || "Không thể hoàn thành dịch vụ", "error");
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
   };
 
   const handleOpenNoteModal = (task) => {
@@ -274,12 +277,6 @@ export default function CareStaffTasksPage() {
         onSuccess={handleSaveNote}
         task={selectedTask}
       />
-
-      {toast.show && (
-        <div className={cn("fixed bottom-4 right-4 p-3 rounded-md shadow-lg text-white", toast.type === "success" ? "bg-green-500" : "bg-red-500")}>
-          {toast.message}
-        </div>
-      )}
     </div>
   );
 }

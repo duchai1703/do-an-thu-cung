@@ -16,6 +16,7 @@ import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/lib/contexts/ToastContext";
 import StatsCard from "@/components/dashboard/StatsCard";
 import RevenueChart from "@/components/charts/RevenueChart";
 import { cn } from "@/lib/utils";
@@ -30,7 +31,7 @@ export default function ManagerReportsPage() {
     totalCustomers: 0,
     avgRevenuePerCustomer: 0,
   });
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const { showToast } = useToast();
 
   useEffect(() => {
     loadRevenueData();
@@ -61,11 +62,6 @@ export default function ManagerReportsPage() {
       totalCustomers: 89,
       avgRevenuePerCustomer: totalRevenue / 89,
     });
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
   const handleExportExcel = () => {
@@ -294,29 +290,6 @@ export default function ManagerReportsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div
-          className={cn(
-            "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-            toast.type === "success"
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-              : toast.type === "info"
-              ? "bg-blue-100 text-blue-800 border border-blue-200"
-              : "bg-red-100 text-red-800 border border-red-200"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <Download className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

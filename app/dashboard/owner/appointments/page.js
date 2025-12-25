@@ -16,10 +16,12 @@ import AppointmentDetailModal from "@/components/modals/AppointmentDetailModal";
 import CancelAppointmentOwnerModal from "@/components/modals/CancelAppointmentOwnerModal";
 import { cn } from "@/lib/utils";
 import { appointmentApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function OwnerAppointmentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [appointments, setAppointments] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,7 +29,6 @@ export default function OwnerAppointmentsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,14 +54,14 @@ export default function OwnerAppointmentsPage() {
       if (response.success && response.data) {
         // Map backend data to frontend format
         const mappedAppointments = response.data.map(apt => ({
-          id: apt.appointmentID || apt.id,
-          code: apt.appointmentID || apt.id,
-          petId: apt.petID || apt.pet?.petID,
+          id: apt.appointmentId || apt.id,
+          code: apt.appointmentId || apt.id,
+          petId: apt.petId || apt.pet?.petId,
           petName: apt.pet?.name || 'Unknown',
           petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          serviceId: apt.serviceID || apt.service?.serviceID,
+          serviceId: apt.serviceId || apt.service?.serviceId,
           serviceName: apt.service?.name || 'Unknown Service',
-          serviceIcon: getServiceIcon(apt.service?.categoryID),
+          serviceIcon: getServiceIcon(apt.service?.categoryId),
           date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '',
           time: apt.startTime || '',
           status: mapStatus(apt.status),
@@ -104,11 +105,6 @@ export default function OwnerAppointmentsPage() {
       4: '✂️', // Styling
     };
     return iconMap[categoryId] || '🩺';
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
   const handleBookAppointment = async (data) => {
@@ -155,8 +151,7 @@ export default function OwnerAppointmentsPage() {
 
   const filteredAppointments = appointments.filter(apt => {
     const matchFilter = filter === "all" || apt.status === filter;
-    const matchSearch = apt.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       apt.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchSearch = apt.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        apt.serviceName.toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
@@ -406,25 +401,6 @@ export default function OwnerAppointmentsPage() {
         onSuccess={handleCancelSuccess}
         appointment={selectedAppointment}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={cn(
-          "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-          toast.type === "success"
-            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        )}>
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <XCircle className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -15,13 +15,14 @@ import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
 import { cn } from "@/lib/utils";
 import { invoiceApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function ManagerInvoicesPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -114,11 +115,6 @@ export default function ManagerInvoicesPage() {
   };
 
   // Removed mock data - now using API
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
-  };
 
   const filteredInvoices = invoices.filter(invoice => {
     const matchSearch = invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -354,27 +350,6 @@ export default function ManagerInvoicesPage() {
         onClose={() => setSelectedInvoice(null)}
         invoice={selectedInvoice}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={cn(
-          "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-          toast.type === "success"
-            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-            : toast.type === "info"
-            ? "bg-blue-100 text-blue-800 border border-blue-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        )}>
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <Hourglass className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

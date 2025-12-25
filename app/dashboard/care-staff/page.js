@@ -11,9 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { careStaffApi } from "@/lib/api/care-staff";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function CareStaffDashboard() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [stats, setStats] = useState({
     totalTasks: 0,
     inProgress: 0,
@@ -24,78 +27,43 @@ export default function CareStaffDashboard() {
   const [noteText, setNoteText] = useState("");
   const [selectedTask, setSelectedTask] = useState(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
+
+  // Get current employee ID from localStorage or session
+  const getEmployeeId = () => {
+    if (typeof window !== 'undefined') {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return user.employeeId || user.id || 1; // Default to 1 for testing
+    }
+    return 1;
+  };
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = () => {
-    setStats({
-      totalTasks: 4,
-      inProgress: 1,
-      completed: 1
-    });
+  const loadDashboardData = async () => {
+    setLoading(true);
+    const employeeId = getEmployeeId();
 
-    setTodayTasks([
-      {
-        id: "TASK001",
-        time: "09:00 AM",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petType: "Chó Golden Retriever",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        service: "Tắm & Spa",
-        serviceIcon: "🛁",
-        status: "completed",
-        notes: "Đã hoàn thành tốt"
-      },
-      {
-        id: "TASK002",
-        time: "10:30 AM",
-        petName: "Miu",
-        petIcon: "🐈",
-        petType: "Mèo Ba Tư",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        service: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        status: "in_progress",
-        notes: "1 ghi chú"
-      },
-      {
-        id: "TASK003",
-        time: "02:00 PM",
-        petName: "Coco",
-        petIcon: "🐩",
-        petType: "Chó Poodle",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        service: "Lưu trú 3 ngày",
-        serviceIcon: "🏠",
-        status: "pending",
-        priority: "high"
-      },
-      {
-        id: "TASK004",
-        time: "03:30 PM",
-        petName: "Max",
-        petIcon: "🐕",
-        petType: "Chó Husky",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        service: "Chải lông",
-        serviceIcon: "🪮",
-        status: "pending",
-        priority: "normal"
+    try {
+      // Load statistics
+      const statsResult = await careStaffApi.getStatistics(employeeId);
+      if (statsResult.success) {
+        setStats(statsResult.data);
       }
-    ]);
-  };
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+      // Load today's tasks
+      const tasksResult = await careStaffApi.getTodayTasks(employeeId);
+      if (tasksResult.success) {
+        setTodayTasks(tasksResult.data);
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      showToast("Không thể tải dữ liệu. Vui lòng thử lại.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveNote = () => {
@@ -107,11 +75,24 @@ export default function CareStaffDashboard() {
     setNoteText("");
   };
 
-  const handleStartTask = (taskId) => {
-    setTodayTasks(todayTasks.map(task =>
-      task.id === taskId ? { ...task, status: "in_progress" } : task
-    ));
-    showToast("Đã bắt đầu công việc!");
+  const handleStartTask = async (taskId) => {
+    try {
+      const task = todayTasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const result = await careStaffApi.startTask(task.appointmentId);
+      if (result.success) {
+        setTodayTasks(todayTasks.map(t =>
+          t.id === taskId ? { ...t, status: "in_progress" } : t
+        ));
+        showToast("Đã bắt đầu công việc!");
+      } else {
+        showToast(result.error || "Không thể bắt đầu công việc", "error");
+      }
+    } catch (error) {
+      console.error('Error starting task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
   };
 
   const handleOpenNoteModal = (task) => {
@@ -123,11 +104,26 @@ export default function CareStaffDashboard() {
     showToast("Đã lưu ghi chú chăm sóc!");
   };
 
-  const handleCompleteTask = (taskId) => {
-    setTodayTasks(todayTasks.map(task =>
-      task.id === taskId ? { ...task, status: "completed" } : task
-    ));
-    showToast("Đã hoàn thành công việc!");
+  const handleCompleteTask = async (taskId) => {
+    try {
+      const task = todayTasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const result = await careStaffApi.completeTask(task.appointmentId, task.notes || '');
+      if (result.success) {
+        setTodayTasks(todayTasks.map(t =>
+          t.id === taskId ? { ...t, status: "completed" } : t
+        ));
+        showToast("Đã hoàn thành công việc!");
+        // Reload stats
+        loadDashboardData();
+      } else {
+        showToast(result.error || "Không thể hoàn thành công việc", "error");
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
   };
 
   const quickActions = [
@@ -295,13 +291,6 @@ export default function CareStaffDashboard() {
           onSuccess={handleNoteSuccess}
           task={selectedTask}
         />
-      )}
-
-      {/* Toast */}
-      {toast.show && (
-        <div className={cn("fixed bottom-4 right-4 p-3 rounded-md shadow-lg text-white", toast.type === "success" ? "bg-green-500" : "bg-red-500")}>
-          {toast.message}
-        </div>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 // app/(dashboard)/veterinarian/records/page.js
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetRecordDetailModal from "@/components/modals/VetRecordDetailModal";
 import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
@@ -12,8 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { medicalRecordApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function VeterinarianRecordsPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,110 +26,60 @@ export default function VeterinarianRecordsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadRecords();
   }, []);
 
-  const loadRecords = () => {
-  // Mock data - CÁC HỒ SƠ GẦN ĐÂY
-  setRecords([
-    {
-      id: "REC001",
-      code: "REC001",
-      petId: "PET001",
-      petName: "Lucky",
-      petIcon: "🐕",
-      petType: "Chó Golden Retriever",
-      ownerId: "CUS001",
-      ownerName: "Nguyễn Văn A",
-      ownerPhone: "0901234567",
-      date: "2025-10-27",
-      symptoms: "Ăn uống kém, uể oải, sốt nhẹ",
-      diagnosis: "Viêm dạ dày cấp",
-      prescription: "Omeprazole 20mg x 2 lần/ngày, Metronidazole 500mg x 2 lần/ngày",
-      treatment: "Tiêm thuốc giảm đau, truyền dịch",
-      notes: "Kiêng ăn 12 giờ, sau đó cho ăn thức ăn mềm",
-      followUpDate: "2025-11-03",
-      veterinarianId: "VET001",
-      veterinarianName: "BS. Đức Hải",
-      invoiceCreated: true,
-      invoiceId: "INV001"
-    },
-    {
-      id: "REC002",
-      code: "REC002",
-      petId: "PET002",
-      petName: "Miu",
-      petIcon: "🐈",
-      petType: "Mèo Ba Tư",
-      ownerId: "CUS002",
-      ownerName: "Trần Thị B",
-      ownerPhone: "0909876543",
-      date: "2025-10-27",
-      symptoms: "Tiêm phòng định kỳ",
-      diagnosis: "Khỏe mạnh, tiêm phòng dại",
-      prescription: "Không",
-      treatment: "Tiêm vaccine dại",
-      notes: "Tiêm phòng lần 2, hẹn tiêm tiếp sau 1 năm",
-      followUpDate: "2026-10-27",
-      veterinarianId: "VET001",
-      veterinarianName: "BS. Đức Hải",
-      invoiceCreated: true,
-      invoiceId: "INV002"
-    },
-    {
-      id: "REC003",
-      code: "REC003",
-      petId: "PET003",
-      petName: "Coco",
-      petIcon: "🐩",
-      petType: "Chó Poodle",
-      ownerId: "CUS003",
-      ownerName: "Lê Văn C",
-      ownerPhone: "0912345678",
-      date: "2025-10-25",
-      symptoms: "Ngứa ngáy, da đỏ, rụng lông",
-      diagnosis: "Viêm da do nấm",
-      prescription: "Ketoconazole 200mg x 1 lần/ngày, Dung dịch tắm trị nấm",
-      treatment: "Bôi thuốc tại chỗ, tắm thuốc",
-      notes: "Tránh ẩm ướt, giữ khô ráo. Tái khám sau 2 tuần",
-      followUpDate: "2025-11-08",
-      veterinarianId: "VET001",
-      veterinarianName: "BS. Đức Hải",
-      invoiceCreated: false,
-      invoiceId: null
-    },
-    {
-      id: "REC004",
-      code: "REC004",
-      petId: "PET004",
-      petName: "Max",
-      petIcon: "🐕",
-      petType: "Chó Husky",
-      ownerId: "CUS004",
-      ownerName: "Phạm Thị D",
-      ownerPhone: "0923456789",
-      date: "2025-10-20",
-      symptoms: "Khám răng miệng định kỳ",
-      diagnosis: "Cao răng nhẹ",
-      prescription: "Không",
-      treatment: "Lấy cao răng, vệ sinh răng miệng",
-      notes: "Nên đánh răng định kỳ cho thú cưng",
-      followUpDate: "2026-04-20",
-      veterinarianId: "VET001",
-      veterinarianName: "BS. Đức Hải",
-      invoiceCreated: true,
-      invoiceId: "INV003"
-    }
-  ]);
-};
+  const loadRecords = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
-  };
+      // Fetch all medical records
+      const response = await medicalRecordApi.getAll();
+      
+      if (response.success && response.data) {
+        const mappedRecords = response.data.map(record => ({
+          id: record.recordID || record.id,
+          code: `REC${String(record.recordID || record.id).padStart(3, '0')}`,
+          petId: record.pet?.petID || record.pet?.id,
+          petName: record.pet?.name || 'Unknown',
+          petIcon: record.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          petType: `${record.pet?.species || ''} ${record.pet?.breed || ''}`.trim(),
+          ownerId: record.pet?.owner?.petOwnerID || record.pet?.owner?.id,
+          ownerName: record.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: record.pet?.owner?.phoneNumber || 'N/A',
+          date: record.recordDate || record.createdAt,
+          symptoms: record.symptoms || 'N/A',
+          diagnosis: record.diagnosis || 'N/A',
+          prescription: record.prescription || 'N/A',
+          treatment: record.treatment || 'N/A',
+          notes: record.notes || '',
+          followUpDate: record.followUpDate || 'N/A',
+          veterinarianId: record.employee?.employeeID || record.employee?.id,
+          veterinarianName: record.employee?.account?.email?.split('@')[0] || 'Veterinarian',
+          invoiceCreated: !!record.invoice,
+          invoiceId: record.invoice?.invoiceID || null
+        }));
+        
+        // Sort by date descending
+        mappedRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        setRecords(mappedRecords);
+      }
+    } catch (error) {
+      console.error('Error loading records:', error);
+    } finally {
+      setLoading(false);
+    }
+  };  
 
   const handleViewDetail = (record) => {
     setSelectedRecord(record);
@@ -395,13 +350,6 @@ export default function VeterinarianRecordsPage() {
         onSuccess={handleSaveRecord}
         record={editingRecord}
       />
-
-      {/* Toast */}
-      {toast.show && (
-        <div className={cn("fixed bottom-4 right-4 p-3 rounded-md shadow-lg text-white", toast.type === "success" ? "bg-green-500" : "bg-red-500")}>
-          {toast.message}
-        </div>
-      )}
     </div>
   );
 }

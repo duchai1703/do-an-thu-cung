@@ -6,6 +6,8 @@ import { getToken, removeToken } from "@/lib/api/client";
 import { authApi } from "@/lib/api";
 import Sidebar from "@/components/layout/Sidebar";
 import "@/styles/dashboard.css";
+import { RoleDashboards } from "@/lib/utils/constants";
+import { ToastProvider } from "@/lib/contexts/ToastContext";
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -37,15 +39,6 @@ export default function DashboardLayout({ children }) {
         const currentUser = response.data;
         const userType = currentUser.userType;
 
-        // 3. Map backend userType to frontend dashboard role
-        const userTypeToPath = {
-          'MANAGER': '/dashboard/manager',
-          'VETERINARIAN': '/dashboard/vet',
-          'CARE_STAFF': '/dashboard/care-staff',
-          'RECEPTIONIST': '/dashboard/receptionist',
-          'PET_OWNER': '/dashboard/owner'
-        };
-
         const userTypeToRole = {
           'MANAGER': 'manager',
           'VETERINARIAN': 'veterinarian',
@@ -54,8 +47,8 @@ export default function DashboardLayout({ children }) {
           'PET_OWNER': 'pet_owner'
         };
 
-        const correctPath = userTypeToPath[userType];
         const userRole = userTypeToRole[userType];
+        const correctPath = RoleDashboards[userRole];
 
         console.log('🔍 Debug - User type:', userType, '| Correct path:', correctPath, '| Current path:', pathname);
 
@@ -112,17 +105,19 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
-    <div className="dashboard-layout">
-      <Sidebar 
-        role={user.account.role} 
-        userInfo={{
-          name: user.account.email.split('@')[0],
-          email: user.account.email
-        }}
-      />
-      <main className="dashboard-main">
-        {children}
-      </main>
-    </div>
+    <ToastProvider>
+      <div className="dashboard-layout">
+        <Sidebar 
+          role={user.account.role} 
+          userInfo={{
+            name: user.account.email.split('@')[0],
+            email: user.account.email
+          }}
+        />
+        <main className="dashboard-main">
+          {children}
+        </main>
+      </div>
+    </ToastProvider>
   );
 }

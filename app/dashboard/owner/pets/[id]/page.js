@@ -3,82 +3,128 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
+import { petApi, medicalRecordApi, appointmentApi, getToken } from "@/lib/api";
 
 export default function PetDetailPage() {
   const router = useRouter();
   const params = useParams();
   const [pet, setPet] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data - thực tế sẽ fetch từ API
-    const mockPets = {
-      "PET001": {
-        id: "PET001",
-        name: "Lucky",
-        icon: "🐕",
-        type: "Chó",
-        breed: "Golden Retriever",
-        age: "2 tuổi",
-        gender: "Đực",
-        weight: "28 kg",
-        color: "Vàng",
-        dateOfBirth: "2023-03-15",
-        medicalHistory: "Đã tiêm phòng đầy đủ: Dại, Parvo, Distemper",
-        notes: "Rất thân thiện, thích chơi đùa. Ăn 2 lần/ngày.",
-        vaccinations: [
-          { name: "Vaccine dại", date: "2024-03-15", nextDue: "2025-03-15" },
-          { name: "Vaccine Parvo", date: "2024-04-20", nextDue: "2025-04-20" }
-        ],
-        appointments: [
-          { date: "2025-10-20", service: "Khám sức khỏe", status: "Hoàn thành" },
-          { date: "2025-11-05", service: "Tắm spa", status: "Sắp tới" }
-        ]
-      },
-      "PET002": {
-        id: "PET002",
-        name: "Miu",
-        icon: "🐈",
-        type: "Mèo",
-        breed: "Mèo Ba Tư",
-        age: "1 tuổi",
-        gender: "Cái",
-        weight: "4 kg",
-        color: "Trắng",
-        dateOfBirth: "2024-01-20",
-        medicalHistory: "Tiêm phòng cơ bản đầy đủ",
-        notes: "Ngoan, ít kêu. Ăn thức ăn hạt cho mèo.",
-        vaccinations: [
-          { name: "Vaccine 3 trong 1", date: "2024-05-10", nextDue: "2025-05-10" }
-        ],
-        appointments: [
-          { date: "2025-10-25", service: "Tiêm phòng", status: "Hoàn thành" }
-        ]
-      },
-      "PET003": {
-        id: "PET003",
-        name: "Coco",
-        icon: "🐩",
-        type: "Chó",
-        breed: "Poodle",
-        age: "3 tuổi",
-        gender: "Cái",
-        weight: "6 kg",
-        color: "Nâu",
-        dateOfBirth: "2022-07-10",
-        medicalHistory: "Đã triệt sản, tiêm phòng đầy đủ",
-        notes: "Thích được chải lông. Rất năng động.",
-        vaccinations: [
-          { name: "Vaccine dại", date: "2024-07-10", nextDue: "2025-07-10" }
-        ],
-        appointments: [
-          { date: "2025-10-15", service: "Cắt tỉa lông", status: "Hoàn thành" },
-          { date: "2025-11-10", service: "Tắm spa", status: "Sắp tới" }
-        ]
-      }
-    };
-
-    setPet(mockPets[params.id] || null);
+    loadPetDetails();
   }, [params.id]);
+
+  const loadPetDetails = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Load pet data
+      const petResponse = await petApi.getById(params.id);
+      
+      if (!petResponse.success || !petResponse.data) {
+        setPet(null);
+        setLoading(false);
+        return;
+      }
+
+      const petData = petResponse.data;
+
+      // Load medical records and appointments in parallel
+      const [medicalResponse, appointmentsResponse] = await Promise.all([
+        medicalRecordApi?.getByPetId ? medicalRecordApi.getByPetId(params.id) : Promise.resolve({ success: true, data: [] }),
+        appointmentApi.getAll()
+      ]);
+
+      // Filter appointments for this pet
+      const petAppointments = appointmentsResponse.success && appointmentsResponse.data
+        ? appointmentsResponse.data.filter(apt => apt.petID === params.id || apt.pet?.petID === params.id)
+        : [];
+
+      // Extract vaccinations from medical records
+      const vaccinations = medicalResponse.success && medicalResponse.data
+        ? medicalResponse.data
+            .filter(record => record.recordType === 'VACCINATION' || record.vaccinations)
+            .map(record => ({
+              name: record.diagnosis || record.treatment || 'Tiêm phòng',
+              date: record.recordDate ? new Date(record.recordDate).toLocaleDateString('vi-VN') : '',
+              nextDue: calculateNextVaccinationDate(record.recordDate)
+            }))
+        : [];
+
+      // Map pet data to frontend format
+      const mappedPet = {
+        id: petData.petID || petData.id,
+        name: petData.name,
+        icon: petData.species?.toLowerCase() === 'dog' || petData.species?.toLowerCase() === 'chó' ? '🐕' : '🐈',
+        type: petData.species || 'Unknown',
+        breed: petData.breed || 'Unknown',
+        age: calculateAge(petData.birthDate) || 'N/A',
+        gender: petData.gender || 'Unknown',
+        weight: petData.weight ? `${petData.weight} kg` : 'N/A',
+        color: petData.color || 'Unknown',
+        dateOfBirth: petData.birthDate ? new Date(petData.birthDate).toLocaleDateString('vi-VN') : 'N/A',
+        medicalHistory: petData.medicalHistory || medicalResponse.data?.map(r => r.diagnosis).filter(Boolean).join(', ') || 'Chưa có thông tin',
+        notes: petData.notes || 'Chưa có ghi chú',
+        vaccinations: vaccinations.length > 0 ? vaccinations : [
+          { name: 'Chưa có lịch sử tiêm phòng', date: '', nextDue: '' }
+        ],
+        appointments: petAppointments.map(apt => ({
+          date: apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString('vi-VN') : '',
+          service: apt.service?.name || 'Unknown Service',
+          status: apt.status === 'COMPLETED' ? 'Hoàn thành' : 'Sắp tới'
+        }))
+      };
+
+      setPet(mappedPet);
+    } catch (error) {
+      console.error("Error loading pet details:", error);
+      setPet(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const ageInYears = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (ageInYears < 1) {
+      const ageInMonths = (today.getFullYear() - birth.getFullYear()) * 12 + monthDiff;
+      return `${ageInMonths} tháng`;
+    }
+    
+    return `${ageInYears} tuổi`;
+  };
+
+  const calculateNextVaccinationDate = (lastVaccinationDate) => {
+    if (!lastVaccinationDate) return 'Chưa xác định';
+    const lastDate = new Date(lastVaccinationDate);
+    const nextDate = new Date(lastDate);
+    nextDate.setFullYear(nextDate.getFullYear() + 1); // Typically annual
+    return nextDate.toLocaleDateString('vi-VN');
+  };
+
+  if (loading) {
+    return (
+      <div className="dashboard-container">
+        <DashboardHeader title="Chi tiết thú cưng" />
+        <div className="empty-state-modern">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <p className="empty-text">Đang tải thông tin...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!pet) {
     return (

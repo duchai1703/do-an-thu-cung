@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   CreditCard, CheckCircle2, Hourglass, Search, Eye, 
   Calendar, Receipt, ClipboardList 
@@ -12,66 +13,88 @@ import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/dashboard/StatsCard";
 import PaymentDetailModal from "@/components/modals/PaymentDetailModal";
 import { cn } from "@/lib/utils";
+import { invoiceApi, paymentApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function OwnerPaymentsPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadInvoices();
   }, []);
 
-  const loadInvoices = () => {
-    setInvoices([
-      {
-        id: "INV001",
-        invoiceCode: "INV001",
-        serviceName: "Khám sức khỏe tổng quát",
-        serviceIcon: "🏥",
-        petName: "Lucky",
-        petIcon: "🐕",
-        serviceDate: "2025-10-25",
-        totalAmount: 200000,
-        paymentStatus: "paid",
-        paymentMethod: "cash",
-        paidAt: "2025-10-25 14:30"
-      },
-      {
-        id: "INV002",
-        invoiceCode: "INV002",
-        serviceName: "Tắm spa cao cấp",
-        serviceIcon: "🛁",
-        petName: "Miu",
-        petIcon: "🐈",
-        serviceDate: "2025-10-26",
-        totalAmount: 150000,
-        paymentStatus: "unpaid",
-        paymentMethod: null,
-        paidAt: null
-      },
-      {
-        id: "INV003",
-        invoiceCode: "INV003",
-        serviceName: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        petName: "Coco",
-        petIcon: "🐩",
-        serviceDate: "2025-10-24",
-        totalAmount: 180000,
-        paymentStatus: "paid",
-        paymentMethod: "transfer",
-        paidAt: "2025-10-24 16:45"
+  const loadInvoices = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const response = await invoiceApi.getAll();
+      
+      if (response.success && response.data) {
+        // Map backend data to frontend format
+        const mappedInvoices = response.data.map(inv => {
+          const firstService = inv.invoiceItems?.[0];
+          return {
+            id: inv.invoiceId || inv.id,
+            invoiceCode: `INV${String(inv.invoiceId).padStart(4, '0')}`,
+            serviceName: firstService?.service?.name || inv.invoiceItems?.map(i => i.service?.name).join(', ') || 'Dịch vụ',
+            serviceIcon: getServiceIcon(firstService?.service?.categoryId),
+            petName: inv.pet?.name || 'Unknown',
+            petIcon: inv.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+            serviceDate: inv.issueDate ? new Date(inv.issueDate).toLocaleDateString('vi-VN') : '',
+            totalAmount: inv.totalAmount - (inv.discountAmount || 0) || 0,
+            paymentStatus: inv.status === 'Paid' ? 'paid' : 'unpaid',
+            paymentMethod: mapPaymentMethod(inv.payment?.paymentMethod),
+            paidAt: inv.payment?.paymentDate ? new Date(inv.payment.paymentDate).toLocaleString('vi-VN') : null,
+            // Full invoice data for detail modal
+            fullInvoice: inv
+          };
+        });
+        
+        setInvoices(mappedInvoices);
+      } else {
+        console.error("Failed to load invoices:", response.error);
+        showToast("Không thể tải danh sách hóa đơn", "error");
+      }
+    } catch (error) {
+      console.error("Error loading invoices:", error);
+      showToast("Lỗi khi tải danh sách hóa đơn", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  const getServiceIcon = (categoryId) => {
+    const iconMap = {
+      1: '🏥', // Medical examination
+      2: '💉', // Vaccination
+      3: '🛁', // Bathing
+      4: '✂️', // Grooming
+      5: '💆', // Spa
+    };
+    return iconMap[categoryId] || '🐾';
+  };
+
+  const mapPaymentMethod = (method) => {
+    const methodMap = {
+      'CASH': 'cash',
+      'TRANSFER': 'transfer',
+      'ONLINE': 'online',
+      'CARD': 'card'
+    };
+    return methodMap[method] || null;
   };
 
   const handleViewDetail = (invoice) => {
@@ -79,19 +102,32 @@ export default function OwnerPaymentsPage() {
     setIsDetailModalOpen(true);
   };
 
-  const handlePayNow = (invoiceId) => {
+  const handlePayNow = async (invoiceId) => {
     if (confirm("Xác nhận thanh toán hóa đơn này?")) {
-      setInvoices(invoices.map(inv =>
-        inv.id === invoiceId
-          ? { 
-              ...inv, 
-              paymentStatus: "paid", 
-              paymentMethod: "cash", 
-              paidAt: new Date().toLocaleString('vi-VN')
-            }
-          : inv
-      ));
-      showToast("Thanh toán thành công!", "success");
+      try {
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        
+        // Create payment for the invoice
+        const paymentData = {
+          invoiceId: invoiceId,
+          paymentMethod: 'ONLINE',
+          amount: invoice.totalAmount,
+          paymentDate: new Date().toISOString()
+        };
+
+        const response = await paymentApi.create(paymentData);
+        
+        if (response.success) {
+          // Reload invoices to get updated data
+          await loadInvoices();
+          showToast("Thanh toán thành công!", "success");
+        } else {
+          showToast("Không thể thanh toán. Vui lòng thử lại.", "error");
+        }
+      } catch (error) {
+        console.error("Error processing payment:", error);
+        showToast("Lỗi khi thanh toán hóa đơn", "error");
+      }
     }
   };
 
@@ -131,19 +167,19 @@ export default function OwnerPaymentsPage() {
         <StatsCard
           icon={CreditCard}
           title="Tổng hóa đơn"
-          value={stats.total}
+          value={loading ? "..." : stats.total}
           color="primary"
         />
         <StatsCard
           icon={CheckCircle2}
           title="Đã thanh toán"
-          value={stats.paid}
+          value={loading ? "..." : stats.paid}
           color="success"
         />
         <StatsCard
           icon={Hourglass}
           title="Chưa thanh toán"
-          value={stats.pending}
+          value={loading ? "..." : stats.pending}
           color="warning"
         />
       </div>
@@ -180,7 +216,14 @@ export default function OwnerPaymentsPage() {
 
       {/* Invoices List */}
       <div className="space-y-4">
-        {filteredInvoices.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+              <p className="text-muted-foreground font-medium">Đang tải hóa đơn...</p>
+            </CardContent>
+          </Card>
+        ) : filteredInvoices.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {filteredInvoices.map((invoice) => (
               <Card key={invoice.id} className="hover:shadow-md transition-shadow">
@@ -284,25 +327,6 @@ export default function OwnerPaymentsPage() {
         }}
         invoice={selectedInvoice}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={cn(
-          "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-          toast.type === "success"
-            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        )}>
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <Hourglass className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

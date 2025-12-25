@@ -5,7 +5,8 @@ import { PawPrint, Calendar, CreditCard, Zap } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import StatsCard from "@/components/dashboard/StatsCard";
 import QuickActions from "@/components/dashboard/QuickActions";
-import { petApi, appointmentApi, paymentApi, getToken } from "@/lib/api";
+import { petApi, appointmentApi, paymentApi, petOwnerApi, authApi, getToken, TOKEN_KEY } from "@/lib/api";
+import { USE_MOCK_API } from "@/lib/api/config";
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -30,6 +31,9 @@ export default function OwnerDashboard() {
         router.push('/login');
         return;
       }
+
+      // Get user information
+      await loadUserInfo();
 
       // Fetch owner's pets
       const petsResponse = await petApi.getAll();
@@ -59,6 +63,54 @@ export default function OwnerDashboard() {
       // Keep default values on error
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUserInfo = async () => {
+    try {
+      if (USE_MOCK_API) {
+        // For mock API, get user data from localStorage
+        if (typeof window !== 'undefined') {
+          const storedData = localStorage.getItem(TOKEN_KEY);
+          if (storedData) {
+            try {
+              const authData = JSON.parse(storedData);
+              if (authData.account) {
+                setUserName(authData.account.fullName || authData.account.email || "Chủ thú cưng");
+                return;
+              }
+            } catch (e) {
+              console.error("Error parsing stored auth data:", e);
+            }
+          }
+        }
+      } else {
+        // For real API, fetch user profile
+        // First, try to get accountId from stored token/user data
+        if (typeof window !== 'undefined') {
+          const storedData = localStorage.getItem(TOKEN_KEY);
+          if (storedData) {
+            try {
+              const authData = JSON.parse(storedData);
+              const accountId = authData.account?.accountID || authData.user?.accountID;
+              
+              if (accountId) {
+                const profileResponse = await authApi.getFullProfile(accountId);
+                if (profileResponse.success && profileResponse.data) {
+                  const profile = profileResponse.data;
+                  setUserName(profile.fullName || profile.petOwner?.name || profile.email || "Chủ thú cưng");
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error("Error fetching user profile:", e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading user info:", error);
+      // Keep default name on error
     }
   };
 

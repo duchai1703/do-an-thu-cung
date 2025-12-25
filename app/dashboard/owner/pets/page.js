@@ -15,15 +15,16 @@ import AddPetModal from "@/components/modals/AddPetModal";
 import EditPetModal from "@/components/modals/EditPetModal";
 import { cn } from "@/lib/utils";
 import { petApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function OwnerPetsPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [pets, setPets] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPet, setEditingPet] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -85,11 +86,6 @@ export default function OwnerPetsPage() {
     }
     
     return `${ageInYears} tuổi`;
-  };
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
   const handleAddPet = async (newPet) => {
@@ -301,25 +297,6 @@ export default function OwnerPetsPage() {
         onSuccess={handleEditPet}
         pet={editingPet}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={cn(
-          "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-          toast.type === "success"
-            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        )}>
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <XCircle className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

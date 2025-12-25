@@ -8,67 +8,87 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { serviceApi, serviceCategoryApi, getToken } from "@/lib/api";
 
 export default function OwnerServicesPage() {
   const router = useRouter();
   const [services, setServices] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setServices([
-      {
-        id: "SRV001",
-        name: "Khám sức khỏe tổng quát",
-        category: "🏥 Khám bệnh & điều trị",
-        price: 200000,
-        duration: 30,
-        icon: "🏥",
-        description: "Kiểm tra sức khỏe toàn diện, khám lâm sàng cơ bản"
-      },
-      {
-        id: "SRV002",
-        name: "Tiêm phòng dại",
-        category: "💉 Tiêm phòng & xét nghiệm",
-        price: 120000,
-        duration: 15,
-        icon: "💉",
-        description: "Tiêm vaccine phòng bệnh dại cho chó mèo"
-      },
-      {
-        id: "SRV003",
-        name: "Tắm spa cao cấp",
-        category: "🛁 Tắm & vệ sinh",
-        price: 150000,
-        duration: 60,
-        icon: "🛁",
-        description: "Tắm sạch, massage thư giãn, sấy khô"
-      },
-      {
-        id: "SRV004",
-        name: "Cắt tỉa lông tạo kiểu",
-        category: "✂️ Cắt tỉa & tạo kiểu",
-        price: 180000,
-        duration: 45,
-        icon: "✂️",
-        description: "Cắt tỉa lông theo yêu cầu, tạo kiểu chuyên nghiệp"
-      },
-      {
-        id: "SRV005",
-        name: "Massage thư giãn",
-        category: "💆 Spa & massage",
-        price: 250000,
-        duration: 90,
-        icon: "💆",
-        description: "Massage toàn thân giúp thú cưng thư giãn"
-      }
-    ]);
+    loadServices();
   }, []);
+
+  const loadServices = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Load services and categories in parallel
+      const [servicesResponse, categoriesResponse] = await Promise.all([
+        serviceApi.getAll(),
+        serviceCategoryApi?.getAll ? serviceCategoryApi.getAll() : Promise.resolve({ success: true, data: [] })
+      ]);
+      
+      if (servicesResponse.success && servicesResponse.data) {
+        const categoryMap = {};
+        if (categoriesResponse.success && categoriesResponse.data) {
+          categoriesResponse.data.forEach(category => {
+            categoryMap[category.id] = category;
+          });
+          setCategories(categoriesResponse.data);
+        }
+
+        // Map backend data to frontend format
+        const mappedServices = servicesResponse.data.map(srv => {
+          const category = categoryMap[srv.categoryId];
+          console.log("Mapping service:", srv, "with category:", `${getCategoryIcon(srv.categoryId)} ${category.categoryName}`);
+          
+          return {
+            id: srv.id,
+            name: srv.serviceName,
+            category: category ? `${getCategoryIcon(srv.categoryId)} ${category.categoryName}` : 'Dịch vụ',
+            price: srv.price || 0,
+            duration: srv.duration || 30,
+            icon: getCategoryIcon(srv.categoryId),
+            description: srv.description || 'Dịch vụ chăm sóc thú cưng chuyên nghiệp'
+          };
+        });
+        
+        setServices(mappedServices);
+      } else {
+        console.error("Failed to load services:", servicesResponse.error);
+      }
+    } catch (error) {
+      console.error("Error loading services:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCategoryIcon = (categoryId) => {
+    const iconMap = {
+      1: '🏥', // Medical examination
+      2: '💉', // Vaccination
+      3: '🛁', // Bathing
+      4: '✂️', // Grooming
+      5: '💆', // Spa
+    };
+    return iconMap[categoryId] || '🐾';
+  };
 
   const handleBookService = (serviceId) => {
     router.push(`/dashboard/owner/appointments?action=book&serviceId=${serviceId}`);
   };
 
-  const filteredServices = services.filter(service =>
+  const filteredServices = services.filter(service => 
     service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     service.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -112,7 +132,14 @@ export default function OwnerServicesPage() {
           </Badge>
         </div>
 
-        {filteredServices.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+              <p className="text-muted-foreground font-medium">Đang tải dịch vụ...</p>
+            </CardContent>
+          </Card>
+        ) : filteredServices.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredServices.map((service) => (
               <Card key={service.id} className="hover:shadow-md transition-shadow">

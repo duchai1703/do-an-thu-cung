@@ -7,121 +7,87 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { careStaffApi } from "@/lib/api/care-staff";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function CareStaffTodayPage() {
+  const { showToast } = useToast();
   const [todayTasks, setTodayTasks] = useState([]);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [selectedTask, setSelectedTask] = useState(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Get current employee ID from localStorage or session
+  const getEmployeeId = () => {
+    if (typeof window !== 'undefined') {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return user.employeeId || user.id || 1; // Default to 1 for testing
+    }
+    return 1;
+  };
 
   useEffect(() => {
     loadTodayTasks();
   }, []);
 
-  const loadTodayTasks = () => {
-    setTodayTasks([
-      {
-        id: "TASK001",
-        time: "09:00 AM",
-        type: "service",
-        title: "Tắm & Spa cho Lucky",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petType: "Chó Golden Retriever",
-        ownerName: "Nguyễn Văn A",
-        ownerPhone: "0901234567",
-        service: "Tắm & Spa",
-        serviceIcon: "🛁",
-        status: "completed",
-        priority: "normal",
-        notes: "Đã hoàn thành tốt"
-      },
-      {
-        id: "TASK002",
-        time: "10:30 AM",
-        type: "service",
-        title: "Cắt tỉa lông cho Miu",
-        petName: "Miu",
-        petIcon: "🐈",
-        petType: "Mèo Ba Tư",
-        ownerName: "Trần Thị B",
-        ownerPhone: "0909876543",
-        service: "Cắt tỉa lông",
-        serviceIcon: "✂️",
-        status: "in_progress",
-        priority: "high",
-        notes: ""
-      },
-      {
-        id: "TASK003",
-        time: "02:00 PM",
-        type: "service",
-        title: "Vệ sinh tai cho Coco",
-        petName: "Coco",
-        petIcon: "🐩",
-        petType: "Chó Poodle",
-        ownerName: "Lê Văn C",
-        ownerPhone: "0912345678",
-        service: "Vệ sinh tai",
-        serviceIcon: "🧼",
-        status: "pending",
-        priority: "normal",
-        notes: ""
-      },
-      {
-        id: "TASK004",
-        time: "03:30 PM",
-        type: "service",
-        title: "Chải lông cho Max",
-        petName: "Max",
-        petIcon: "🐕",
-        petType: "Chó Husky",
-        ownerName: "Phạm Thị D",
-        ownerPhone: "0923456789",
-        service: "Chải lông",
-        serviceIcon: "🪮",
-        status: "pending",
-        priority: "high",
-        notes: ""
-      },
-      {
-        id: "TASK005",
-        time: "04:30 PM",
-        type: "reminder",
-        title: "Kiểm tra dụng cụ",
-        description: "Kiểm tra và vệ sinh dụng cụ chăm sóc",
-        status: "pending",
-        priority: "normal"
-      },
-      {
-        id: "TASK006",
-        time: "05:00 PM",
-        type: "reminder",
-        title: "Cập nhật báo cáo",
-        description: "Hoàn thiện báo cáo công việc trong ngày",
-        status: "pending",
-        priority: "high"
+  const loadTodayTasks = async () => {
+    setLoading(true);
+    const employeeId = getEmployeeId();
+
+    try {
+      const result = await careStaffApi.getTodayTasks(employeeId);
+      if (result.success) {
+        setTodayTasks(result.data);
+      } else {
+        showToast(result.error || "Không thể tải công việc hôm nay", "error");
       }
-    ]);
+    } catch (error) {
+      console.error('Error loading today tasks:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+
+  const handleStartTask = async (taskId) => {
+    try {
+      const task = todayTasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const result = await careStaffApi.startTask(task.appointmentId);
+      if (result.success) {
+        setTodayTasks(todayTasks.map(t =>
+          t.id === taskId ? { ...t, status: "in_progress" } : t
+        ));
+        showToast("Đã bắt đầu công việc!");
+      } else {
+        showToast(result.error || "Không thể bắt đầu công việc", "error");
+      }
+    } catch (error) {
+      console.error('Error starting task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
   };
 
-  const handleStartTask = (taskId) => {
-    setTodayTasks(todayTasks.map(task =>
-      task.id === taskId ? { ...task, status: "in_progress" } : task
-    ));
-    showToast("Đã bắt đầu công việc!");
-  };
+  const handleCompleteTask = async (taskId) => {
+    try {
+      const task = todayTasks.find(t => t.id === taskId);
+      if (!task) return;
 
-  const handleCompleteTask = (taskId) => {
-    setTodayTasks(todayTasks.map(task =>
-      task.id === taskId ? { ...task, status: "completed" } : task
-    ));
-    showToast("Đã hoàn thành công việc!");
+      const result = await careStaffApi.completeTask(task.appointmentId, task.notes || '');
+      if (result.success) {
+        setTodayTasks(todayTasks.map(t =>
+          t.id === taskId ? { ...t, status: "completed" } : t
+        ));
+        showToast("Đã hoàn thành công việc!");
+      } else {
+        showToast(result.error || "Không thể hoàn thành công việc", "error");
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+    }
   };
 
   const handleOpenNoteModal = (task) => {
@@ -328,13 +294,6 @@ export default function CareStaffTodayPage() {
           onSuccess={handleNoteSuccess}
           task={selectedTask}
         />
-      )}
-
-      {/* Toast */}
-      {toast.show && (
-        <div className={cn("fixed bottom-4 right-4 p-3 rounded-md shadow-lg text-white", toast.type === "success" ? "bg-green-500" : "bg-red-500")}>
-          {toast.message}
-        </div>
       )}
     </div>
   );

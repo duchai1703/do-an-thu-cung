@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   Receipt, CheckCircle2, Hourglass, Eye, CreditCard, 
   DollarSign, ClipboardList, XCircle 
@@ -11,104 +12,119 @@ import { Badge } from "@/components/ui/badge";
 import StatsCard from "@/components/dashboard/StatsCard";
 import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
 import { cn } from "@/lib/utils";
+import { invoiceApi, paymentApi, getToken } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function OwnerInvoicesPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [filter, setFilter] = useState("all");
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadInvoices();
   }, []);
 
-  const loadInvoices = () => {
-    setInvoices([
-      {
-        id: "INV-2025-001",
-        customerName: "Bạn",
-        customerPhone: "0901234567",
-        customerEmail: "customer@example.com",
-        petName: "Lucky",
-        petIcon: "🐕",
-        petBreed: "Golden Retriever",
-        petAge: 3,
-        date: "2025-01-15T10:30:00",
-        services: [
-          { icon: "🏥", name: "Khám sức khỏe tổng quát", quantity: 1, price: 200000 },
-          { icon: "💉", name: "Tiêm phòng dại", quantity: 1, price: 120000 }
-        ],
-        subtotal: 320000,
-        discount: 0,
-        total: 320000,
-        isPaid: true,
-        paymentMethod: "Tiền mặt",
-        paymentDate: "2025-01-15T11:00:00",
-        notes: ""
-      },
-      {
-        id: "INV-2025-002",
-        customerName: "Bạn",
-        customerPhone: "0901234567",
-        customerEmail: "customer@example.com",
-        petName: "Miu",
-        petIcon: "🐈",
-        petBreed: "Mèo Anh lông ngắn",
-        petAge: 2,
-        date: "2025-01-20T14:00:00",
-        services: [
-          { icon: "🛁", name: "Tắm spa cao cấp", quantity: 1, price: 150000 }
-        ],
-        subtotal: 150000,
-        discount: 15000,
-        total: 135000,
-        isPaid: false,
-        paymentMethod: null,
-        paymentDate: null,
-        notes: ""
-      },
-      {
-        id: "INV-2025-003",
-        customerName: "Bạn",
-        customerPhone: "0901234567",
-        customerEmail: "customer@example.com",
-        petName: "Coco",
-        petIcon: "🐩",
-        petBreed: "Poodle",
-        petAge: 1,
-        date: "2025-01-25T09:00:00",
-        services: [
-          { icon: "✂️", name: "Cắt tỉa lông tạo kiểu", quantity: 1, price: 180000 },
-          { icon: "💆", name: "Spa massage", quantity: 1, price: 250000 }
-        ],
-        subtotal: 430000,
-        discount: 0,
-        total: 430000,
-        isPaid: false,
-        paymentMethod: null,
-        paymentDate: null,
-        notes: ""
+  const loadInvoices = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
       }
-    ]);
+
+      const response = await invoiceApi.getAll();
+      
+      if (response.success && response.data) {
+        // Map backend data to frontend format
+        const mappedInvoices = response.data.map(inv => ({
+          id: inv.invoiceId || inv.id,
+          customerName: inv.petOwner?.name || "Bạn",
+          customerPhone: inv.petOwner?.phoneNumber || "",
+          customerEmail: inv.petOwner?.email || "",
+          petName: inv.pet?.name || "Unknown",
+          petIcon: inv.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          petBreed: inv.pet?.breed || "Unknown",
+          petAge: calculateAge(inv.pet?.birthDate),
+          date: inv.issueDate || inv.createdAt,
+          services: inv.invoiceItems?.map(item => ({
+            icon: getServiceIcon(item.service?.categoryId),
+            name: item.service?.name || item.description || "Service",
+            quantity: item.quantity || 1,
+            price: item.unitPrice || 0
+          })) || [],
+          subtotal: inv.totalAmount || 0,
+          discount: inv.discountAmount || 0,
+          total: inv.totalAmount - (inv.discountAmount || 0) || 0,
+          isPaid: inv.status === 'PAId',
+          paymentMethod: inv.payment?.paymentMethod || null,
+          paymentDate: inv.payment?.paymentDate || null,
+          notes: inv.notes || ""
+        }));
+        
+        setInvoices(mappedInvoices);
+      } else {
+        console.error("Failed to load invoices:", response.error);
+        showToast("Không thể tải danh sách hóa đơn", "error");
+      }
+    } catch (error) {
+      console.error("Error loading invoices:", error);
+      showToast("Lỗi khi tải danh sách hóa đơn", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 0;
+    const birth = new Date(birthDate);
+    const today = new Date();
+    return today.getFullYear() - birth.getFullYear();
+  };
+
+  const getServiceIcon = (categoryId) => {
+    const iconMap = {
+      1: '🏥', // Medical examination
+      2: '💉', // Vaccination
+      3: '🛁', // Bathing
+      4: '✂️', // Grooming
+      5: '💆', // Spa
+    };
+    return iconMap[categoryId] || '🐾';
   };
 
   const handleViewDetail = (invoice) => {
     setSelectedInvoice(invoice);
   };
 
-  const handlePayInvoice = (invoice) => {
+  const handlePayInvoice = async (invoice) => {
     if (confirm("Xác nhận thanh toán hóa đơn này?")) {
-      setInvoices(invoices.map(inv =>
-        inv.id === invoice.id
-          ? { ...inv, isPaid: true, paymentMethod: "Online", paymentDate: new Date().toISOString() }
-          : inv
-      ));
-      showToast("Thanh toán thành công!", "success");
+      try {
+        // Create payment for the invoice
+        const paymentData = {
+          invoiceId: invoice.id,
+          paymentMethod: 'ONLINE',
+          amount: invoice.total,
+          paymentDate: new Date().toISOString()
+        };
+
+        const response = await paymentApi.create(paymentData);
+        
+        if (response.success) {
+          // Reload invoices to get updated data
+          await loadInvoices();
+          showToast("Thanh toán thành công!", "success");
+        } else {
+          showToast("Không thể thanh toán. Vui lòng thử lại.", "error");
+        }
+      } catch (error) {
+        console.error("Error processing payment:", error);
+        showToast("Lỗi khi thanh toán hóa đơn", "error");
+      }
     }
   };
 
@@ -155,20 +171,20 @@ export default function OwnerInvoicesPage() {
         <StatsCard
           icon={Receipt}
           title="Tổng hóa đơn"
-          value={invoices.length}
+          value={loading ? "..." : invoices.length}
           color="primary"
         />
         <StatsCard
           icon={CheckCircle2}
           title="Đã thanh toán"
-          value={invoices.filter(i => i.isPaid).length}
+          value={loading ? "..." : invoices.filter(i => i.isPaid).length}
           change={formatCurrency(totalPaid)}
           color="success"
         />
         <StatsCard
           icon={Hourglass}
           title="Chưa thanh toán"
-          value={invoices.filter(i => !i.isPaid).length}
+          value={loading ? "..." : invoices.filter(i => !i.isPaid).length}
           change={formatCurrency(totalUnpaid)}
           color="warning"
         />
@@ -194,7 +210,14 @@ export default function OwnerInvoicesPage() {
 
       {/* Invoices List */}
       <div className="space-y-4">
-        {filteredInvoices.length > 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+              <p className="text-muted-foreground font-medium">Đang tải hóa đơn...</p>
+            </CardContent>
+          </Card>
+        ) : filteredInvoices.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredInvoices.map((invoice) => (
               <Card key={invoice.id} className="hover:shadow-md transition-shadow">
@@ -303,25 +326,6 @@ export default function OwnerInvoicesPage() {
         onClose={() => setSelectedInvoice(null)}
         invoice={selectedInvoice}
       />
-
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={cn(
-          "fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-4",
-          toast.type === "success"
-            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-            : "bg-red-100 text-red-800 border border-red-200"
-        )}>
-          <div className="flex items-center gap-2">
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : (
-              <XCircle className="h-5 w-5" />
-            )}
-            <p className="font-medium">{toast.message}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
