@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { 
   Home, Plus, Edit, Eye, Trash2, CheckCircle2, 
-  XCircle, AlertTriangle, ClipboardList, BarChart3, RefreshCw 
+  XCircle, AlertTriangle, ClipboardList, BarChart3, RefreshCw, PawPrint, LogOut
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,8 +12,9 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import CageFormModal from "@/components/modals/CageFormModal";
 import CageDetailModal from "@/components/modals/CageDetailModal";
+import AssignPetModal from "@/components/modals/AssignPetModal";
 import { cn } from "@/lib/utils";
-import { cageApi, getToken } from "@/lib/api";
+import { cageApi, petApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/contexts/ToastContext";
 
@@ -26,9 +27,14 @@ export default function ManagerCagesPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingCage, setEditingCage] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Assign pet modal states
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedCageForAssign, setSelectedCageForAssign] = useState(null);
+  const [pets, setPets] = useState([]);
 
   useEffect(() => {
     loadCages();
+    loadPets();
   }, []);
 
   const loadCages = async () => {
@@ -81,6 +87,8 @@ export default function ManagerCagesPage() {
               checkOutDate: assignment.expectedCheckOutDate || ''
             };
           });
+          // Get active assignment id for checkout
+          const activeAssignmentId = assignments.length > 0 ? assignments[0].cageAssignmentId : null;
 
           return {
             id: cage.cageId,
@@ -90,7 +98,8 @@ export default function ManagerCagesPage() {
             status: statusMap[cage.status] || 'available',
             notes: cage.location || '',
             dailyRate: cage.dailyRate || 0,
-            pets: pets
+            pets: pets,
+            activeAssignmentId: activeAssignmentId
           };
         });
         
@@ -107,6 +116,65 @@ export default function ManagerCagesPage() {
     }
   };
 
+  const loadPets = async () => {
+    try {
+      const response = await petApi.getAll();
+      if (response.success && response.data) {
+        setPets(response.data);
+      }
+    } catch (error) {
+      console.error("Error loading pets:", error);
+    }
+  };
+
+  const handleOpenAssign = (cage) => {
+    setSelectedCageForAssign(cage);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignPet = async (assignData) => {
+    try {
+      const response = await cageApi.assignPet(selectedCageForAssign.id, assignData);
+      
+      if (response.success) {
+        showToast("Đã gán thú cưng vào chuồng thành công!", "success");
+        loadCages(); // Reload to get updated data
+        setIsAssignModalOpen(false);
+        setSelectedCageForAssign(null);
+      } else {
+        showToast(response.error || "Không thể gán thú cưng", "error");
+      }
+    } catch (error) {
+      console.error("Error assigning pet:", error);
+      showToast("Lỗi khi gán thú cưng vào chuồng", "error");
+    }
+  };
+
+  const handleCheckOut = async (cage) => {
+    // Find the active assignment for this cage
+    const activeAssignment = cage.activeAssignmentId;
+    if (!activeAssignment) {
+      showToast("Không tìm thấy phiếu lưu trú đang hoạt động", "error");
+      return;
+    }
+
+    if (confirm(`Xác nhận trả chuồng cho thú cưng?`)) {
+      try {
+        const response = await cageApi.checkOutPet(activeAssignment);
+        
+        if (response.success) {
+          showToast("Đã trả chuồng thành công!", "success");
+          loadCages();
+        } else {
+          showToast(response.error || "Không thể trả chuồng", "error");
+        }
+      } catch (error) {
+        console.error("Error checking out:", error);
+        showToast("Lỗi khi trả chuồng", "error");
+      }
+    }
+  };
+
   const handleAddCage = async (cageData) => {
     try {
       const sizeMap = {
@@ -118,9 +186,9 @@ export default function ManagerCagesPage() {
       const payload = {
         cageNumber: cageData.code,
         size: sizeMap[cageData.type] || 'SMALL',
-        dailyRate: cageData.dailyRate || 0,
-        location: cageData.notes || '',
-        status: 'AVAILABLE'
+        dailyRate: parseFloat(cageData.dailyRate) || 0,
+        location: cageData.notes || ''
+        // Note: status is set by backend on creation (default AVAILABLE)
       };
 
       const response = await cageApi.create(payload);
@@ -379,16 +447,40 @@ export default function ManagerCagesPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {cage.status === 'occupied' && (
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Assign pet button - only for available cages */}
+                          {cage.status === 'available' && (
                             <Button
-                              onClick={() => handleViewDetail(cage)}
+                              onClick={() => handleOpenAssign(cage)}
                               variant="ghost"
                               size="icon"
-                              title="Xem chi tiết"
+                              title="Gán thú cưng"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
                             >
-                              <Eye className="h-4 w-4" />
+                              <PawPrint className="h-4 w-4" />
                             </Button>
+                          )}
+                          {/* Check out button - only for occupied cages */}
+                          {cage.status === 'occupied' && (
+                            <>
+                              <Button
+                                onClick={() => handleViewDetail(cage)}
+                                variant="ghost"
+                                size="icon"
+                                title="Xem chi tiết"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                onClick={() => handleCheckOut(cage)}
+                                variant="ghost"
+                                size="icon"
+                                title="Trả chuồng"
+                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              >
+                                <LogOut className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
                           <Button
                             onClick={() => handleOpenEdit(cage)}
@@ -445,6 +537,17 @@ export default function ManagerCagesPage() {
           setSelectedCage(null);
         }}
         cage={selectedCage}
+      />
+
+      <AssignPetModal
+        isOpen={isAssignModalOpen}
+        onClose={() => {
+          setIsAssignModalOpen(false);
+          setSelectedCageForAssign(null);
+        }}
+        onSuccess={handleAssignPet}
+        cage={selectedCageForAssign}
+        pets={pets}
       />
     </div>
   );

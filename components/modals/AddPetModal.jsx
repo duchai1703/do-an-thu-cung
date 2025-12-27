@@ -97,9 +97,17 @@ export default function AddPetModal({ isOpen, onClose, onSuccess }) {
     setLoading(true);
 
     setTimeout(() => {
+      // Map frontend fields to backend DTO
       const petData = {
-        ...formData,
-        age: calculateAge(formData.dateOfBirth)
+        name: formData.name,
+        species: formData.type, // Backend expects 'species', frontend uses 'type'
+        breed: formData.breed || undefined,
+        birthDate: formData.dateOfBirth || undefined, // Backend expects 'birthDate'
+        gender: formData.gender || undefined,
+        weight: formData.weight ? parseFloat(formData.weight) : undefined, // Must be number
+        color: formData.color || undefined,
+        initialHealthStatus: formData.medicalHistory || undefined, // Backend uses 'initialHealthStatus'
+        specialNotes: formData.notes || undefined // Backend uses 'specialNotes'
       };
       
       setLoading(false);
@@ -119,7 +127,7 @@ export default function AddPetModal({ isOpen, onClose, onSuccess }) {
         notes: ""
       });
       setErrors({});
-    }, 1000);
+    }, 500);
   };
 
   const handleClose = () => {
@@ -179,8 +187,14 @@ export default function AddPetModal({ isOpen, onClose, onSuccess }) {
                 className={cn(errors.type && "border-destructive")}
               >
                 <option value="">-- Chọn loại --</option>
-                <option value="Chó">Chó</option>
-                <option value="Mèo">Mèo</option>
+                <option value="Dog">Chó</option>
+                <option value="Cat">Mèo</option>
+                <option value="Bird">Chim</option>
+                <option value="Hamster">Chuột Hamster</option>
+                <option value="Rabbit">Thỏ</option>
+                <option value="Turtle">Rùa</option>
+                <option value="Fish">Cá</option>
+                <option value="Other">Khác</option>
               </Select>
               {errors.type && (
                 <p className="text-sm text-destructive">{errors.type}</p>

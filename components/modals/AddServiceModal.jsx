@@ -36,13 +36,13 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  // Categories with numeric IDs matching backend
   const categories = [
-    { value: "🏥 Khám bệnh & điều trị", label: "Khám bệnh & điều trị", icon: Hospital },
-    { value: "💉 Tiêm phòng & xét nghiệm", label: "Tiêm phòng & xét nghiệm", icon: Syringe },
-    { value: "🛁 Tắm & vệ sinh", label: "Tắm & vệ sinh", icon: Droplets },
-    { value: "✂️ Cắt tỉa & tạo kiểu", label: "Cắt tỉa & tạo kiểu", icon: Scissors },
-    { value: "💆 Spa & massage", label: "Spa & massage", icon: Heart },
-    { value: "🏠 Lưu trú & chăm sóc", label: "Lưu trú & chăm sóc", icon: Home }
+    { value: 1, label: "Khám bệnh & điều trị", icon: Hospital },
+    { value: 2, label: "Tiêm phòng & xét nghiệm", icon: Syringe },
+    { value: 3, label: "Spa & làm đẹp", icon: Scissors },
+    { value: 4, label: "Khách sạn thú cưng", icon: Home },
+    { value: 5, label: "Phẫu thuật", icon: Heart },
   ];
 
   const handleChange = (e) => {

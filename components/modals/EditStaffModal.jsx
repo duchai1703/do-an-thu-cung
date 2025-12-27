@@ -36,12 +36,13 @@ export default function EditStaffModal({ isOpen, onClose, onSuccess, staff }) {
   useEffect(() => {
     if (staff && isOpen) {
       setFormData({
+        employeeId: staff.employeeId, // Important: copy numeric ID for API calls
         id: staff.id || "",
-        name: staff.name || "",
+        name: staff.name || staff.fullName || "",
         email: staff.email || "",
-        phone: staff.phone || "",
+        phone: staff.phone || staff.phoneNumber || "",
         role: staff.role || "",
-        specialty: staff.specialty || ""
+        specialty: staff.specialty || staff.specialization || staff.expertise || ""
       });
     }
   }, [staff, isOpen]);
@@ -147,29 +148,26 @@ export default function EditStaffModal({ isOpen, onClose, onSuccess, staff }) {
             required
           />
 
-          {/* Role */}
+          {/* Role - Display only (cannot be changed after creation) */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-muted-foreground" />
               Vai trò
-              <span className="text-destructive">*</span>
             </Label>
-            <Select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className={cn(errors.role && "border-destructive")}
-            >
-              <option value="">-- Chọn vai trò --</option>
-              {roles.map(role => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </Select>
-            {errors.role && (
-              <p className="text-sm text-destructive">{errors.role}</p>
-            )}
+            <input
+              type="text"
+              value={
+                formData.role === 'veterinarian' ? 'Bác sĩ thú y' :
+                formData.role === 'care_staff' ? 'Nhân viên chăm sóc' :
+                formData.role === 'receptionist' ? 'Lễ tân' :
+                formData.role || 'Không xác định'
+              }
+              disabled
+              className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground italic">
+              Vai trò không thể thay đổi sau khi tạo. Nếu cần thay đổi, vui lòng xóa và tạo lại nhân viên.
+            </p>
           </div>
 
           {/* Specialty */}

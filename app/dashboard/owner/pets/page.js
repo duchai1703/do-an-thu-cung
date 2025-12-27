@@ -26,6 +26,7 @@ export default function OwnerPetsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPet, setEditingPet] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [petOwnerId, setPetOwnerId] = useState(null);
 
   useEffect(() => {
     loadPets();
@@ -41,7 +42,37 @@ export default function OwnerPetsPage() {
         return;
       }
 
-      const response = await petApi.getAll();
+      // Get current user info from backend
+      const { authApi } = await import('@/lib/api');
+      const userResponse = await authApi.getCurrentUser();
+      
+      if (!userResponse.success || !userResponse.data) {
+        console.error('Failed to get current user');
+        showToast("Không thể lấy thông tin người dùng", "error");
+        return;
+      }
+
+      // Get full profile to access petOwnerId
+      const accountId = userResponse.data.accountId;
+      const profileResponse = await authApi.getFullProfile(accountId);
+      
+      let petOwnerId = null;
+      if (profileResponse.success && profileResponse.data?.profile) {
+        const ownerId = profileResponse.data.profile.petOwnerId;
+        setPetOwnerId(ownerId); // Save for later use
+        petOwnerId = ownerId;
+      }
+
+      let response;
+      if (petOwnerId) {
+        // Pet Owner: only get their own pets
+        response = await petApi.getByOwner(petOwnerId);
+      } else {
+        // Fallback: this shouldn't happen for pet owners
+        console.warn('No petOwnerId found in user profile');
+        setPets([]);
+        return;
+      }
       
       if (response.success && response.data) {
         // Map backend data to frontend format
@@ -62,8 +93,8 @@ export default function OwnerPetsPage() {
         
         setPets(mappedPets);
       } else {
-        console.error("Failed to load pets:", response.error);
-        showToast("Không thể tải danh sách thú cưng", "error");
+        // If no pets, set empty array (don't show error for new users)
+        setPets([]);
       }
     } catch (error) {
       console.error("Error loading pets:", error);
@@ -90,7 +121,12 @@ export default function OwnerPetsPage() {
 
   const handleAddPet = async (newPet) => {
     try {
-      const response = await petApi.create(newPet);
+      if (!petOwnerId) {
+        showToast("Không thể xác định chủ sở hữu", "error");
+        return;
+      }
+      
+      const response = await petApi.create(newPet, petOwnerId);
       
       if (response.success) {
         showToast("Đã thêm thú cưng thành công!", "success");

@@ -11,72 +11,135 @@ import {
   TrendingUp,
   Trophy,
   Star,
+  RefreshCw,
+  Briefcase,
+  PawPrint,
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/contexts/ToastContext";
 import StatsCard from "@/components/dashboard/StatsCard";
 import RevenueChart from "@/components/charts/RevenueChart";
-import { cn } from "@/lib/utils";
+import { reportApi, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export default function ManagerReportsPage() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  
+  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("month");
   const [year, setYear] = useState(new Date().getFullYear());
   const [revenueData, setRevenueData] = useState([]);
+  const [topServices, setTopServices] = useState([]);
+  const [employeeWorkload, setEmployeeWorkload] = useState([]);
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalAppointments: 0,
     totalCustomers: 0,
     avgRevenuePerCustomer: 0,
   });
-  const { showToast } = useToast();
+
+  // Date range for detailed reports
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    loadRevenueData();
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    loadAllReports();
   }, [period, year]);
 
-  const loadRevenueData = () => {
-    const mockData = [
-      { month: 1, year: 2025, revenue: 15600000 },
-      { month: 2, year: 2025, revenue: 18200000 },
-      { month: 3, year: 2025, revenue: 22400000 },
-      { month: 4, year: 2025, revenue: 19800000 },
-      { month: 5, year: 2025, revenue: 25600000 },
-      { month: 6, year: 2025, revenue: 28900000 },
-      { month: 7, year: 2025, revenue: 31200000 },
-      { month: 8, year: 2025, revenue: 29500000 },
-      { month: 9, year: 2025, revenue: 33800000 },
-      { month: 10, year: 2025, revenue: 45600000 },
-      { month: 11, year: 2025, revenue: 38400000 },
-      { month: 12, year: 2025, revenue: 42100000 },
-    ];
+  const loadAllReports = async () => {
+    setLoading(true);
+    try {
+      // Load multiple reports in parallel
+      const [dashboardRes, revenueRes, topServicesRes, workloadRes] = await Promise.all([
+        reportApi.getDashboard(),
+        reportApi.getRevenue({ period, year }),
+        reportApi.getTopServices({ limit: 5, startDate, endDate, sortBy: 'revenue' }),
+        reportApi.getEmployeeWorkload({ startDate, endDate })
+      ]);
 
-    setRevenueData(mockData);
+      // Dashboard stats
+      if (dashboardRes.success && dashboardRes.data) {
+        const d = dashboardRes.data;
+        setStats({
+          totalRevenue: d.revenue?.total || d.totalRevenue || 0,
+          totalAppointments: d.appointments?.total || d.totalAppointments || 0,
+          totalCustomers: d.customers?.total || d.totalCustomers || 0,
+          avgRevenuePerCustomer: d.avgRevenuePerCustomer || 0,
+        });
+      }
 
-    const totalRevenue = mockData.reduce((sum, d) => sum + d.revenue, 0);
-    setStats({
-      totalRevenue,
-      totalAppointments: 342,
-      totalCustomers: 89,
-      avgRevenuePerCustomer: totalRevenue / 89,
-    });
+      // Revenue data
+      if (revenueRes.success && revenueRes.data) {
+        const monthlyData = Array.isArray(revenueRes.data) 
+          ? revenueRes.data 
+          : (revenueRes.data.data || []);
+        setRevenueData(monthlyData);
+      }
+
+      // Top services
+      if (topServicesRes.success && topServicesRes.data) {
+        const services = Array.isArray(topServicesRes.data) 
+          ? topServicesRes.data 
+          : (topServicesRes.data.data || []);
+        setTopServices(services);
+      }
+
+      // Employee workload
+      if (workloadRes.success && workloadRes.data) {
+        const workload = Array.isArray(workloadRes.data) 
+          ? workloadRes.data 
+          : (workloadRes.data.data || []);
+        setEmployeeWorkload(workload);
+      }
+
+    } catch (error) {
+      console.error("Error loading reports:", error);
+      showToast("Lỗi khi tải báo cáo", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleExportExcel = () => {
     showToast("Đang xuất báo cáo ra Excel...", "info");
+    // In real implementation, call export API
   };
 
   const handleExportPDF = () => {
     showToast("Đang xuất báo cáo ra PDF...", "info");
+    // In real implementation, call export API
   };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
-    }).format(amount);
+    }).format(amount || 0);
+  };
+
+  const getServiceIcon = (serviceName) => {
+    const name = serviceName?.toLowerCase() || '';
+    if (name.includes('khám') || name.includes('health')) return '🏥';
+    if (name.includes('tắm') || name.includes('spa') || name.includes('bath')) return '🛁';
+    if (name.includes('cắt') || name.includes('groom')) return '✂️';
+    if (name.includes('tiêm') || name.includes('vaccin')) return '💉';
+    if (name.includes('lưu trú') || name.includes('board')) return '🏠';
+    return '✨';
   };
 
   return (
@@ -114,6 +177,36 @@ export default function ManagerReportsPage() {
         />
       </div>
 
+      {/* Date Range Filter */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label>Từ ngày</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-40"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Đến ngày</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-40"
+              />
+            </div>
+            <Button onClick={loadAllReports} disabled={loading}>
+              {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Làm mới
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Revenue Chart Section */}
       <Card>
         <CardHeader>
@@ -150,7 +243,13 @@ export default function ManagerReportsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <RevenueChart data={revenueData} period={period} />
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <RevenueChart data={revenueData} period={period} />
+          )}
         </CardContent>
       </Card>
 
@@ -179,7 +278,7 @@ export default function ManagerReportsPage() {
         </CardContent>
       </Card>
 
-      {/* Top Services & Customers */}
+      {/* Top Services & Employee Workload */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -190,61 +289,29 @@ export default function ManagerReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                {
-                  rank: 1,
-                  icon: "🏥",
-                  name: "Khám sức khỏe",
-                  count: 89,
-                  revenue: 17800000,
-                },
-                {
-                  rank: 2,
-                  icon: "🛁",
-                  name: "Tắm spa",
-                  count: 76,
-                  revenue: 11400000,
-                },
-                {
-                  rank: 3,
-                  icon: "✂️",
-                  name: "Cắt tỉa lông",
-                  count: 64,
-                  revenue: 11520000,
-                },
-                {
-                  rank: 4,
-                  icon: "💉",
-                  name: "Tiêm phòng",
-                  count: 52,
-                  revenue: 6240000,
-                },
-                {
-                  rank: 5,
-                  icon: "🏠",
-                  name: "Lưu trú",
-                  count: 45,
-                  revenue: 4500000,
-                },
-              ].map((service) => (
+              {topServices.length > 0 ? topServices.map((service, idx) => (
                 <div
-                  key={service.rank}
+                  key={service.serviceId || idx}
                   className="flex items-center gap-3 p-3 bg-muted rounded-lg"
                 >
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
-                    {service.rank}
+                    {idx + 1}
                   </div>
-                  <div className="text-2xl">{service.icon}</div>
+                  <div className="text-2xl">{getServiceIcon(service.serviceName || service.name)}</div>
                   <div className="flex-1">
                     <p className="font-semibold text-foreground">
-                      {service.name}
+                      {service.serviceName || service.name || 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {service.count} lượt • {formatCurrency(service.revenue)}
+                      {service.count || service.totalBookings || 0} lượt • {formatCurrency(service.revenue || service.totalRevenue || 0)}
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="text-center text-muted-foreground py-4">
+                  Chưa có dữ liệu dịch vụ
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -252,40 +319,37 @@ export default function ManagerReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-primary" />
-              Khách hàng thân thiết
+              <Briefcase className="h-5 w-5 text-primary" />
+              Hiệu suất nhân viên
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                { rank: 1, name: "Nguyễn Văn A", pets: 3, spent: 5600000 },
-                { rank: 2, name: "Trần Thị B", pets: 2, spent: 4200000 },
-                { rank: 3, name: "Lê Văn C", pets: 2, spent: 3800000 },
-                { rank: 4, name: "Phạm Thị D", pets: 1, spent: 3200000 },
-                { rank: 5, name: "Hoàng Văn E", pets: 4, spent: 2900000 },
-              ].map((customer) => (
+              {employeeWorkload.length > 0 ? employeeWorkload.slice(0, 5).map((emp, idx) => (
                 <div
-                  key={customer.rank}
+                  key={emp.employeeId || idx}
                   className="flex items-center gap-3 p-3 bg-muted rounded-lg"
                 >
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
-                    {customer.rank}
+                    {idx + 1}
                   </div>
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted-foreground/10">
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-foreground">
-                      {customer.name}
+                      {emp.employeeName || emp.fullName || emp.name || 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {customer.pets} thú cưng •{" "}
-                      {formatCurrency(customer.spent)}
+                      {emp.appointmentsCompleted || emp.totalAppointments || 0} dịch vụ • {emp.hoursWorked || 0}h làm việc
                     </p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="text-center text-muted-foreground py-4">
+                  Chưa có dữ liệu nhân viên
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

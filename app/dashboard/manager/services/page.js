@@ -55,7 +55,8 @@ export default function ManagerServicesPage() {
         return;
       }
 
-      const response = await serviceApi.getAll();
+      // Include unavailable services for manager view
+      const response = await serviceApi.getAll({ includeUnavailable: true });
       console.log("Service API response:", response);
       
       if (response.success && response.data) {
@@ -71,7 +72,7 @@ export default function ManagerServicesPage() {
             price: parseFloat(svc.basePrice || svc.price || 0),
             duration: parseInt(svc.estimatedDuration || svc.duration || 30),
             description: svc.description || '',
-            isActive: svc.isActive !== false,
+            isActive: svc.isAvailable !== false, // Backend uses 'isAvailable'
           };
         });
         
@@ -101,7 +102,18 @@ export default function ManagerServicesPage() {
 
   const handleAddService = async (newService) => {
     try {
-      const response = await serviceApi.create(newService);
+      // Map frontend field names to backend DTO format
+      const serviceData = {
+        serviceName: newService.name || newService.serviceName,
+        categoryId: parseInt(newService.category || newService.categoryId),
+        basePrice: parseFloat(newService.price || newService.basePrice || 0),
+        estimatedDuration: parseInt(newService.duration || newService.estimatedDuration || 30),
+        description: newService.description || '',
+        requiredStaffType: newService.requiredStaffType || 'CareStaff', // Default staff type
+        isBoardingService: newService.isBoardingService || false,
+      };
+
+      const response = await serviceApi.create(serviceData);
       
       if (response.success) {
         showToast("Đã thêm dịch vụ thành công!", "success");
@@ -117,7 +129,22 @@ export default function ManagerServicesPage() {
 
   const handleEditService = async (updatedData) => {
     try {
-      const response = await serviceApi.update(updatedData.id, updatedData);
+      // Map frontend field names to backend DTO format
+      const updateDto = {};
+      
+      if (updatedData.name) updateDto.serviceName = updatedData.name;
+      if (updatedData.serviceName) updateDto.serviceName = updatedData.serviceName;
+      if (updatedData.category) updateDto.categoryId = parseInt(updatedData.category);
+      if (updatedData.categoryId) updateDto.categoryId = parseInt(updatedData.categoryId);
+      if (updatedData.price !== undefined) updateDto.basePrice = parseFloat(updatedData.price);
+      if (updatedData.basePrice !== undefined) updateDto.basePrice = parseFloat(updatedData.basePrice);
+      if (updatedData.duration) updateDto.estimatedDuration = parseInt(updatedData.duration);
+      if (updatedData.estimatedDuration) updateDto.estimatedDuration = parseInt(updatedData.estimatedDuration);
+      if (updatedData.description !== undefined) updateDto.description = updatedData.description;
+      if (updatedData.requiredStaffType) updateDto.requiredStaffType = updatedData.requiredStaffType;
+      if (updatedData.isActive !== undefined) updateDto.isActive = updatedData.isActive;
+
+      const response = await serviceApi.update(updatedData.id, updateDto);
       
       if (response.success) {
         showToast("Đã cập nhật dịch vụ thành công!", "success");
@@ -274,18 +301,23 @@ export default function ManagerServicesPage() {
                     {service.description}
                   </p>
 
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Giá:</span>
-                      <span className="font-semibold text-foreground">
+                  {/* Price & Duration - Stack vertical on small cards */}
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <DollarSign className="h-3 w-3" />
+                        <span>Giá</span>
+                      </div>
+                      <span className="font-semibold text-foreground text-sm">
                         {formatCurrency(service.price)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Thời gian:</span>
-                      <span className="font-semibold text-foreground">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>Thời gian</span>
+                      </div>
+                      <span className="font-semibold text-foreground text-sm">
                         {service.duration >= 60
                           ? `${Math.floor(service.duration / 60)} giờ`
                           : `${service.duration} phút`}
@@ -293,31 +325,32 @@ export default function ManagerServicesPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  {/* Buttons - Stack on very small screens */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <Button
                       onClick={() => handleOpenEdit(service)}
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 min-w-0"
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Chỉnh sửa
+                      <Edit className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span className="truncate">Sửa</span>
                     </Button>
                     <Button
                       onClick={() => handleToggleService(service.id)}
                       variant={service.isActive ? "secondary" : "default"}
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 min-w-0"
                     >
                       {service.isActive ? (
                         <>
-                          <Pause className="h-4 w-4 mr-2" />
-                          Tạm ngưng
+                          <Pause className="h-4 w-4 mr-1 flex-shrink-0" />
+                          <span className="truncate">Tạm ngưng</span>
                         </>
                       ) : (
                         <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Kích hoạt
+                          <Play className="h-4 w-4 mr-1 flex-shrink-0" />
+                          <span className="truncate">Kích hoạt</span>
                         </>
                       )}
                     </Button>

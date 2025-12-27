@@ -49,12 +49,23 @@ export default function ManagerAppointmentsPage() {
       ]);
 
       // Process staff data
+      console.log("Staff API response:", staffResponse);
       if (staffResponse.success && staffResponse.data) {
+        console.log("Staff data from API:", staffResponse.data);
+        // Map backend userType to frontend role format
+        const roleMap = {
+          'VETERINARIAN': 'veterinarian',
+          'CARE_STAFF': 'care_staff',
+          'RECEPTIONIST': 'receptionist',
+          'MANAGER': 'manager'
+        };
+
         const mappedStaff = staffResponse.data.map(emp => ({
-          id: emp.employeeID || emp.id,
-          name: emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-          role: emp.userType || emp.role
+          id: emp.employeeId || emp.employeeID || emp.id,
+          name: emp.fullName || emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Chưa có tên',
+          role: roleMap[emp.userType] || roleMap[emp.account?.userType] || emp.role || 'care_staff'
         }));
+        console.log("Mapped staff list:", mappedStaff);
         setStaffList(mappedStaff);
       } else {
         console.error("Failed to load staff:", staffResponse.error);
@@ -86,6 +97,11 @@ export default function ManagerAppointmentsPage() {
           
           const serviceCat = apt.service?.categoryName?.toLowerCase() || 'medical';
           const categoryData = categoryMap[serviceCat] || { category: 'medical', icon: '✨' };
+          // Get assigned employee info - check multiple field names
+          const empId = apt.employeeId || apt.employeeID || apt.employee?.employeeId || apt.employee?.employeeID || apt.employee?.id;
+          const empName = apt.employee?.fullName || apt.employee?.name || '';
+          
+          console.log(`Appointment ${apt.appointmentId}: employeeId=${empId}, employee:`, apt.employee);
 
           return {
             id: apt.appointmentId || apt.id,
@@ -100,8 +116,8 @@ export default function ManagerAppointmentsPage() {
             date: apt.appointmentDate || new Date().toISOString().split('T')[0],
             time: apt.startTime || '09:00',
             status: statusMap[apt.status] || 'pending',
-            assignedStaffId: apt.employeeID || apt.employee?.employeeID,
-            assignedStaffName: apt.employee?.name || '',
+            assignedStaffId: empId ? String(empId) : '', // Convert to string for Select value
+            assignedStaffName: empName,
             notes: apt.notes || ''
           };
         });
@@ -120,28 +136,66 @@ export default function ManagerAppointmentsPage() {
 
   const handleUpdateAppointment = async (data) => {
     try {
-      // Map frontend status to backend status
-      const statusMap = {
-        'pending': 'PENDING',
-        'confirmed': 'CONFIRMED',
-        'in_progress': 'IN_PROGRESS',
-        'completed': 'COMPLETED',
-        'cancelled': 'CANCELLED'
-      };
+      const appointmentId = data.appointmentId;
+      let statusResponse = { success: true };
+      let updateResponse = { success: true };
 
-      const updateData = {
-        status: statusMap[data.status] || data.status,
-        employeeID: data.assignedStaffId,
-        notes: data.notes
-      };
+      // 1. Handle status change via dedicated endpoints
+      if (data.status) {
+        const statusMap = {
+          'pending': 'PENDING',
+          'confirmed': 'CONFIRMED',
+          'in_progress': 'IN_PROGRESS',
+          'completed': 'COMPLETED',
+          'cancelled': 'CANCELLED'
+        };
+        const backendStatus = statusMap[data.status] || data.status;
 
-      const response = await appointmentApi.update(data.appointmentId, updateData);
+        // Find current appointment to know current status
+        const currentAppointment = appointments.find(a => a.id === appointmentId);
+        const currentStatus = currentAppointment?.status;
 
-      if (response.success) {
+        // Only call status endpoint if status actually changed
+        if (currentStatus !== data.status) {
+          switch (data.status) {
+            case 'confirmed':
+              statusResponse = await appointmentApi.confirm(appointmentId);
+              break;
+            case 'in_progress':
+              statusResponse = await appointmentApi.start(appointmentId);
+              break;
+            case 'completed':
+              statusResponse = await appointmentApi.complete(appointmentId, {});
+              break;
+            case 'cancelled':
+              statusResponse = await appointmentApi.cancel(appointmentId, data.notes || 'Hủy bởi quản lý');
+              break;
+            default:
+              // pending - usually can't go back to pending
+              statusResponse = { success: true };
+          }
+        }
+      }
+
+      // 2. Handle other updates (employeeId, notes) via update endpoint
+      const updateData = {};
+      if (data.assignedStaffId) {
+        updateData.employeeId = parseInt(data.assignedStaffId); // Note: employeeId not employeeID
+      }
+      if (data.notes !== undefined) {
+        updateData.notes = data.notes;
+      }
+
+      // Only call update if there's something to update
+      if (Object.keys(updateData).length > 0) {
+        updateResponse = await appointmentApi.update(appointmentId, updateData);
+      }
+
+      if (statusResponse.success && updateResponse.success) {
         showToast("Cập nhật lịch hẹn thành công!", "success");
         loadData(); // Reload to get fresh data
       } else {
-        showToast(response.error || "Không thể cập nhật lịch hẹn", "error");
+        showToast(statusResponse.error || updateResponse.error || "Không thể cập nhật lịch hẹn", "error");
       }
     } catch (error) {
       console.error("Error updating appointment:", error);

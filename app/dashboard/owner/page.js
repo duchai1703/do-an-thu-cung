@@ -5,8 +5,7 @@ import { PawPrint, Calendar, CreditCard, Zap } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import StatsCard from "@/components/dashboard/StatsCard";
 import QuickActions from "@/components/dashboard/QuickActions";
-import { petApi, appointmentApi, paymentApi, petOwnerApi, authApi, getToken, TOKEN_KEY } from "@/lib/api";
-import { USE_MOCK_API } from "@/lib/api/config";
+import { petApi, appointmentApi, paymentApi, authApi, getToken } from "@/lib/api";
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -32,12 +31,26 @@ export default function OwnerDashboard() {
         return;
       }
 
-      // Get user information
-      await loadUserInfo();
+      // Get current user info and petOwnerId
+      const userResponse = await authApi.getCurrentUser();
+      let petOwnerId = null;
+      
+      if (userResponse.success && userResponse.data) {
+        setUserName(userResponse.data.fullName || userResponse.data.email || "Chủ thú cưng");
+        
+        // Get full profile to access petOwnerId
+        const profileResponse = await authApi.getFullProfile(userResponse.data.accountId);
+        if (profileResponse.success && profileResponse.data?.profile) {
+          petOwnerId = profileResponse.data.profile.petOwnerId;
+        }
+      }
 
       // Fetch owner's pets
-      const petsResponse = await petApi.getAll();
-      const totalPets = petsResponse.success ? (petsResponse.data?.length || 0) : 0;
+      let totalPets = 0;
+      if (petOwnerId) {
+        const petsResponse = await petApi.getByOwner(petOwnerId);
+        totalPets = petsResponse.success ? (petsResponse.data?.length || 0) : 0;
+      }
 
       // Fetch owner's appointments
       const appointmentsResponse = await appointmentApi.getAll();
@@ -63,54 +76,6 @@ export default function OwnerDashboard() {
       // Keep default values on error
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadUserInfo = async () => {
-    try {
-      if (USE_MOCK_API) {
-        // For mock API, get user data from localStorage
-        if (typeof window !== 'undefined') {
-          const storedData = localStorage.getItem(TOKEN_KEY);
-          if (storedData) {
-            try {
-              const authData = JSON.parse(storedData);
-              if (authData.account) {
-                setUserName(authData.account.fullName || authData.account.email || "Chủ thú cưng");
-                return;
-              }
-            } catch (e) {
-              console.error("Error parsing stored auth data:", e);
-            }
-          }
-        }
-      } else {
-        // For real API, fetch user profile
-        // First, try to get accountId from stored token/user data
-        if (typeof window !== 'undefined') {
-          const storedData = localStorage.getItem(TOKEN_KEY);
-          if (storedData) {
-            try {
-              const authData = JSON.parse(storedData);
-              const accountId = authData.account?.accountID || authData.user?.accountID;
-              
-              if (accountId) {
-                const profileResponse = await authApi.getFullProfile(accountId);
-                if (profileResponse.success && profileResponse.data) {
-                  const profile = profileResponse.data;
-                  setUserName(profile.fullName || profile.petOwner?.name || profile.email || "Chủ thú cưng");
-                  return;
-                }
-              }
-            } catch (e) {
-              console.error("Error fetching user profile:", e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error loading user info:", error);
-      // Keep default name on error
     }
   };
 

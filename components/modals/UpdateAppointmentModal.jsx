@@ -36,9 +36,11 @@ export default function UpdateAppointmentModal({ isOpen, onClose, onSuccess, app
 
   useEffect(() => {
     if (appointment && isOpen) {
+      const staffId = appointment.assignedStaffId ? String(appointment.assignedStaffId) : "";
+      console.log("Modal opened - assignedStaffId:", appointment.assignedStaffId, "-> converted:", staffId);
       setFormData({
         status: appointment.status || "pending",
-        assignedStaffId: appointment.assignedStaffId || "",
+        assignedStaffId: staffId,
         notes: appointment.notes || ""
       });
       setErrors({});
@@ -99,6 +101,8 @@ export default function UpdateAppointmentModal({ isOpen, onClose, onSuccess, app
       onClose();
     }, 1000);
   };
+
+  console.log("UpdateAppointmentModal - staffList:", staffList, "isOpen:", isOpen);
 
   if (!isOpen || !appointment) return null;
 
@@ -231,6 +235,9 @@ export default function UpdateAppointmentModal({ isOpen, onClose, onSuccess, app
             <Label className="flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-muted-foreground" />
               Phân công nhân viên
+              <span className="text-xs text-muted-foreground ml-2">
+                ({staffList?.length || 0} nhân viên)
+              </span>
             </Label>
             <Select
               name="assignedStaffId"
@@ -238,9 +245,9 @@ export default function UpdateAppointmentModal({ isOpen, onClose, onSuccess, app
               onChange={handleChange}
             >
               <option value="">-- Chưa phân công --</option>
-              {staffList && staffList.map(staff => (
-                <option key={staff.id} value={staff.id}>
-                  {getStaffLabel(staff)}
+              {staffList && staffList.length > 0 && staffList.map((staff, index) => (
+                <option key={staff.id || `staff-${index}`} value={String(staff.id)}>
+                  {staff.name || 'Unknown'} - {staff.role || 'N/A'}
                 </option>
               ))}
             </Select>

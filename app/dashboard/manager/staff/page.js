@@ -68,14 +68,22 @@ export default function ManagerStaffPage() {
       
       if (response.success && response.data) {
         const mappedStaff = response.data.map(emp => ({
-          id: `NV${String(emp.employeeId || emp.id).padStart(4, '0')}`,
-          name: emp.account?.email?.split('@')[0] || emp.fullName || 'Unknown',
-          email: emp.account?.email || 'N/A',
+          employeeId: emp.employeeId || emp.id, // Store original numeric ID for API calls
+          id: `NV${String(emp.employeeId || emp.id).padStart(4, '0')}`, // Display ID
+          name: emp.fullName || emp.account?.email?.split('@')[0] || 'Unknown',
+          email: emp.account?.email || emp.email || 'N/A',
           phone: emp.phoneNumber || 'N/A',
-          role: mapRole(emp.account?.userType),
-          isActive: emp.account?.isActive !== false,
-          joinDate: emp.createdAt ? new Date(emp.createdAt).toISOString().split('T')[0] : 'N/A',
-          specialization: emp.specialization || 'N/A',
+          role: detectRole(emp),
+          isActive: emp.isAvailable !== false && emp.account?.isActive !== false,
+          joinDate: emp.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : 'N/A',
+          specialization: emp.expertise || emp.skills?.join(', ') || 'N/A',
+          // Store original fields for editing
+          fullName: emp.fullName,
+          phoneNumber: emp.phoneNumber,
+          address: emp.address,
+          expertise: emp.expertise,
+          skills: emp.skills,
+          licenseNumber: emp.licenseNumber,
         }));
         
         setStaffList(mappedStaff);
@@ -91,19 +99,56 @@ export default function ManagerStaffPage() {
     }
   };
 
-  const mapRole = (userType) => {
-    const roleMap = {
-      'VETERINARIAN': 'veterinarian',
-      'CARE_STAFF': 'care_staff',
-      'RECEPTIONIST': 'receptionist',
-      'MANAGER': 'manager'
-    };
-    return roleMap[userType] || 'care_staff';
+  // Detect employee role from employee data
+  // Backend returns different fields based on employee type:
+  // - Veterinarian: licenseNumber, expertise
+  // - CareStaff: skills
+  // - Manager/Receptionist: neither
+  const detectRole = (emp) => {
+    // Check account.userType first if available
+    const userType = emp.userType || emp.account?.userType;
+    if (userType) {
+      const roleMap = {
+        'VETERINARIAN': 'veterinarian',
+        'CARE_STAFF': 'care_staff',
+        'RECEPTIONIST': 'receptionist',
+        'MANAGER': 'manager'
+      };
+      if (roleMap[userType]) return roleMap[userType];
+    }
+
+    // Fallback: detect from characteristic fields
+    if (emp.licenseNumber !== undefined || emp.expertise !== undefined) {
+      return 'veterinarian';
+    }
+    if (Array.isArray(emp.skills)) {
+      return 'care_staff';
+    }
+    
+    // Default to care_staff if unknown
+    return 'care_staff';
   };
 
   const handleAddStaff = async (newStaff) => {
     try {
-      const response = await employeeApi.create(newStaff);
+      // Map frontend form fields to backend DTO format
+      const roleToUserType = {
+        'veterinarian': 'VETERINARIAN',
+        'care_staff': 'CARE_STAFF',
+        'receptionist': 'RECEPTIONIST',
+      };
+
+      const employeeData = {
+        email: newStaff.email,
+        password: newStaff.password,
+        fullName: newStaff.fullName,
+        phoneNumber: newStaff.phone, // Map 'phone' -> 'phoneNumber'
+        userType: roleToUserType[newStaff.role] || 'CARE_STAFF', // Map 'role' -> 'userType'
+        hireDate: new Date().toISOString(), // Default to today
+        salary: 0, // Default salary, can be updated later
+      };
+
+      const response = await employeeApi.create(employeeData);
       
       if (response.success) {
         showToast("Đã thêm nhân viên thành công!", "success");
@@ -119,7 +164,30 @@ export default function ManagerStaffPage() {
 
   const handleEditStaff = async (updatedData) => {
     try {
-      const response = await employeeApi.update(updatedData.id, updatedData);
+      // Extract numeric employeeId from the data
+      const employeeId = updatedData.employeeId;
+      
+      if (!employeeId) {
+        showToast("Không tìm thấy ID nhân viên", "error");
+        return;
+      }
+
+      // Map frontend field names to backend DTO format
+      const updateDto = {};
+      
+      // Only include fields that have values to update
+      if (updatedData.name) updateDto.fullName = updatedData.name;
+      if (updatedData.fullName) updateDto.fullName = updatedData.fullName;
+      if (updatedData.phone) updateDto.phoneNumber = updatedData.phone;
+      if (updatedData.phoneNumber) updateDto.phoneNumber = updatedData.phoneNumber;
+      if (updatedData.address !== undefined) updateDto.address = updatedData.address;
+      if (updatedData.specialty) updateDto.expertise = updatedData.specialty;
+      if (updatedData.expertise) updateDto.expertise = updatedData.expertise;
+      if (updatedData.skills) updateDto.skills = updatedData.skills;
+      if (updatedData.licenseNumber) updateDto.licenseNumber = updatedData.licenseNumber;
+      if (updatedData.isAvailable !== undefined) updateDto.isAvailable = updatedData.isAvailable;
+
+      const response = await employeeApi.update(employeeId, updateDto);
       
       if (response.success) {
         showToast("Cập nhật nhân viên thành công!", "success");
