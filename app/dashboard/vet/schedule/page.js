@@ -43,11 +43,29 @@ export default function VeterinarianSchedulePage() {
         return;
       }
 
-      // Fetch appointments for selected date
-      const response = await appointmentApi.getAll({ date: selectedDate });
+      // Lấy employeeId của bác sĩ đang đăng nhập
+      const { authApi } = await import("@/lib/api");
+      const userRes = await authApi.getCurrentUser();
+      const employeeId = userRes.data?.employee?.employeeId;
+
+      if (!employeeId) {
+        console.log('[Schedule] No employeeId found - cannot fetch appointments');
+        setAppointments([]);
+        setLoading(false);
+        return;
+      }
+
+      // Chỉ lấy appointments của bác sĩ này
+      const response = await appointmentApi.getByEmployee(employeeId);
       
       if (response.success && response.data) {
-        const mappedAppointments = response.data.map(apt => ({
+        // Filter theo ngày đã chọn
+        const filteredByDate = response.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          return aptDate === selectedDate;
+        });
+
+        const mappedAppointments = filteredByDate.map(apt => ({
           id: apt.appointmentId || apt.id,
           code: formatAppointmentId(apt.appointmentId || apt.id),
           time: apt.startTime || '',
@@ -57,12 +75,12 @@ export default function VeterinarianSchedulePage() {
           petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
           petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
           petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
-          ownerId: apt.petOwner?.petOwnerId || apt.petOwner?.id,
-          ownerName: apt.petOwner?.account?.email?.split('@')[0] || 'Unknown',
-          ownerPhone: apt.petOwner?.phoneNumber || 'N/A',
+          ownerId: apt.pet?.owner?.petOwnerId || apt.pet?.owner?.id,
+          ownerName: apt.pet?.owner?.fullName || apt.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
           serviceId: apt.service?.serviceId || apt.service?.id,
-          serviceName: apt.service?.name || 'Unknown Service',
-          serviceIcon: getServiceIcon(apt.service?.name),
+          serviceName: apt.service?.serviceName || apt.service?.name || 'Unknown Service',
+          serviceIconName: apt.service?.serviceName || apt.service?.name || '',
           status: mapStatus(apt.status),
           symptoms: apt.notes || 'N/A',
           notes: apt.notes || '',
@@ -100,13 +118,22 @@ export default function VeterinarianSchedulePage() {
     return statusMap[backendStatus] || 'waiting';
   };
 
-  const handleStartExam = (appointmentId) => {
-    setAppointments(appointments.map(apt =>
-      apt.id === appointmentId
-        ? { ...apt, status: "in_progress" }
-        : apt
-    ));
-    showToast("Đã bắt đầu khám");
+  const handleStartExam = async (appointmentId) => {
+    try {
+      // Call API to start the exam
+      const response = await appointmentApi.start(appointmentId);
+      
+      if (response.success) {
+        // Reload appointments from server to get updated status
+        await loadAppointments();
+        showToast("Đã bắt đầu khám");
+      } else {
+        showToast(response.error || "Không thể bắt đầu ca khám", "error");
+      }
+    } catch (error) {
+      console.error('Error starting exam:', error);
+      showToast("Có lỗi xảy ra khi bắt đầu khám", "error");
+    }
   };
 
   const handleCompleteExam = (appointment) => {
@@ -114,12 +141,10 @@ export default function VeterinarianSchedulePage() {
     setIsRecordModalOpen(true);
   };
 
-  const handleRecordSuccess = (data) => {
-    setAppointments(appointments.map(apt =>
-      apt.id === data.appointmentId
-        ? { ...apt, status: "completed", notes: data.recordData.notes }
-        : apt
-    ));
+  const handleRecordSuccess = async (data) => {
+    // Reload appointments to get updated status from server
+    // (VetRecordModal already called appointmentApi.complete())
+    await loadAppointments();
     showToast("Đã hoàn thành ca khám và lưu bệnh án!");
   };
 
@@ -279,7 +304,7 @@ export default function VeterinarianSchedulePage() {
               ) : (
                 filteredAppointments.map((apt) => {
                   const statusBadge = getStatusBadge(apt.status);
-                  const ServiceIcon = getServiceIcon(apt.serviceIcon);
+                  const ServiceIcon = getServiceIcon(apt.serviceIconName);
                   const PetIcon = apt.petIcon === '🐕' ? PawPrint : apt.petIcon === '🐈' ? Cat : PawPrint;
                   return (
                     <TableRow key={apt.id}>

@@ -72,7 +72,7 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -81,11 +81,50 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
 
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Import API modules
+      const { medicalRecordApi, appointmentApi, authApi } = await import('@/lib/api');
+      
+      // Get current vet user
+      const userRes = await authApi.me();
+      if (!userRes.success || !userRes.data?.employee?.employeeId) {
+        throw new Error('Không tìm thấy thông tin bác sĩ');
+      }
+      
+      const veterinarianId = Number(userRes.data.employee.employeeId);
+      const petId = Number(appointment.petId);
+      
+      // Create medical record
+      const recordData = {
+        petId: petId,
+        veterinarianId: veterinarianId,
+        appointmentId: appointment.id ? Number(appointment.id) : null,
+        diagnosis: formData.diagnosis,
+        treatment: formData.treatment || '',
+        medicalSummary: {
+          symptoms: formData.symptoms,
+          prescription: formData.prescription,
+          notes: formData.notes
+        },
+        followUpDate: formData.followUpDate || null,
+        examinationDate: new Date().toISOString()
+      };
+      
+      const recordRes = await medicalRecordApi.create(recordData);
+      
+      if (!recordRes.success) {
+        throw new Error(recordRes.error || 'Lỗi khi tạo hồ sơ bệnh án');
+      }
+      
+      // Complete appointment if there's one
+      if (appointment.id) {
+        await appointmentApi.complete(appointment.id);
+      }
+      
+      // Success
       onSuccess({
         appointmentId: appointment.id,
-        recordData: formData
+        recordData: { ...formData, recordId: recordRes.data?.recordId }
       });
       
       // Reset form
@@ -99,7 +138,12 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
       });
       setErrors({});
       onClose();
-    }, 1000);
+    } catch (error) {
+      console.error('Error creating medical record:', error);
+      setErrors({ submit: error.message || 'Có lỗi xảy ra khi lưu hồ sơ' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -255,6 +299,13 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
               min={new Date().toISOString().split('T')[0]}
             />
           </div>
+
+          {/* Submit Error Display */}
+          {errors.submit && (
+            <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+              <p className="text-sm text-destructive">{errors.submit}</p>
+            </div>
+          )}
 
           {/* Footer */}
           <DialogFooter>

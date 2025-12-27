@@ -42,31 +42,50 @@ export default function VeterinarianRecordsPage() {
         return;
       }
 
-      // Fetch all medical records
+      // Lấy employeeId của bác sĩ đang đăng nhập
+      const { authApi } = await import("@/lib/api");
+      const userRes = await authApi.getCurrentUser();
+      const employeeId = userRes.data?.employee?.employeeId;
+
+      if (!employeeId) {
+        console.log('[Records] No employeeId found');
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
+
+      // Lấy tất cả medical records
       const response = await medicalRecordApi.getAll();
       
       if (response.success && response.data) {
-        const mappedRecords = response.data.map(record => ({
-          id: record.recordID || record.id,
-          code: `REC${String(record.recordID || record.id).padStart(3, '0')}`,
-          petId: record.pet?.petID || record.pet?.id,
+        // Chỉ lấy records do bác sĩ này tạo
+        const myRecords = response.data.filter(record => {
+          const vetId = record.veterinarian?.employeeId || record.veterinarianId;
+          return vetId === employeeId;
+        });
+
+        const mappedRecords = myRecords.map(record => ({
+          id: record.recordId || record.id,
+          code: `REC${String(record.recordId || record.id).padStart(3, '0')}`,
+          petId: record.pet?.petId || record.petId,
           petName: record.pet?.name || 'Unknown',
           petIcon: record.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
           petType: `${record.pet?.species || ''} ${record.pet?.breed || ''}`.trim(),
-          ownerId: record.pet?.owner?.petOwnerID || record.pet?.owner?.id,
-          ownerName: record.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerId: record.pet?.owner?.petOwnerId,
+          ownerName: record.pet?.owner?.fullName || record.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
           ownerPhone: record.pet?.owner?.phoneNumber || 'N/A',
-          date: record.recordDate || record.createdAt,
-          symptoms: record.symptoms || 'N/A',
+          date: record.examinationDate || record.createdAt,
+          symptoms: record.medicalSummary?.symptoms || 'N/A',
           diagnosis: record.diagnosis || 'N/A',
-          prescription: record.prescription || 'N/A',
+          prescription: record.medicalSummary?.prescription || 'N/A',
           treatment: record.treatment || 'N/A',
-          notes: record.notes || '',
+          notes: record.medicalSummary?.notes || '',
           followUpDate: record.followUpDate || 'N/A',
-          veterinarianId: record.employee?.employeeID || record.employee?.id,
-          veterinarianName: record.employee?.account?.email?.split('@')[0] || 'Veterinarian',
+          veterinarianId: record.veterinarian?.employeeId || record.veterinarianId,
+          veterinarianName: record.veterinarian?.fullName || record.veterinarian?.account?.email?.split('@')[0] || 'Veterinarian',
+          appointmentId: record.appointmentId || null,
           invoiceCreated: !!record.invoice,
-          invoiceId: record.invoice?.invoiceID || null
+          invoiceId: record.invoice?.invoiceId || null
         }));
         
         // Sort by date descending
@@ -122,16 +141,36 @@ export default function VeterinarianRecordsPage() {
     }
   };
 
-  const handleCreateInvoice = (recordId) => {
+  const handleCreateInvoice = async (recordId) => {
     const record = records.find(r => r.id === recordId);
-    if (record && !record.invoiceCreated) {
-      const newInvoiceId = formatInvoiceId(records.length + 1);
-      setRecords(records.map(rec =>
-        rec.id === recordId
-          ? { ...rec, invoiceCreated: true, invoiceId: newInvoiceId }
-          : rec
-      ));
-      showToast(`Đã tạo hóa đơn ${newInvoiceId}`);
+    if (!record || record.invoiceCreated) {
+      return;
+    }
+    
+    // Check if record has appointmentId (required for invoice creation)
+    if (!record.appointmentId) {
+      showToast("Hồ sơ này không có lịch hẹn liên kết. Không thể tạo hóa đơn.", "error");
+      return;
+    }
+    
+    try {
+      const { invoiceApi } = await import('@/lib/api');
+      
+      const response = await invoiceApi.create({
+        appointmentId: Number(record.appointmentId),
+        notes: `Hóa đơn từ hồ sơ bệnh án ${record.code}`
+      });
+      
+      if (response.success) {
+        // Reload records to get updated invoice status
+        await loadRecords();
+        showToast(`Đã tạo hóa đơn thành công!`);
+      } else {
+        showToast(response.error || "Không thể tạo hóa đơn", "error");
+      }
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      showToast("Có lỗi xảy ra khi tạo hóa đơn", "error");
     }
   };
 

@@ -32,26 +32,44 @@ export default function VetTodayPage() {
         return;
       }
 
+      // Lấy employeeId của bác sĩ đang đăng nhập
+      const { authApi } = await import("@/lib/api");
+      const userRes = await authApi.getCurrentUser();
+      const employeeId = userRes.data?.employee?.employeeId;
+
+      if (!employeeId) {
+        console.log('[Today] No employeeId found');
+        setTodayTasks([]);
+        setLoading(false);
+        return;
+      }
+
       const today = new Date().toISOString().split('T')[0];
       
-      // Fetch today's appointments
-      const response = await appointmentApi.getAll({ date: today });
+      // Chỉ lấy appointments của bác sĩ này
+      const response = await appointmentApi.getByEmployee(employeeId);
       
       if (response.success && response.data) {
-        const mappedTasks = response.data.map(apt => ({
+        // Filter theo ngày hôm nay
+        const todayAppointments = response.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          return aptDate === today;
+        });
+
+        const mappedTasks = todayAppointments.map(apt => ({
           id: apt.appointmentId || apt.id,
           time: apt.startTime || '',
           type: 'appointment',
-          title: `${getServiceTitle(apt.service?.name)} cho ${apt.pet?.name || 'Unknown'}`,
+          title: `${getServiceTitle(apt.service?.serviceName || apt.service?.name)} cho ${apt.pet?.name || 'Unknown'}`,
           petName: apt.pet?.name || 'Unknown',
           petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
           petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
           petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
           petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
-          ownerName: apt.petOwner?.account?.email?.split('@')[0] || 'Unknown',
-          ownerPhone: apt.petOwner?.phoneNumber || 'N/A',
-          serviceName: apt.service?.name || 'Unknown Service',
-          serviceIcon: getServiceIcon(apt.service?.name),
+          ownerName: apt.pet?.owner?.fullName || apt.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
+          serviceName: apt.service?.serviceName || apt.service?.name || 'Unknown Service',
+          serviceIcon: getServiceIcon(apt.service?.serviceName || apt.service?.name),
           status: mapStatus(apt.status),
           priority: apt.status === 'IN_PROGRESS' ? 'high' : 'normal',
           symptoms: apt.notes || 'N/A',

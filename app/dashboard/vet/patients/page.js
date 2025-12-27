@@ -38,11 +38,23 @@ export default function VeterinarianPatientsPage() {
         return;
       }
 
-      // Fetch all appointments to get unique pets
-      const appointmentsRes = await appointmentApi.getAll();
+      // Lấy employeeId của bác sĩ đang đăng nhập
+      const { authApi } = await import("@/lib/api");
+      const userRes = await authApi.getCurrentUser();
+      const employeeId = userRes.data?.employee?.employeeId;
+
+      if (!employeeId) {
+        console.log('[Patients] No employeeId found');
+        setPatients([]);
+        setLoading(false);
+        return;
+      }
+
+      // Chỉ lấy appointments của bác sĩ này
+      const appointmentsRes = await appointmentApi.getByEmployee(employeeId);
       
       if (appointmentsRes.success && appointmentsRes.data) {
-        // Get unique pets from appointments
+        // Get unique pets from appointments của bác sĩ này
         const petMap = new Map();
         
         appointmentsRes.data.forEach(apt => {
@@ -51,7 +63,7 @@ export default function VeterinarianPatientsPage() {
             if (!petMap.has(petId)) {
               petMap.set(petId, {
                 pet: apt.pet,
-                owner: apt.petOwner,
+                owner: apt.pet.owner,
                 appointments: []
               });
             }
@@ -86,8 +98,8 @@ export default function VeterinarianPatientsPage() {
             weight: data.pet.weight ? `${data.pet.weight} kg` : 'N/A',
             color: data.pet.color || 'N/A',
             dateOfBirth: data.pet.birthDate || 'N/A',
-            ownerId: data.owner?.petOwnerID || data.owner?.id,
-            ownerName: data.owner?.account?.email?.split('@')[0] || 'Unknown',
+            ownerId: data.owner?.petOwnerId,
+            ownerName: data.owner?.fullName || data.owner?.account?.email?.split('@')[0] || 'Unknown',
             ownerPhone: data.owner?.phoneNumber || 'N/A',
             lastVisit: sortedAppointments[0]?.appointmentDate || 'N/A',
             totalVisits: data.appointments.length,

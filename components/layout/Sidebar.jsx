@@ -29,6 +29,9 @@ const getIcon = (iconName, label) => {
   if (label === "Chuồng nuôi") {
     return Box;
   }
+  if (label === "Tiêm phòng") {
+    return ClipboardList; // Use ClipboardList as fallback for Syringe
+  }
 
   const iconMap = {
     "🏠": Home,
@@ -44,6 +47,7 @@ const getIcon = (iconName, label) => {
     "💳": CreditCard,
     "🛍️": ShoppingBag,
     "🐾": PawPrint,
+    "💉": ClipboardList,
   };
   return iconMap[iconName] || Home;
 };
@@ -67,6 +71,8 @@ const menuItems = {
     { icon: "👥", label: "Hồ sơ bệnh án", path: "/dashboard/vet/records" },
     { icon: "📋", label: "Công việc hôm nay", path: "/dashboard/vet/today" },
     { icon: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
+    { icon: "💉", label: "Tiêm phòng", path: "/dashboard/vet/vaccinations" },
+    { icon: "🏠", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
   ],
   care_staff: [
     { icon: "🏠", label: "Tổng quan", path: "/dashboard/care-staff" },

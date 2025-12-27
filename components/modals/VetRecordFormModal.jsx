@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils.js";
+import { medicalRecordApi, authApi } from "@/lib/api";
 
 export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record }) {
   const [formData, setFormData] = useState({
@@ -45,37 +46,41 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record 
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [loadingPets, setLoadingPets] = useState(false);
+  const [pets, setPets] = useState([]);
 
-  // Mock pets list for selection
-  const [pets, setPets] = useState([
-    {
-      id: "PET001",
-      name: "Lucky",
-      icon: "🐕",
-      type: "Chó Golden Retriever",
-      ownerId: "CUS001",
-      ownerName: "Nguyễn Văn A",
-      ownerPhone: "0901234567"
-    },
-    {
-      id: "PET002",
-      name: "Miu",
-      icon: "🐈",
-      type: "Mèo Ba Tư",
-      ownerId: "CUS002",
-      ownerName: "Trần Thị B",
-      ownerPhone: "0909876543"
-    },
-    {
-      id: "PET003",
-      name: "Coco",
-      icon: "🐩",
-      type: "Chó Poodle",
-      ownerId: "CUS003",
-      ownerName: "Lê Văn C",
-      ownerPhone: "0912345678"
+  // Load pets from API when modal opens
+  useEffect(() => {
+    if (isOpen && !record) {
+      loadPets();
     }
-  ]);
+  }, [isOpen, record]);
+
+  const loadPets = async () => {
+    try {
+      setLoadingPets(true);
+      const { petApi } = await import('@/lib/api');
+      const response = await petApi.getAll();
+      
+      if (response.success && response.data) {
+        const mappedPets = response.data.map(pet => ({
+          id: pet.petId,
+          name: pet.name,
+          icon: pet.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+          type: `${pet.species || ''} ${pet.breed || ''}`.trim(),
+          ownerId: pet.owner?.petOwnerId,
+          ownerName: pet.owner?.fullName || pet.owner?.account?.email?.split('@')[0] || 'Unknown',
+          ownerPhone: pet.owner?.phoneNumber || 'N/A',
+          ownerEmail: pet.owner?.account?.email || 'N/A'
+        }));
+        setPets(mappedPets);
+      }
+    } catch (error) {
+      console.error('Error loading pets:', error);
+    } finally {
+      setLoadingPets(false);
+    }
+  };
 
   useEffect(() => {
     if (record && isOpen) {
@@ -126,7 +131,8 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record 
 
   const handlePetSelect = (e) => {
     const petId = e.target.value;
-    const selectedPet = pets.find(p => p.id === petId);
+    // Convert to string for comparison since select value is always string
+    const selectedPet = pets.find(p => String(p.id) === String(petId));
     
     if (selectedPet) {
       setFormData(prev => ({
@@ -165,7 +171,7 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record 
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -173,12 +179,51 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record 
     }
 
     setLoading(true);
+    setErrors({});
 
-    setTimeout(() => {
+    try {
+      // Get vet info
+      const userRes = await authApi.me();
+      if (!userRes.success || !userRes.data?.employee?.employeeId) {
+        throw new Error('Không tìm thấy thông tin bác sĩ');
+      }
+      const veterinarianId = Number(userRes.data.employee.employeeId);
+
+      const recordData = {
+        petId: Number(formData.petId),
+        veterinarianId,
+        examinationDate: new Date().toISOString(),
+        medicalSummary: {
+          symptoms: formData.symptoms,
+          diagnosis: formData.diagnosis,
+          prescription: formData.prescription,
+          treatment: formData.treatment,
+          notes: formData.notes
+        },
+        followUpDate: formData.followUpDate || null
+      };
+
+      let response;
+      if (record?.id) {
+        // Update existing record
+        response = await medicalRecordApi.update(record.id, recordData);
+      } else {
+        // Create new record
+        response = await medicalRecordApi.create(recordData);
+      }
+
+      if (response.success) {
+        onSuccess(response.data || formData);
+        onClose();
+      } else {
+        throw new Error(response.error || 'Lỗi khi lưu hồ sơ');
+      }
+    } catch (error) {
+      console.error('Error saving medical record:', error);
+      setErrors({ submit: error.message || 'Có lỗi xảy ra khi lưu hồ sơ' });
+    } finally {
       setLoading(false);
-      onSuccess(formData);
-      onClose();
-    }, 1000);
+    }
   };
 
   const handleClose = () => {
@@ -222,8 +267,11 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record 
                 value={formData.petId}
                 onChange={handlePetSelect}
                 className={cn(errors.petId && "border-destructive")}
+                disabled={loadingPets}
               >
-                <option value="">-- Chọn thú cưng --</option>
+                <option value="">
+                  {loadingPets ? "Đang tải danh sách..." : "-- Chọn thú cưng --"}
+                </option>
                 {pets.map(pet => (
                   <option key={pet.id} value={pet.id}>
                     {pet.icon} {pet.name} - {pet.ownerName}

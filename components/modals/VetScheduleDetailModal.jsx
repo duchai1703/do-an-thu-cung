@@ -22,19 +22,19 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.js";
 
 export default function VetScheduleDetailModal({ isOpen, onClose, appointment }) {
-  if (!isOpen || !appointment) return null;
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-              <Eye className="h-5 w-5 text-primary" />
-            </div>
-            <DialogTitle>Chi tiết ca khám</DialogTitle>
-          </div>
-        </DialogHeader>
+        {appointment ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+                  <Eye className="h-5 w-5 text-primary" />
+                </div>
+                <DialogTitle>Chi tiết ca khám</DialogTitle>
+              </div>
+            </DialogHeader>
 
         <div className="space-y-6">
           {/* Patient Info */}
@@ -109,7 +109,7 @@ export default function VetScheduleDetailModal({ isOpen, onClose, appointment })
             </h3>
             <div className="p-4 bg-muted rounded-lg border border-border">
               <p className="text-base font-semibold text-foreground">
-                {appointment.serviceIcon || "🏥"} {appointment.serviceName}
+                🏥 {appointment.serviceName}
               </p>
             </div>
           </div>
@@ -180,6 +180,12 @@ export default function VetScheduleDetailModal({ isOpen, onClose, appointment })
             Đóng
           </Button>
         </DialogFooter>
+          </>
+        ) : (
+          <div className="py-8 text-center text-muted-foreground">
+            <p>Không có dữ liệu ca khám</p>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

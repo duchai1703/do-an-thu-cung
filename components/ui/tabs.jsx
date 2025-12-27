@@ -25,10 +25,14 @@ const Tabs = React.forwardRef(({ className, value, onValueChange, children, ...p
     >
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child, {
-            activeTab,
-            onTabChange: handleTabChange,
-          });
+          // Only pass activeTab and onTabChange to TabsList and TabsContent
+          const childType = child.type?.displayName;
+          if (childType === 'TabsList' || childType === 'TabsContent') {
+            return React.cloneElement(child, {
+              activeTab,
+              onTabChange: handleTabChange,
+            });
+          }
         }
         return child;
       })}
@@ -38,6 +42,7 @@ const Tabs = React.forwardRef(({ className, value, onValueChange, children, ...p
 Tabs.displayName = "Tabs";
 
 const TabsList = React.forwardRef(({ className, activeTab, onTabChange, children, ...props }, ref) => {
+  // Remove activeTab and onTabChange from props to prevent passing to DOM
   return (
     <div
       ref={ref}
