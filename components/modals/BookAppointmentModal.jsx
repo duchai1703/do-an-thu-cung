@@ -35,22 +35,56 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
 
   useEffect(() => {
     if (isOpen) {
-      // Load pets
-      setPets([
-        { id: "PET001", name: "Lucky" },
-        { id: "PET002", name: "Miu" },
-        { id: "PET003", name: "Coco" }
-      ]);
-
-      // Load services
-      setServices([
-        { id: "SRV001", name: "Khám sức khỏe tổng quát" },
-        { id: "SRV002", name: "Tiêm phòng dại" },
-        { id: "SRV003", name: "Tắm spa cao cấp" },
-        { id: "SRV004", name: "Cắt tỉa lông tạo kiểu" }
-      ]);
+      loadData();
     }
   }, [isOpen]);
+
+  const loadData = async () => {
+    try {
+      // Import APIs
+      const { petApi, serviceApi, authApi } = await import('@/lib/api');
+
+      // Get current user's petOwnerId
+      const userRes = await authApi.getCurrentUser();
+      let petOwnerId = null;
+      
+      if (userRes.success && userRes.data) {
+        const profileRes = await authApi.getFullProfile(userRes.data.accountId);
+        if (profileRes.success && profileRes.data?.profile) {
+          petOwnerId = profileRes.data.profile.petOwnerId;
+        }
+      }
+
+      // Load owner's pets
+      if (petOwnerId) {
+        const petsRes = await petApi.getByOwner(petOwnerId);
+        if (petsRes.success && petsRes.data) {
+          setPets(petsRes.data.map(pet => ({
+            id: pet.petID || pet.id,
+            name: pet.name
+          })));
+        }
+      }
+
+      // Load services
+      const servicesRes = await serviceApi.getAll();
+      console.log("Services response:", servicesRes);
+      
+      if (servicesRes.success && servicesRes.data) {
+        // Handle both array and nested data structure
+        const servicesData = Array.isArray(servicesRes.data) 
+          ? servicesRes.data 
+          : (servicesRes.data.data || servicesRes.data.services || []);
+        
+        setServices(servicesData.map(service => ({
+          id: service.serviceId || service.serviceID || service.id,
+          name: service.name || service.serviceName
+        })));
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;

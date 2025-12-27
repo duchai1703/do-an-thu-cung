@@ -10,11 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, authApi, getToken } from "@/lib/api";
 
 export default function VeterinarianDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("Bác sĩ");
   const [stats, setStats] = useState({
     todayAppointments: 0,
     inProgress: 0,
@@ -37,6 +38,16 @@ export default function VeterinarianDashboard() {
       if (!token) {
         router.push('/login');
         return;
+      }
+
+      // Load user info
+      try {
+        const userRes = await authApi.getCurrentUser();
+        if (userRes.success && userRes.data) {
+          setUserName(userRes.data.fullName || userRes.data.email || "Bác sĩ");
+        }
+      } catch (e) {
+        console.error("Error loading user info:", e);
       }
 
       const today = new Date().toISOString().split('T')[0];
@@ -169,7 +180,7 @@ export default function VeterinarianDashboard() {
     <div className="flex-1 space-y-8 p-8">
       <DashboardHeader
         title="Dashboard Bác sĩ thú y"
-        subtitle={`Chào buổi chiều, BS. Đức Hải - ${new Date().toLocaleDateString('vi-VN')}`}
+        subtitle={`Xin chào, ${userName} - ${new Date().toLocaleDateString('vi-VN')}`}
       />
 
       {/* Upcoming Alert */}
