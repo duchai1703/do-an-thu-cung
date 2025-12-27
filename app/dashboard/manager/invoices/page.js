@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Receipt, Search, Eye, FileDown, CheckCircle2, 
-  Hourglass, ClipboardList, DollarSign, RefreshCw 
+import {
+  Receipt, Search, Eye, FileDown, CheckCircle2,
+  Hourglass, ClipboardList, DollarSign, RefreshCw
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +33,7 @@ export default function ManagerInvoicesPage() {
     try {
       setLoading(true);
       const token = getToken();
-      
+
       if (!token) {
         router.push('/login');
         return;
@@ -45,8 +45,8 @@ export default function ManagerInvoicesPage() {
       if (response.success && response.data) {
         const mappedInvoices = response.data.map(inv => {
           // Get pet icon based on species
-          const petIcon = inv.appointment?.pet?.species === 'Dog' ? '🐕' : 
-                         inv.appointment?.pet?.species === 'Cat' ? '🐈' : '🐾';
+          const petIcon = inv.appointment?.pet?.species === 'Dog' ? '🐕' :
+            inv.appointment?.pet?.species === 'Cat' ? '🐈' : '🐾';
 
           // Map services from invoice items or appointment
           const services = inv.invoiceItems?.map(item => ({
@@ -77,7 +77,7 @@ export default function ManagerInvoicesPage() {
             rawData: inv
           };
         });
-        
+
         setInvoices(mappedInvoices);
       } else {
         console.error("Failed to load invoices:", response.error);
@@ -145,7 +145,7 @@ export default function ManagerInvoicesPage() {
     try {
       const invoiceId = invoice.rawData?.invoiceID || invoice.id;
       const response = await invoiceApi.generatePdf(invoiceId);
-      
+
       if (response.success && response.data) {
         // Create blob and download
         const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -157,7 +157,7 @@ export default function ManagerInvoicesPage() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-        
+
         showToast(`Đã xuất hóa đơn ${invoice.id} thành công`, "success");
       } else {
         showToast(response.error || "Không thể xuất PDF", "error");

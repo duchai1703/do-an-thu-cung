@@ -1,13 +1,13 @@
 // components/modals/AddServiceModal.jsx
 "use client";
 import { useState } from "react";
-import { 
-  Sparkles, 
-  FileText, 
-  FolderOpen, 
-  DollarSign, 
-  Clock, 
-  X, 
+import {
+  Sparkles,
+  FileText,
+  FolderOpen,
+  DollarSign,
+  Clock,
+  X,
   Check,
   Loader2,
   Hospital,
@@ -48,7 +48,7 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: "" }));
     }
@@ -69,8 +69,8 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
       newErrors.price = "Vui lòng nhập giá dịch vụ hợp lệ";
     }
 
-    if (!formData.duration || parseInt(formData.duration) <= 0) {
-      newErrors.duration = "Vui lòng nhập thời lượng hợp lệ";
+    if (!formData.duration || parseInt(formData.duration) < 15) {
+      newErrors.duration = "Thời lượng tối thiểu là 15 phút";
     }
 
     setErrors(newErrors);
@@ -79,7 +79,7 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -90,7 +90,7 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
       setLoading(false);
       onSuccess(formData);
       onClose();
-      
+
       // Reset form
       setFormData({
         name: "",
@@ -202,11 +202,12 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
               type="number"
               value={formData.duration}
               onChange={handleChange}
-              placeholder="60"
-              min="1"
+              placeholder="Tối thiểu 15 phút"
+              min="15"
               error={errors.duration}
               icon={Clock}
               required
+              helperText="Nhập tối thiểu 15 phút"
             />
           </div>
 
@@ -232,9 +233,9 @@ export default function AddServiceModal({ isOpen, onClose, onSuccess }) {
               variant="outline"
               onClick={handleClose}
             >
-                <X className="h-4 w-4" />
-                  Hủy
-              </Button>
+              <X className="h-4 w-4" />
+              Hủy
+            </Button>
             <Button
               type="submit"
               disabled={loading}

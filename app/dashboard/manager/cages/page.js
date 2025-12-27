@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Home, Plus, Edit, Eye, Trash2, CheckCircle2, 
+import {
+  Home, Plus, Edit, Eye, Trash2, CheckCircle2,
   XCircle, AlertTriangle, ClipboardList, BarChart3, RefreshCw, PawPrint, LogOut
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
@@ -41,7 +41,7 @@ export default function ManagerCagesPage() {
     try {
       setLoading(true);
       const token = getToken();
-      
+
       if (!token) {
         router.push('/login');
         return;
@@ -102,7 +102,7 @@ export default function ManagerCagesPage() {
             activeAssignmentId: activeAssignmentId
           };
         });
-        
+
         setCages(mappedCages);
       } else {
         console.error("Failed to load cages:", cagesResponse.error);
@@ -135,7 +135,7 @@ export default function ManagerCagesPage() {
   const handleAssignPet = async (assignData) => {
     try {
       const response = await cageApi.assignPet(selectedCageForAssign.id, assignData);
-      
+
       if (response.success) {
         showToast("Đã gán thú cưng vào chuồng thành công!", "success");
         loadCages(); // Reload to get updated data
@@ -161,7 +161,7 @@ export default function ManagerCagesPage() {
     if (confirm(`Xác nhận trả chuồng cho thú cưng?`)) {
       try {
         const response = await cageApi.checkOutPet(activeAssignment);
-        
+
         if (response.success) {
           showToast("Đã trả chuồng thành công!", "success");
           loadCages();
@@ -192,7 +192,7 @@ export default function ManagerCagesPage() {
       };
 
       const response = await cageApi.create(payload);
-      
+
       if (response.success) {
         showToast("Đã thêm chuồng thành công!", "success");
         loadCages();
@@ -228,7 +228,7 @@ export default function ManagerCagesPage() {
       };
 
       const response = await cageApi.update(editingCage.id, payload);
-      
+
       if (response.success) {
         showToast("Cập nhật chuồng thành công!", "success");
         loadCages();
@@ -252,7 +252,7 @@ export default function ManagerCagesPage() {
     if (confirm(`Xác nhận xóa chuồng ${cage.code}?`)) {
       try {
         const response = await cageApi.remove(cageId);
-        
+
         if (response.success) {
           showToast("Đã xóa chuồng", "success");
           loadCages();
@@ -287,20 +287,20 @@ export default function ManagerCagesPage() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      available: { 
-        label: "Trống", 
-        variant: "success", 
-        icon: CheckCircle2 
+      available: {
+        label: "Trống",
+        variant: "success",
+        icon: CheckCircle2
       },
-      occupied: { 
-        label: "Đang sử dụng", 
-        variant: "warning", 
-        icon: AlertTriangle 
+      occupied: {
+        label: "Đang sử dụng",
+        variant: "warning",
+        icon: AlertTriangle
       },
-      maintenance: { 
-        label: "Bảo trì", 
-        variant: "destructive", 
-        icon: XCircle 
+      maintenance: {
+        label: "Bảo trì",
+        variant: "destructive",
+        icon: XCircle
       }
     };
     return badges[status] || badges.available;
@@ -311,7 +311,7 @@ export default function ManagerCagesPage() {
     available: cages.filter(c => c.status === 'available').length,
     occupied: cages.filter(c => c.status === 'occupied').length,
     maintenance: cages.filter(c => c.status === 'maintenance').length,
-    occupancyRate: cages.length > 0 
+    occupancyRate: cages.length > 0
       ? Math.round((cages.filter(c => c.status === 'occupied').length / cages.length) * 100)
       : 0
   };

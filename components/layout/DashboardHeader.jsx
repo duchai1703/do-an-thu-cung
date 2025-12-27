@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Bell, Hand } from "lucide-react";
-import { cn } from "@/lib/utils.js";
+import { Clock, Hand } from "lucide-react";
 
 export default function DashboardHeader({ title, subtitle }) {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -31,7 +30,7 @@ export default function DashboardHeader({ title, subtitle }) {
           <p className="text-muted-foreground mt-1">{subtitle}</p>
         )}
       </div>
-      
+
       <div className="flex items-center gap-4">
         {/* Time Display */}
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-lg">
@@ -45,17 +44,6 @@ export default function DashboardHeader({ title, subtitle }) {
             </div>
           </div>
         </div>
-
-        {/* Notification Button */}
-        <button 
-          className="relative p-2 rounded-lg hover:bg-muted transition-colors"
-          aria-label="Thông báo"
-        >
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
-            3
-          </span>
-        </button>
       </div>
     </div>
   );

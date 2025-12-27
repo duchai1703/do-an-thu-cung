@@ -1,15 +1,15 @@
 // components/modals/CageFormModal.jsx
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Edit, 
-  Plus, 
-  X, 
-  Save, 
-  Check, 
-  Loader2, 
-  Hash, 
-  Home, 
+import {
+  Edit,
+  Plus,
+  X,
+  Save,
+  Check,
+  Loader2,
+  Hash,
+  Home,
   RefreshCw,
   FileText,
   Lightbulb,

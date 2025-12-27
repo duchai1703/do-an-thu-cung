@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Search, Eye, RefreshCw, User, Phone, Mail, 
+import {
+  Search, Eye, RefreshCw, User, Phone, Mail,
   MapPin, PawPrint, Calendar, CreditCard
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
@@ -39,7 +39,7 @@ export default function ManagerCustomersPage() {
     try {
       setLoading(true);
       const response = await petOwnerApi.getAll();
-      
+
       if (response.success && response.data) {
         setCustomers(response.data);
       } else {

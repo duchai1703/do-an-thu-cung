@@ -1,13 +1,13 @@
 // components/modals/EditServiceModal.jsx
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Edit, 
-  FileText, 
-  FolderOpen, 
-  DollarSign, 
-  Clock, 
-  X, 
+import {
+  Edit,
+  FileText,
+  FolderOpen,
+  DollarSign,
+  Clock,
+  X,
   Save,
   Loader2,
   Hash,
@@ -73,8 +73,8 @@ export default function EditServiceModal({ isOpen, onClose, onSuccess, service }
     if (!formData.name.trim()) newErrors.name = "Vui lòng nhập tên dịch vụ";
     if (!formData.category) newErrors.category = "Vui lòng chọn danh mục";
     if (!formData.price || parseFloat(formData.price) <= 0) newErrors.price = "Vui lòng nhập giá hợp lệ";
-    if (!formData.duration || parseInt(formData.duration) <= 0) newErrors.duration = "Vui lòng nhập thời gian hợp lệ";
-    
+    if (!formData.duration || parseInt(formData.duration) < 15) newErrors.duration = "Thời lượng tối thiểu là 15 phút";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -179,12 +179,13 @@ export default function EditServiceModal({ isOpen, onClose, onSuccess, service }
               type="number"
               value={formData.duration}
               onChange={handleChange}
-              placeholder="60"
-              min="1"
+              placeholder="Tối thiểu 15 phút"
+              min="15"
               step="5"
               error={errors.duration}
               icon={Clock}
               required
+              helperText="Nhập tối thiểu 15 phút"
             />
           </div>
 

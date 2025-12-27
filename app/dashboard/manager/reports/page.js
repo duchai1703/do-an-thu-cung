@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation";
 export default function ManagerReportsPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("month");
   const [year, setYear] = useState(new Date().getFullYear());
@@ -85,24 +85,24 @@ export default function ManagerReportsPage() {
 
       // Revenue data
       if (revenueRes.success && revenueRes.data) {
-        const monthlyData = Array.isArray(revenueRes.data) 
-          ? revenueRes.data 
+        const monthlyData = Array.isArray(revenueRes.data)
+          ? revenueRes.data
           : (revenueRes.data.data || []);
         setRevenueData(monthlyData);
       }
 
       // Top services
       if (topServicesRes.success && topServicesRes.data) {
-        const services = Array.isArray(topServicesRes.data) 
-          ? topServicesRes.data 
+        const services = Array.isArray(topServicesRes.data)
+          ? topServicesRes.data
           : (topServicesRes.data.data || []);
         setTopServices(services);
       }
 
       // Employee workload
       if (workloadRes.success && workloadRes.data) {
-        const workload = Array.isArray(workloadRes.data) 
-          ? workloadRes.data 
+        const workload = Array.isArray(workloadRes.data)
+          ? workloadRes.data
           : (workloadRes.data.data || []);
         setEmployeeWorkload(workload);
       }
@@ -253,8 +253,8 @@ export default function ManagerReportsPage() {
         </CardContent>
       </Card>
 
-      {/* Export Actions */}
-      <Card>
+      {/* Export Actions - Temporarily hidden, will be implemented later */}
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5 text-primary" />
@@ -276,7 +276,7 @@ export default function ManagerReportsPage() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Top Services & Employee Workload */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

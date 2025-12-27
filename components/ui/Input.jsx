@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef(
-  ({ className, type, label, error, icon: Icon, ...props }, ref) => {
+  ({ className, type, label, error, helperText, icon: Icon, ...props }, ref) => {
     return (
       <div className="space-y-2">
         {label && (
@@ -26,6 +26,9 @@ const Input = React.forwardRef(
             {...props}
           />
         </div>
+        {helperText && !error && (
+          <p className="text-xs text-muted-foreground">{helperText}</p>
+        )}
         {error && (
           <p className="text-sm font-medium text-destructive">{error}</p>
         )}

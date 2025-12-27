@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { 
+import {
   Search, Edit, Eye, Trash2, RefreshCw, PawPrint,
   Dog, Cat, Bird, Filter, X
 } from "lucide-react";
@@ -52,7 +52,7 @@ export default function ManagerPetsPage() {
     try {
       setLoading(true);
       const response = await petApi.getAll();
-      
+
       if (response.success && response.data) {
         setPets(response.data);
       } else {
@@ -154,13 +154,13 @@ export default function ManagerPetsPage() {
 
   // Filter pets
   const filteredPets = pets.filter(pet => {
-    const matchSearch = !searchTerm || 
+    const matchSearch = !searchTerm ||
       pet.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pet.breed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pet.petOwner?.fullName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchSpecies = !speciesFilter || pet.species?.toUpperCase() === speciesFilter;
-    
+
     return matchSearch && matchSpecies;
   });
 
@@ -274,9 +274,9 @@ export default function ManagerPetsPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(pet)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => handleDelete(pet.petId || pet.id)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -334,7 +334,7 @@ export default function ManagerPetsPage() {
                   <p className="font-medium">{selectedPet.age || 'N/A'}</p>
                 </div>
               </div>
-              
+
               <div className="border-t pt-4">
                 <Label className="text-muted-foreground">Chủ nuôi</Label>
                 <div className="mt-1 p-3 bg-muted rounded-lg">
@@ -371,17 +371,17 @@ export default function ManagerPetsPage() {
               <Label>Tên *</Label>
               <Input
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Loài</Label>
                 <Select
                   value={formData.species}
-                  onChange={(e) => setFormData({...formData, species: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, species: e.target.value })}
                 >
                   <option value="">-- Chọn --</option>
                   <option value="DOG">Chó</option>
@@ -396,7 +396,7 @@ export default function ManagerPetsPage() {
                 <Label>Giới tính</Label>
                 <Select
                   value={formData.gender}
-                  onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 >
                   <option value="">-- Chọn --</option>
                   <option value="MALE">Đực</option>
@@ -409,7 +409,7 @@ export default function ManagerPetsPage() {
               <Label>Giống</Label>
               <Input
                 value={formData.breed}
-                onChange={(e) => setFormData({...formData, breed: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
                 placeholder="VD: Golden Retriever"
               />
             </div>
@@ -420,7 +420,7 @@ export default function ManagerPetsPage() {
                 type="number"
                 step="0.1"
                 value={formData.weight}
-                onChange={(e) => setFormData({...formData, weight: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
               />
             </div>
 
@@ -428,7 +428,7 @@ export default function ManagerPetsPage() {
               <Label>Ghi chú</Label>
               <Input
                 value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Ghi chú đặc biệt..."
               />
             </div>
