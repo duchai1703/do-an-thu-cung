@@ -31,8 +31,7 @@ import {
 import AddStaffModal from "@/components/modals/AddStaffModal";
 import EditStaffModal from "@/components/modals/EditStaffModal";
 import { cn } from "@/lib/utils";
-import { employeeApi, getToken } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { employeeApi, getToken } from "@/lib/api";import { formatEmployeeId } from '@/lib/utils/id-formatter';import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function ManagerStaffPage() {

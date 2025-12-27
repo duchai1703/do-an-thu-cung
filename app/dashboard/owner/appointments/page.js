@@ -14,7 +14,7 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import BookAppointmentModal from "@/components/modals/BookAppointmentModal";
 import AppointmentDetailModal from "@/components/modals/AppointmentDetailModal";
 import CancelAppointmentOwnerModal from "@/components/modals/CancelAppointmentOwnerModal";
-import { cn } from "@/lib/utils";
+import { cn, formatAppointmentId } from "@/lib/utils";
 import { appointmentApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 
@@ -54,8 +54,8 @@ export default function OwnerAppointmentsPage() {
       if (response.success && response.data) {
         // Map backend data to frontend format
         const mappedAppointments = response.data.map(apt => ({
-          id: apt.appointmentId || apt.id,
-          code: apt.appointmentId || apt.id,
+          id: formatAppointmentId(apt.appointmentId || apt.id),
+          code: formatAppointmentId(apt.appointmentId || apt.id),
           petId: apt.petId || apt.pet?.petId,
           petName: apt.pet?.name || 'Unknown',
           petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',

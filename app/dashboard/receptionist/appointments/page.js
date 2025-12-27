@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import ConfirmAppointmentModal from "@/components/modals/ConfirmAppointmentModal";
 import CancelAppointmentModal from "@/components/modals/CancelAppointmentModal";
@@ -9,54 +10,68 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Calendar, Clock, CheckCircle2, XCircle, Search, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Phone } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Calendar, Clock, CheckCircle2, XCircle, Search, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Phone, Loader2 } from "lucide-react";
+import { cn, formatAppointmentId } from "@/lib/utils";
+import { appointmentApi, getToken } from "@/lib/api";
 
 export default function AppointmentsPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [appointments, setAppointments] = useState([]);
 
-  const [appointments, setAppointments] = useState([
-    {
-      id: "APT001",
-      customerName: "Nguyễn Văn A",
-      phone: "0901234567",
-      petName: "Lucky",
-      petIcon: "🐕",
-      service: "Khám sức khỏe",
-      serviceIcon: "🏥",
-      date: "2025-11-20",
-      time: "10:00",
-      status: "pending"
-    },
-    {
-      id: "APT002",
-      customerName: "Trần Thị B",
-      phone: "0909876543",
-      petName: "Miu",
-      petIcon: "🐈",
-      service: "Tắm spa",
-      serviceIcon: "🛁",
-      date: "2025-11-20",
-      time: "14:00",
-      status: "confirmed"
-    },
-    {
-      id: "APT003",
-      customerName: "Lê Văn C",
-      phone: "0912345678",
-      petName: "Coco",
-      petIcon: "🐩",
-      service: "Cắt tỉa lông",
-      serviceIcon: "✂️",
-      date: "2025-11-21",
-      time: "09:00",
-      status: "cancelled"
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await appointmentApi.getAll();
+      
+      if (response.success && response.data) {
+        const formattedAppointments = response.data.map(apt => ({
+          id: formatAppointmentId(apt.appointmentId),
+          appointmentId: formatAppointmentId(apt.appointmentId),
+          customerName: apt.pet?.owner?.fullName || 'N/A',
+          phone: apt.pet?.owner?.phoneNumber || 'N/A',
+          petName: apt.pet?.name || 'N/A',
+          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
+          service: apt.service?.serviceName || 'N/A',
+          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
+          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
+          time: apt.startTime || 'N/A',
+          status: apt.status ? apt.status.toLowerCase() : 'pending',
+          rawData: apt
+        }));
+        setAppointments(formattedAppointments);
+      }
+    } catch (error) {
+      console.error("Error loading appointments:", error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const getServiceIconFromType = (categoryName) => {
+    if (!categoryName) return '📋';
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('health') || lower.includes('khám')) return '🏥';
+    if (lower.includes('grooming') || lower.includes('spa') || lower.includes('tắm')) return '🛁';
+    if (lower.includes('hair') || lower.includes('cắt')) return '✂️';
+    return '📋';
+  };
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -94,18 +109,43 @@ export default function AppointmentsPage() {
     setShowCancelModal(true);
   };
 
-  const confirmAppointment = () => {
-    setAppointments(appointments.map(apt =>
-      apt.id === selectedAppointment.id ? { ...apt, status: "confirmed" } : apt
-    ));
-    setShowConfirmModal(false);
+  const confirmAppointment = async () => {
+    try {
+      const response = await appointmentApi.update(selectedAppointment.appointmentId, {
+        status: 'CONFIRMED'
+      });
+
+      if (response.success) {
+        // Reload appointments to reflect changes
+        await loadAppointments();
+        setShowConfirmModal(false);
+      } else {
+        alert('Lỗi khi xác nhận lịch hẹn: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error confirming appointment:', error);
+      alert('Lỗi khi xác nhận lịch hẹn');
+    }
   };
 
-  const cancelAppointment = (reason) => {
-    setAppointments(appointments.map(apt =>
-      apt.id === selectedAppointment.id ? { ...apt, status: "cancelled", cancelReason: reason } : apt
-    ));
-    setShowCancelModal(false);
+  const cancelAppointment = async (reason) => {
+    try {
+      const response = await appointmentApi.update(selectedAppointment.appointmentId, {
+        status: 'CANCELLED',
+        notes: reason
+      });
+
+      if (response.success) {
+        // Reload appointments to reflect changes
+        await loadAppointments();
+        setShowCancelModal(false);
+      } else {
+        alert('Lỗi khi hủy lịch hẹn: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      alert('Lỗi khi hủy lịch hẹn');
+    }
   };
 
   const stats = {
@@ -122,8 +162,14 @@ export default function AppointmentsPage() {
         subtitle="Xác nhận và quản lý lịch hẹn khách hàng"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng lịch hẹn</CardTitle>
@@ -293,6 +339,8 @@ export default function AppointmentsPage() {
         appointment={selectedAppointment}
         onCancel={cancelAppointment}
       />
+        </>
+      )}
     </div>
   );
 }

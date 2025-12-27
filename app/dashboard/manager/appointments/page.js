@@ -89,7 +89,7 @@ export default function ManagerAppointmentsPage() {
 
           return {
             id: apt.appointmentId || apt.id,
-            code: `APT${String(apt.appointmentId || apt.id).padStart(3, '0')}`,
+            code: formatAppointmentId(apt.appointmentId || apt.id),
             customerName: apt.petOwner?.name || apt.pet?.petOwner?.name || 'N/A',
             customerPhone: apt.petOwner?.phoneNumber || apt.pet?.petOwner?.phoneNumber || 'N/A',
             petName: apt.pet?.name || 'N/A',

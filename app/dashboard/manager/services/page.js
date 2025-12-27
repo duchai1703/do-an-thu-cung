@@ -56,7 +56,6 @@ export default function ManagerServicesPage() {
       }
 
       const response = await serviceApi.getAll();
-      console.log("Service API response:", response);
       
       if (response.success && response.data) {
         const mappedServices = response.data.map(svc => {

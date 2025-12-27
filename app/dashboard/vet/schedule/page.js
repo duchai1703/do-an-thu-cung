@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { appointmentApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import { formatAppointmentId } from "@/lib/utils/id-formatter";
 
 export default function VeterinarianSchedulePage() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function VeterinarianSchedulePage() {
       if (response.success && response.data) {
         const mappedAppointments = response.data.map(apt => ({
           id: apt.appointmentId || apt.id,
-          code: `APT${String(apt.appointmentId || apt.id).padStart(3, '0')}`,
+          code: formatAppointmentId(apt.appointmentId || apt.id),
           time: apt.startTime || '',
           petId: apt.pet?.petId || apt.pet?.id,
           petName: apt.pet?.name || 'Unknown',

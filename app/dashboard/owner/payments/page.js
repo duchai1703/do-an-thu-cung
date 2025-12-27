@@ -14,6 +14,7 @@ import StatsCard from "@/components/dashboard/StatsCard";
 import PaymentDetailModal from "@/components/modals/PaymentDetailModal";
 import { cn } from "@/lib/utils";
 import { invoiceApi, paymentApi, getToken } from "@/lib/api";
+import { formatInvoiceId } from "@/lib/utils/id-formatter";
 import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function OwnerPaymentsPage() {
@@ -48,7 +49,7 @@ export default function OwnerPaymentsPage() {
           const firstService = inv.invoiceItems?.[0];
           return {
             id: inv.invoiceId || inv.id,
-            invoiceCode: `INV${String(inv.invoiceId).padStart(4, '0')}`,
+            invoiceCode: formatInvoiceId(inv.invoiceId),
             serviceName: firstService?.service?.name || inv.invoiceItems?.map(i => i.service?.name).join(', ') || 'Dịch vụ',
             serviceIcon: getServiceIcon(firstService?.service?.categoryId),
             petName: inv.pet?.name || 'Unknown',

@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,62 +10,100 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, CheckCircle2, XCircle, DollarSign, Search, Calendar, Phone, Mail, MapPin, PawPrint, Eye } from "lucide-react";
+import { Users, CheckCircle2, XCircle, DollarSign, Search, Calendar, Phone, Mail, MapPin, PawPrint, Eye, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { petOwnerApi, invoiceApi, getToken } from "@/lib/api";
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState([
-    {
-      id: "CUS001",
-      name: "Nguyễn Văn A",
-      phone: "0901234567",
-      email: "nguyenvana@example.com",
-      address: "123 Đường ABC, Quận 1, TP.HCM",
-      joinDate: "2025-01-15",
-      totalVisits: 12,
-      totalSpent: 5500000,
-      lastVisit: "2025-11-20",
-      pets: [
-        { name: "Lucky", type: "Chó", icon: "🐕" },
-        { name: "Miu", type: "Mèo", icon: "🐈" }
-      ],
-      status: "active"
-    },
-    {
-      id: "CUS002",
-      name: "Trần Thị B",
-      phone: "0909876543",
-      email: "tranthib@example.com",
-      address: "456 Đường XYZ, Quận 3, TP.HCM",
-      joinDate: "2025-02-20",
-      totalVisits: 8,
-      totalSpent: 3200000,
-      lastVisit: "2025-11-18",
-      pets: [
-        { name: "Coco", type: "Chó", icon: "🐩" }
-      ],
-      status: "active"
-    },
-    {
-      id: "CUS003",
-      name: "Lê Văn C",
-      phone: "0912345678",
-      email: "levanc@example.com",
-      address: "789 Đường DEF, Quận 5, TP.HCM",
-      joinDate: "2025-03-10",
-      totalVisits: 5,
-      totalSpent: 1800000,
-      lastVisit: "2025-10-15",
-      pets: [
-        { name: "Max", type: "Chó", icon: "🐕" }
-      ],
-      status: "inactive"
-    }
-  ]);
-
+  const router = useRouter();
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await petOwnerApi.getAll();
+      
+      if (response.success && response.data) {
+        // For each customer, fetch their invoices to calculate statistics
+        const customersWithStats = await Promise.all(
+          response.data.map(async (owner) => {
+            // Fetch invoices for this customer
+            // TODO: 
+            let invoices = [];
+            try {
+              const invoiceRes = await invoiceApi.getByCustomer(owner.ownerId || owner.id);
+              if (invoiceRes.success && invoiceRes.data) {
+                invoices = invoiceRes.data;
+              }
+            } catch (err) {
+              console.log('Error fetching invoices for customer:', err);
+            }
+
+            const totalSpent = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+            const totalVisits = invoices.length;
+            
+            // Find last visit date
+            let lastVisit = 'N/A';
+            if (invoices.length > 0) {
+              const sortedInvoices = [...invoices].sort((a, b) => 
+                new Date(b.createdAt || b.issueDate) - new Date(a.createdAt || a.issueDate)
+              );
+              lastVisit = sortedInvoices[0]?.issueDate 
+                ? new Date(sortedInvoices[0].issueDate).toISOString().split('T')[0]
+                : new Date(sortedInvoices[0]?.createdAt).toISOString().split('T')[0];
+            }
+
+            // Determine if active (visited in last 3 months)
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            const lastVisitDate = lastVisit !== 'N/A' ? new Date(lastVisit) : new Date(0);
+            const isActive = lastVisitDate > threeMonthsAgo;
+
+            return {
+              id: owner.petOwnerId || owner.id,
+              ownerId: owner.petOwnerId || owner.id,
+              name: owner.fullName || 'N/A',
+              phone: owner.phoneNumber || 'N/A',
+              email: owner.account?.email || 'N/A',
+              address: owner.address || 'N/A',
+              joinDate: owner.createdAt ? new Date(owner.createdAt).toISOString().split('T')[0] : 'N/A',
+              totalVisits,
+              totalSpent,
+              lastVisit,
+              pets: owner.pets?.map(pet => ({
+                name: pet.name || 'N/A',
+                type: pet.species || 'Unknown',
+                icon: pet.species === 'DOG' ? '🐕' : pet.species === 'CAT' ? '🐈' : '🐾'
+              })) || [],
+              status: isActive ? 'active' : 'inactive',
+              rawData: owner
+            };
+          })
+        );
+
+        setCustomers(customersWithStats);
+      }
+    } catch (error) {
+      console.error("Error loading customers:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCustomers = customers.filter(customer => {
     const matchFilter = filter === "all" || customer.status === filter;
@@ -98,8 +137,14 @@ export default function CustomersPage() {
         subtitle="Theo dõi và quản lý thông tin khách hàng"
       />
 
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-primary to-purple-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Tổng khách hàng</CardTitle>
@@ -358,6 +403,8 @@ export default function CustomersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

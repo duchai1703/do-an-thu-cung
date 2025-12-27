@@ -13,6 +13,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
+import { formatPetId } from "@/lib/utils/id-formatter";
 
 export default function VeterinarianPatientsPage() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function VeterinarianPatientsPage() {
 
           patientsData.push({
             id: petId,
-            code: `PET${String(petId).padStart(3, '0')}`,
+            code: formatPetId(petId),
             name: data.pet.name || 'Unknown',
             icon: data.pet.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
             type: data.pet.species?.toLowerCase() || 'unknown',
