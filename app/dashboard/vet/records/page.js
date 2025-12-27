@@ -108,8 +108,8 @@ export default function VeterinarianRecordsPage() {
     } else {
       // Create new record
       const newRecord = {
-        id: `REC${String(records.length + 1).padStart(3, '0')}`,
-        code: `REC${String(records.length + 1).padStart(3, '0')}`,
+        id: formatMedicalRecordId(records.length + 1),
+        code: formatMedicalRecordId(records.length + 1),
         ...recordData,
         date: new Date().toISOString().split('T')[0],
         veterinarianId: "VET001",
@@ -125,7 +125,7 @@ export default function VeterinarianRecordsPage() {
   const handleCreateInvoice = (recordId) => {
     const record = records.find(r => r.id === recordId);
     if (record && !record.invoiceCreated) {
-      const newInvoiceId = `INV${String(records.length + 1).padStart(3, '0')}`;
+      const newInvoiceId = formatInvoiceId(records.length + 1);
       setRecords(records.map(rec =>
         rec.id === recordId
           ? { ...rec, invoiceCreated: true, invoiceId: newInvoiceId }

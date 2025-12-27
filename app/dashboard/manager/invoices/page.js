@@ -40,7 +40,6 @@ export default function ManagerInvoicesPage() {
       }
 
       const response = await invoiceApi.getAll({ includeAppointment: true, includePetOwner: true, includePet: true });
-      console.log("Invoices API response:", response);
 
       // TODO: This is very wrong
       if (response.success && response.data) {

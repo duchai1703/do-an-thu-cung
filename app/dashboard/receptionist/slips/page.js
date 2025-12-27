@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,40 +8,67 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CheckCircle2, Printer, Mail, Calendar, Clock, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Search, User, Phone } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CheckCircle2, Printer, Mail, Calendar, Clock, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Search, User, Phone, Loader2 } from "lucide-react";
+import { cn, formatAppointmentId } from "@/lib/utils";
+import { appointmentApi, getToken } from "@/lib/api";
 
 export default function SlipsPage() {
-  const [slips, setSlips] = useState([
-    {
-      id: "APT002",
-      customerName: "Trần Thị B",
-      phone: "0909876543",
-      email: "tranthib@example.com",
-      petName: "Miu",
-      petIcon: "🐈",
-      service: "Tắm spa",
-      serviceIcon: "🛁",
-      date: "2025-11-20",
-      time: "14:00",
-      staff: "Nhân viên Trần Thị B"
-    },
-    {
-      id: "APT004",
-      customerName: "Phạm Văn D",
-      phone: "0923456789",
-      email: "phamvand@example.com",
-      petName: "Max",
-      petIcon: "🐕",
-      service: "Khám sức khỏe",
-      serviceIcon: "🏥",
-      date: "2025-11-21",
-      time: "10:30",
-      staff: "BS. Nguyễn Văn A"
-    }
-  ]);
-
+  const router = useRouter();
+  const [slips, setSlips] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    loadSlips();
+  }, []);
+
+  const loadSlips = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Get confirmed appointments only
+      const response = await appointmentApi.getByStatus('CONFIRMED');
+      
+      // TODO: Remove phone number
+      if (response.success && response.data) {
+        const formattedSlips = response.data.map(apt => ({
+          id: formatAppointmentId(apt.appointmentId),
+          appointmentId: formatAppointmentId(apt.appointmentId),
+          customerName: apt.pet?.owner?.fullName|| 'N/A',
+          phone: apt.pet?.owner?.phoneNumber || 'N/A',
+          email: apt.pet?.owner?.email || apt.pet?.petOwner?.email || 'N/A',
+          petName: apt.pet?.name || 'N/A',
+          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
+          service: apt.service?.serviceName || 'N/A',
+          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
+          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
+          time: apt.startTime || 'N/A',
+          staff: apt.employee?.fullName || 'N/A',
+          rawData: apt
+        }));
+        setSlips(formattedSlips);
+      }
+    } catch (error) {
+      console.error("Error loading slips:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getServiceIconFromType = (categoryName) => {
+    if (!categoryName) return '📋';
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('health') || lower.includes('khám')) return '🏥';
+    if (lower.includes('grooming') || lower.includes('spa') || lower.includes('tắm')) return '🛁';
+    if (lower.includes('hair') || lower.includes('cắt')) return '✂️';
+    return '📋';
+  };
 
   const filteredSlips = slips.filter(slip =>
     slip.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,8 +100,14 @@ export default function SlipsPage() {
         subtitle="In và gửi phiếu hẹn cho khách hàng"
       />
 
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Lịch đã xác nhận</CardTitle>
@@ -224,6 +258,8 @@ export default function SlipsPage() {
           </Table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

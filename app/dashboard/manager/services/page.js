@@ -49,18 +49,18 @@ export default function ManagerServicesPage() {
     try {
       setLoading(true);
       const token = getToken();
-      
+
       if (!token) {
-        router.push('/login');
+        router.push("/login");
         return;
       }
 
       // Include unavailable services for manager view
       const response = await serviceApi.getAll({ includeUnavailable: true });
       console.log("Service API response:", response);
-      
+
       if (response.success && response.data) {
-        const mappedServices = response.data.map(svc => {
+        const mappedServices = response.data.map((svc) => {
           const categoryData = getCategoryData(svc.categoryId);
           // TODO: should this be mapped or kept the same type as API?
           return {
@@ -71,11 +71,11 @@ export default function ManagerServicesPage() {
             categoryIcon: categoryData.icon,
             price: parseFloat(svc.basePrice || svc.price || 0),
             duration: parseInt(svc.estimatedDuration || svc.duration || 30),
-            description: svc.description || '',
+            description: svc.description || "",
             isActive: svc.isAvailable !== false, // Backend uses 'isAvailable'
           };
         });
-        
+
         setServices(mappedServices);
       } else {
         console.error("Failed to load services:", response.error);
@@ -107,14 +107,16 @@ export default function ManagerServicesPage() {
         serviceName: newService.name || newService.serviceName,
         categoryId: parseInt(newService.category || newService.categoryId),
         basePrice: parseFloat(newService.price || newService.basePrice || 0),
-        estimatedDuration: parseInt(newService.duration || newService.estimatedDuration || 30),
-        description: newService.description || '',
-        requiredStaffType: newService.requiredStaffType || 'CareStaff', // Default staff type
+        estimatedDuration: parseInt(
+          newService.duration || newService.estimatedDuration || 30
+        ),
+        description: newService.description || "",
+        requiredStaffType: newService.requiredStaffType || "CareStaff", // Default staff type
         isBoardingService: newService.isBoardingService || false,
       };
 
       const response = await serviceApi.create(serviceData);
-      
+
       if (response.success) {
         showToast("Đã thêm dịch vụ thành công!", "success");
         loadServices();
@@ -131,21 +133,31 @@ export default function ManagerServicesPage() {
     try {
       // Map frontend field names to backend DTO format
       const updateDto = {};
-      
+
       if (updatedData.name) updateDto.serviceName = updatedData.name;
-      if (updatedData.serviceName) updateDto.serviceName = updatedData.serviceName;
-      if (updatedData.category) updateDto.categoryId = parseInt(updatedData.category);
-      if (updatedData.categoryId) updateDto.categoryId = parseInt(updatedData.categoryId);
-      if (updatedData.price !== undefined) updateDto.basePrice = parseFloat(updatedData.price);
-      if (updatedData.basePrice !== undefined) updateDto.basePrice = parseFloat(updatedData.basePrice);
-      if (updatedData.duration) updateDto.estimatedDuration = parseInt(updatedData.duration);
-      if (updatedData.estimatedDuration) updateDto.estimatedDuration = parseInt(updatedData.estimatedDuration);
-      if (updatedData.description !== undefined) updateDto.description = updatedData.description;
-      if (updatedData.requiredStaffType) updateDto.requiredStaffType = updatedData.requiredStaffType;
-      if (updatedData.isActive !== undefined) updateDto.isActive = updatedData.isActive;
+      if (updatedData.serviceName)
+        updateDto.serviceName = updatedData.serviceName;
+      if (updatedData.category)
+        updateDto.categoryId = parseInt(updatedData.category);
+      if (updatedData.categoryId)
+        updateDto.categoryId = parseInt(updatedData.categoryId);
+      if (updatedData.price !== undefined)
+        updateDto.basePrice = parseFloat(updatedData.price);
+      if (updatedData.basePrice !== undefined)
+        updateDto.basePrice = parseFloat(updatedData.basePrice);
+      if (updatedData.duration)
+        updateDto.estimatedDuration = parseInt(updatedData.duration);
+      if (updatedData.estimatedDuration)
+        updateDto.estimatedDuration = parseInt(updatedData.estimatedDuration);
+      if (updatedData.description !== undefined)
+        updateDto.description = updatedData.description;
+      if (updatedData.requiredStaffType)
+        updateDto.requiredStaffType = updatedData.requiredStaffType;
+      if (updatedData.isActive !== undefined)
+        updateDto.isActive = updatedData.isActive;
 
       const response = await serviceApi.update(updatedData.id, updateDto);
-      
+
       if (response.success) {
         showToast("Đã cập nhật dịch vụ thành công!", "success");
         loadServices();
@@ -166,7 +178,7 @@ export default function ManagerServicesPage() {
   const handleToggleService = async (serviceId) => {
     try {
       const response = await serviceApi.toggleAvailability(serviceId);
-      
+
       if (response.success) {
         const service = services.find((s) => s.id === serviceId);
         const newActiveStatus = !service?.isActive;
@@ -176,7 +188,10 @@ export default function ManagerServicesPage() {
         );
         loadServices();
       } else {
-        showToast(response.error || "Không thể thay đổi trạng thái dịch vụ", "error");
+        showToast(
+          response.error || "Không thể thay đổi trạng thái dịch vụ",
+          "error"
+        );
       }
     } catch (error) {
       console.error("Error toggling service:", error);
@@ -186,10 +201,9 @@ export default function ManagerServicesPage() {
 
   console.log("Services:", services);
   const filteredServices = services.filter(
-    (service) => (
+    (service) =>
       service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       service.category.toLowerCase().includes(searchTerm.toLowerCase())
-    )
   );
 
   const formatCurrency = (amount) => {

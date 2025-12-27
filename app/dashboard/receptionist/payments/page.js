@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,57 +9,70 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { DollarSign, Clock, CheckCircle2, CreditCard, Search, Calendar, Phone, Stethoscope, Bath, Scissors, ClipboardList, Banknote, Building2 } from "lucide-react";
+import { DollarSign, Clock, CheckCircle2, CreditCard, Search, Calendar, Phone, Stethoscope, Bath, Scissors, ClipboardList, Banknote, Building2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { invoiceApi, paymentApi, getToken } from "@/lib/api";
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState([
-    {
-      id: "INV001",
-      customerName: "Nguyễn Văn A",
-      phone: "0901234567",
-      email: "nguyenvana@example.com",
-      service: "Khám sức khỏe",
-      serviceIcon: "🏥",
-      amount: 500000,
-      date: "2025-11-20",
-      time: "10:00",
-      status: "pending",
-      paymentMethod: null
-    },
-    {
-      id: "INV002",
-      customerName: "Trần Thị B",
-      phone: "0909876543",
-      email: "tranthib@example.com",
-      service: "Tắm spa",
-      serviceIcon: "🛁",
-      amount: 300000,
-      date: "2025-11-20",
-      time: "14:00",
-      status: "paid",
-      paymentMethod: "Tiền mặt"
-    },
-    {
-      id: "INV003",
-      customerName: "Lê Văn C",
-      phone: "0912345678",
-      email: "levanc@example.com",
-      service: "Cắt tỉa lông",
-      serviceIcon: "✂️",
-      amount: 200000,
-      date: "2025-11-21",
-      time: "09:00",
-      status: "paid",
-      paymentMethod: "Chuyển khoản"
-    }
-  ]);
-
+  const router = useRouter();
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState("");
+
+  useEffect(() => {
+    loadPayments();
+  }, []);
+
+  const loadPayments = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await invoiceApi.getAll();
+      
+      if (response.success && response.data) {
+        const formattedPayments = response.data.map(invoice => {
+          // Check if invoice has payment
+          const isPaid = invoice.status === 'PAID';
+          const paymentMethod = invoice.payments && invoice.payments.length > 0 
+            ? (invoice.payments[0].paymentMethod === 'CASH' ? 'Tiền mặt' : 
+               invoice.payments[0].paymentMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' : 
+               invoice.payments[0].paymentMethod)
+            : null;
+
+          return {
+            id: invoice.invoiceId || invoice.id,
+            invoiceId: invoice.invoiceId || invoice.id,
+            customerName: invoice.customer?.name || invoice.petOwner?.name || 'N/A',
+            phone: invoice.customer?.phone || invoice.petOwner?.phone || 'N/A',
+            email: invoice.customer?.email || invoice.petOwner?.email || 'N/A',
+            service: invoice.appointment?.service?.serviceName || 'N/A',
+            serviceIcon: '📋',
+            amount: invoice.totalAmount || 0,
+            date: invoice.issueDate ? new Date(invoice.issueDate).toISOString().split('T')[0] : 'N/A',
+            time: invoice.createdAt ? new Date(invoice.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+            status: isPaid ? 'paid' : 'pending',
+            paymentMethod: paymentMethod,
+            rawData: invoice
+          };
+        });
+        setPayments(formattedPayments);
+      }
+    } catch (error) {
+      console.error("Error loading payments:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredPayments = payments.filter(payment => {
     const matchFilter = filter === "all" || payment.status === filter;
@@ -98,18 +112,40 @@ export default function PaymentsPage() {
     setSelectedMethod("");
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (!selectedMethod) {
       alert("⚠️ Vui lòng chọn phương thức thanh toán!");
       return;
     }
 
-    setPayments(payments.map(p =>
-      p.id === selectedPayment.id ? { ...p, status: 'paid', paymentMethod: selectedMethod } : p
-    ));
-    
-    alert(`✅ Đã xác nhận thanh toán ${selectedPayment.id} qua ${selectedMethod}`);
-    handleCloseModal();
+    try {
+      // Map payment method to backend format
+      const methodMap = {
+        "Tiền mặt": "CASH",
+        "Chuyển khoản": "BANK_TRANSFER"
+      };
+
+      // Create payment record
+      const paymentData = {
+        invoiceId: selectedPayment.invoiceId,
+        amount: selectedPayment.amount,
+        paymentMethod: methodMap[selectedMethod] || "CASH",
+        paymentDate: new Date().toISOString()
+      };
+
+      const response = await paymentApi.create(paymentData);
+
+      if (response.success) {
+        alert(`✅ Đã xác nhận thanh toán ${selectedPayment.id} qua ${selectedMethod}`);
+        await loadPayments();
+        handleCloseModal();
+      } else {
+        alert('Lỗi khi xác nhận thanh toán: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error confirming payment:', error);
+      alert('Lỗi khi xác nhận thanh toán');
+    }
   };
 
   return (
@@ -119,8 +155,14 @@ export default function PaymentsPage() {
         subtitle="Theo dõi và xác nhận thanh toán từ khách hàng"
       />
 
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Tổng doanh thu</CardTitle>
@@ -390,6 +432,8 @@ export default function PaymentsPage() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

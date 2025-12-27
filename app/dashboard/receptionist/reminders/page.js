@@ -1,61 +1,85 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Calendar, Clock, CheckCircle2, Send, Bell, Search, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Phone } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Calendar, Clock, CheckCircle2, Send, Bell, Search, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Phone, Loader2 } from "lucide-react";
+import { cn, formatAppointmentId } from "@/lib/utils";
+import { appointmentApi, getToken } from "@/lib/api";
 
 export default function RemindersPage() {
-  const [reminders, setReminders] = useState([
-    {
-      id: "APT005",
-      customerName: "Nguyễn Thị E",
-      phone: "0934567890",
-      email: "nguyene@example.com",
-      petName: "Lucky",
-      petIcon: "🐕",
-      service: "Khám sức khỏe",
-      serviceIcon: "🏥",
-      date: "2025-10-27",
-      time: "09:00",
-      status: "pending",
-      lastReminder: "Chưa gửi"
-    },
-    {
-      id: "APT006",
-      customerName: "Trần Văn F",
-      phone: "0945678901",
-      email: "tranf@example.com",
-      petName: "Miu",
-      petIcon: "🐈",
-      service: "Tắm spa",
-      serviceIcon: "🛁",
-      date: "2025-10-27",
-      time: "14:00",
-      status: "pending",
-      lastReminder: "10:30 26-10"
-    },
-    {
-      id: "APT007",
-      customerName: "Lê Thị G",
-      phone: "0956789012",
-      email: "leg@example.com",
-      petName: "Coco",
-      petIcon: "🐩",
-      service: "Cắt tỉa lông",
-      serviceIcon: "✂️",
-      date: "2025-10-27",
-      time: "16:30",
-      status: "sent",
-      lastReminder: "Chưa gửi"
-    }
-  ]);
-
+  const router = useRouter();
+  const [reminders, setReminders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    loadReminders();
+  }, []);
+
+  const loadReminders = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Get appointments that are upcoming (in the next 3 days)
+      const response = await appointmentApi.getAll();
+      
+      if (response.success && response.data) {
+        const now = new Date();
+        const threeDaysLater = new Date();
+        threeDaysLater.setDate(now.getDate() + 3);
+
+        // TODO: Fix this. Don't filter on client side.
+        const upcomingAppointments = response.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate) : null;
+          return aptDate && aptDate >= now && aptDate <= threeDaysLater && 
+                 (apt.status === 'PENDING' || apt.status === 'CONFIRMED');
+        });
+
+        const formattedReminders = upcomingAppointments.map(apt => ({
+          id: formatAppointmentId(apt.appointmentId),
+          appointmentId: formatAppointmentId(apt.appointmentId),
+          customerName: apt.pet?.owner?.fullName || 'N/A',
+          phone: apt.pet?.owner?.phoneNumber || 'N/A',
+          email: apt.pet?.owner?.email || 'N/A',
+          petName: apt.pet?.name || 'N/A',
+          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
+          service: apt.service?.serviceName || 'N/A',
+          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
+          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
+          time: apt.startTime || 'N/A',
+          status: apt.reminderSent ? 'sent' : 'pending',
+          lastReminder: apt.reminderSent ? (apt.lastReminderDate ? new Date(apt.lastReminderDate).toLocaleString('vi-VN') : 'Đã gửi') : 'Chưa gửi',
+          rawData: apt
+        }));
+
+        setReminders(formattedReminders);
+      }
+    } catch (error) {
+      console.error("Error loading reminders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getServiceIconFromType = (categoryName) => {
+    if (!categoryName) return '📋';
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('health') || lower.includes('khám')) return '🏥';
+    if (lower.includes('grooming') || lower.includes('spa') || lower.includes('tắm')) return '🛁';
+    if (lower.includes('hair') || lower.includes('cắt')) return '✂️';
+    return '📋';
+  };
 
   const filteredReminders = reminders.filter(reminder =>
     reminder.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -75,19 +99,49 @@ export default function RemindersPage() {
   const pendingCount = reminders.filter(r => r.status === 'pending').length;
   const sentCount = reminders.filter(r => r.status === 'sent').length;
 
-  const handleSendReminder = (id) => {
-    setReminders(reminders.map(r =>
-      r.id === id ? { ...r, status: 'sent', lastReminder: new Date().toLocaleString('vi-VN') } : r
-    ));
-    alert(`✅ Đã gửi nhắc lịch cho ${reminders.find(r => r.id === id)?.customerName}`);
+  const handleSendReminder = async (id) => {
+    try {
+      const reminder = reminders.find(r => r.id === id);
+      // In a real implementation, this would send an email/SMS
+      // For now, we'll just update the appointment to mark reminder as sent
+      const response = await appointmentApi.update(reminder.appointmentId, {
+        reminderSent: true,
+        lastReminderDate: new Date().toISOString()
+      });
+
+      if (response.success) {
+        alert(`✅ Đã gửi nhắc lịch cho ${reminder.customerName}`);
+        await loadReminders();
+      } else {
+        alert('Lỗi khi gửi nhắc lịch: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error sending reminder:', error);
+      alert('Lỗi khi gửi nhắc lịch');
+    }
   };
 
-  const handleSendAll = () => {
+  const handleSendAll = async () => {
     if (confirm(`Gửi nhắc lịch cho tất cả ${pendingCount} khách hàng?`)) {
-      setReminders(reminders.map(r =>
-        r.status === 'pending' ? { ...r, status: 'sent', lastReminder: new Date().toLocaleString('vi-VN') } : r
-      ));
-      alert(`✅ Đã gửi ${pendingCount} nhắc lịch`);
+      try {
+        const pendingReminders = reminders.filter(r => r.status === 'pending');
+        
+        // Send reminders for all pending appointments
+        await Promise.all(
+          pendingReminders.map(reminder => 
+            appointmentApi.update(reminder.appointmentId, {
+              reminderSent: true,
+              lastReminderDate: new Date().toISOString()
+            })
+          )
+        );
+
+        alert(`✅ Đã gửi ${pendingCount} nhắc lịch`);
+        await loadReminders();
+      } catch (error) {
+        console.error('Error sending all reminders:', error);
+        alert('Lỗi khi gửi nhắc lịch');
+      }
     }
   };
 
@@ -98,8 +152,14 @@ export default function RemindersPage() {
         subtitle="Gửi thông báo nhắc lịch cho khách hàng trước giờ hẹn"
       />
 
-      {/* Stats Row */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          {/* Stats Row */}
+          <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Lịch sắp tới</CardTitle>
@@ -253,6 +313,8 @@ export default function RemindersPage() {
           </Table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
