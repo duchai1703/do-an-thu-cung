@@ -45,18 +45,15 @@ export default function OwnerServicesPage() {
           });
           setCategories(categoriesResponse.data);
         }
-
         // Map backend data to frontend format
         const mappedServices = servicesResponse.data.map(srv => {
           const category = categoryMap[srv.categoryId];
-          console.log("Mapping service:", srv, "with category:", `${getCategoryIcon(srv.categoryId)} ${category.categoryName}`);
-          
           return {
             id: srv.id,
             name: srv.serviceName,
             category: category ? `${getCategoryIcon(srv.categoryId)} ${category.categoryName}` : 'Dịch vụ',
-            price: srv.price || 0,
-            duration: srv.duration || 30,
+            price: srv.basePrice || 0,
+            duration: srv.estimatedDuration || 30,
             icon: getCategoryIcon(srv.categoryId),
             description: srv.description || 'Dịch vụ chăm sóc thú cưng chuyên nghiệp'
           };

@@ -37,12 +37,13 @@ export default function OwnerInvoicesPage() {
         return;
       }
 
-      const response = await invoiceApi.getAll();
+      const response = await invoiceApi.getAll({ includeAppointment: true, includePet: true, includePetOwner: true });
       
       if (response.success && response.data) {
+        console.log("Fetched invoices:", response.data);
         // Map backend data to frontend format
         const mappedInvoices = response.data.map(inv => ({
-          id: inv.invoiceId || inv.id,
+          id: inv.invoiceId,
           customerName: inv.petOwner?.name || "Bạn",
           customerPhone: inv.petOwner?.phoneNumber || "",
           customerEmail: inv.petOwner?.email || "",

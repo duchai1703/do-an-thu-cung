@@ -9,7 +9,8 @@ import {
   FileText, 
   X, 
   Check,
-  Loader2
+  Loader2,
+  User
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,14 +18,19 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils.js";
+import { cn, formatEmployeeId, formatPetId, formatServiceId } from "@/lib/utils.js";
+import { petApi, serviceApi, employeeApi, appointmentApi } from "@/lib/api";
+import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
+  const { showToast } = useToast();
   const [pets, setPets] = useState([]);
   const [services, setServices] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [formData, setFormData] = useState({
     petId: "",
     serviceId: "",
+    employeeId: "",
     date: "",
     time: "",
     notes: ""
@@ -32,6 +38,7 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
@@ -41,48 +48,51 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
 
   const loadData = async () => {
     try {
-      // Import APIs
-      const { petApi, serviceApi, authApi } = await import('@/lib/api');
-
-      // Get current user's petOwnerId
-      const userRes = await authApi.getCurrentUser();
-      let petOwnerId = null;
+      setDataLoading(true);
       
-      if (userRes.success && userRes.data) {
-        const profileRes = await authApi.getFullProfile(userRes.data.accountId);
-        if (profileRes.success && profileRes.data?.profile) {
-          petOwnerId = profileRes.data.profile.petOwnerId;
-        }
-      }
+      // Load pets, services, and employees in parallel
+      const [petsResponse, servicesResponse, employeesResponse] = await Promise.all([
+        petApi.getOwnedPet(),
+        serviceApi.getAvailable(),
+        employeeApi.getAll({ role: 'VETERINARIAN', available: true })
+      ]);
 
-      // Load owner's pets
-      if (petOwnerId) {
-        const petsRes = await petApi.getByOwner(petOwnerId);
-        if (petsRes.success && petsRes.data) {
-          setPets(petsRes.data.map(pet => ({
-            id: pet.petID || pet.id,
-            name: pet.name
-          })));
-        }
-      }
-
-      // Load services
-      const servicesRes = await serviceApi.getAll();
-      console.log("Services response:", servicesRes);
-      
-      if (servicesRes.success && servicesRes.data) {
-        // Handle both array and nested data structure
-        const servicesData = Array.isArray(servicesRes.data) 
-          ? servicesRes.data 
-          : (servicesRes.data.data || servicesRes.data.services || []);
-        
-        setServices(servicesData.map(service => ({
-          id: service.serviceId || service.serviceID || service.id,
-          name: service.name || service.serviceName
+      if (petsResponse.success && petsResponse.data) {
+        setPets(petsResponse.data.map(pet => ({
+          id: pet.id,
+          name: pet.name,
+          species: pet.breed
         })));
+      } else {
+        showToast("Không thể tải danh sách thú cưng", "error");
+      }
+
+      if (servicesResponse.success && servicesResponse.data) {
+        setServices(servicesResponse.data.map(service => ({
+          id: service.id,
+          name: service.serviceName,
+          description: service.description,
+          basePrice: service.basePrice,
+          duration: service.estimatedDuration
+        })));
+      } else {
+        showToast("Không thể tải danh sách dịch vụ", "error");
+      }
+
+      if (employeesResponse.success && employeesResponse.data) {
+        setEmployees(employeesResponse.data.map(emp => ({
+          id: emp.employeeId,
+          name: emp.fullName,
+          specialization: emp.expertise
+        })));
+      } else {
+        showToast("Không thể tải danh sách bác sĩ", "error");
       }
     } catch (error) {
       console.error("Error loading data:", error);
+      showToast("Lỗi khi tải dữ liệu", "error");
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -106,6 +116,10 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
       newErrors.serviceId = "Vui lòng chọn dịch vụ";
     }
 
+    if (!formData.employeeId) {
+      newErrors.employeeId = "Vui lòng chọn bác sĩ";
+    }
+
     if (!formData.date) {
       newErrors.date = "Vui lòng chọn ngày";
     }
@@ -118,7 +132,7 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -127,40 +141,52 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
 
     setLoading(true);
 
-    setTimeout(() => {
-      const pet = pets.find(p => p.id === formData.petId);
-      const service = services.find(s => s.id === formData.serviceId);
+    try {
+      // Calculate end time (assume 1 hour duration if not specified)
+      const selectedService = services.find(s => s.id === parseInt(formData.serviceId));
+      const duration = selectedService?.duration || 60; // default 60 minutes
       
+      const [hours, minutes] = formData.time.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + duration;
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+
       const appointmentData = {
-        petId: formData.petId,
-        petName: pet.name,
-        serviceId: formData.serviceId,
-        serviceName: service.name,
-        date: formData.date,
-        time: formData.time,
-        notes: formData.notes
+        petId: parseInt(formData.petId),
+        employeeId: parseInt(formData.employeeId),
+        serviceId: parseInt(formData.serviceId),
+        appointmentDate: formData.date,
+        startTime: formData.time,
+        endTime: endTime,
+        notes: formData.notes || undefined
       };
       
-      setLoading(false);
-      onSuccess(appointmentData);
-      onClose();
+      const response = await appointmentApi.createMyAppointment(appointmentData);
       
-      // Reset form
-      setFormData({
-        petId: "",
-        serviceId: "",
-        date: "",
-        time: "",
-        notes: ""
-      });
-      setErrors({});
-    }, 1000);
+      if (response.success) {
+        showToast("Đặt lịch thành công!", "success");
+        if (onSuccess) {
+          onSuccess(response.data);
+        }
+      } else {
+        showToast(response.error || "Không thể đặt lịch", "error");
+      }
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      showToast("Lỗi khi đặt lịch", "error");
+    } finally {
+      handleClose();
+      setLoading(false);
+    }
   };
 
   const handleClose = () => {
     setFormData({
       petId: "",
       serviceId: "",
+      employeeId: "",
       date: "",
       time: "",
       notes: ""
@@ -187,55 +213,90 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Chọn thú cưng */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <PawPrint className="h-4 w-4 text-muted-foreground" />
-              Chọn thú cưng
-              <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              name="petId"
-              value={formData.petId}
-              onChange={handleChange}
-              className={cn(errors.petId && "border-destructive")}
-            >
-              <option value="">-- Chọn thú cưng --</option>
-              {pets.map(pet => (
-                <option key={pet.id} value={pet.id}>
-                  {pet.name}
-                </option>
-              ))}
-            </Select>
-            {errors.petId && (
-              <p className="text-sm text-destructive">{errors.petId}</p>
-            )}
-          </div>
+          {dataLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Đang tải dữ liệu...</span>
+            </div>
+          ) : (
+            <>
+              {/* Chọn thú cưng */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <PawPrint className="h-4 w-4 text-muted-foreground" />
+                  Chọn thú cưng
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  name="petId"
+                  value={formData.petId}
+                  onChange={handleChange}
+                  className={cn(errors.petId && "border-destructive")}
+                  disabled={pets.length === 0}
+                >
+                  <option value="">{pets.length === 0 ? "-- Không có thú cưng --" : "-- Chọn thú cưng --"}</option>
+                  {pets.map(pet => (
+                    <option key={formatPetId(pet.id)} value={pet.id}>
+                      {pet.name} ({pet.species})
+                    </option>
+                  ))}
+                </Select>
+                {errors.petId && (
+                  <p className="text-sm text-destructive">{errors.petId}</p>
+                )}
+              </div>
 
-          {/* Chọn dịch vụ */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-              Chọn dịch vụ
-              <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              name="serviceId"
-              value={formData.serviceId}
-              onChange={handleChange}
-              className={cn(errors.serviceId && "border-destructive")}
-            >
-              <option value="">-- Chọn dịch vụ --</option>
-              {services.map(service => (
-                <option key={service.id} value={service.id}>
-                  {service.name}
-                </option>
-              ))}
-            </Select>
-            {errors.serviceId && (
-              <p className="text-sm text-destructive">{errors.serviceId}</p>
-            )}
-          </div>
+              {/* Chọn dịch vụ */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                  Chọn dịch vụ
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  name="serviceId"
+                  value={formData.serviceId}
+                  onChange={handleChange}
+                  className={cn(errors.serviceId && "border-destructive")}
+                >
+                  <option value="">-- Chọn dịch vụ --</option>
+                  {services.map(service => (
+                    <option key={formatServiceId(service.id)} value={service.id}>
+                      {service.name} {service.basePrice ? `- ${service.basePrice.toLocaleString('vi-VN')} đ` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {errors.serviceId && (
+                  <p className="text-sm text-destructive">{errors.serviceId}</p>
+                )}
+              </div>
+
+              {/* Chọn bác sĩ */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  Chọn bác sĩ
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  name="employeeId"
+                  value={formData.employeeId}
+                  onChange={handleChange}
+                  className={cn(errors.employeeId && "border-destructive")}
+                >
+                  <option value="">-- Chọn bác sĩ --</option>
+                  {employees.map(employee => (
+                    <option key={formatEmployeeId(employee.id)} value={employee.id}>
+                      {employee.name} {employee.specialization ? `- ${employee.specialization}` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {errors.employeeId && (
+                  <p className="text-sm text-destructive">{errors.employeeId}</p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Ngày & Giờ */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -297,13 +358,14 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
               type="button"
               variant="outline"
               onClick={handleClose}
+              disabled={loading}
             >
               <X className="h-4 w-4" />
               Hủy
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || dataLoading || pets.length === 0}
             >
               {loading ? (
                 <>

@@ -42,42 +42,12 @@ export default function OwnerPetsPage() {
         return;
       }
 
-      // Get current user info from backend
-      const { authApi } = await import('@/lib/api');
-      const userResponse = await authApi.getCurrentUser();
-      
-      if (!userResponse.success || !userResponse.data) {
-        console.error('Failed to get current user');
-        showToast("Không thể lấy thông tin người dùng", "error");
-        return;
-      }
-
-      // Get full profile to access petOwnerId
-      const accountId = userResponse.data.accountId;
-      const profileResponse = await authApi.getFullProfile(accountId);
-      
-      let petOwnerId = null;
-      if (profileResponse.success && profileResponse.data?.profile) {
-        const ownerId = profileResponse.data.profile.petOwnerId;
-        setPetOwnerId(ownerId); // Save for later use
-        petOwnerId = ownerId;
-      }
-
-      let response;
-      if (petOwnerId) {
-        // Pet Owner: only get their own pets
-        response = await petApi.getByOwner(petOwnerId);
-      } else {
-        // Fallback: this shouldn't happen for pet owners
-        console.warn('No petOwnerId found in user profile');
-        setPets([]);
-        return;
-      }
+      const response = await petApi.getOwnedPet();
       
       if (response.success && response.data) {
         // Map backend data to frontend format
         const mappedPets = response.data.map(pet => ({
-          id: pet.petID || pet.id,
+          id: pet.petId || pet.id,
           name: pet.name,
           icon: pet.species?.toLowerCase() === 'dog' || pet.species?.toLowerCase() === 'chó' ? '🐕' : '🐈',
           type: pet.species || 'Unknown',
@@ -121,12 +91,17 @@ export default function OwnerPetsPage() {
 
   const handleAddPet = async (newPet) => {
     try {
-      if (!petOwnerId) {
-        showToast("Không thể xác định chủ sở hữu", "error");
-        return;
-      }
-      
-      const response = await petApi.create(newPet, petOwnerId);
+      const response = await petApi.createByOwner({
+        name: newPet.name,
+        species: newPet.type,
+        breed: newPet.breed,
+        birthDate: newPet.dateOfBirth,
+        gender: newPet.gender,
+        weight: parseFloat(newPet.weight.replace(' kg', '')) || 0,
+        color: newPet.color,
+        initialHealthStatus: newPet.medicalHistory, 
+        specialNotes: newPet.notes
+      });
       
       if (response.success) {
         showToast("Đã thêm thú cưng thành công!", "success");
@@ -142,7 +117,18 @@ export default function OwnerPetsPage() {
 
   const handleEditPet = async (updatedPet) => {
     try {
-      const response = await petApi.update(updatedPet.id, updatedPet);
+      console.log("Updating pet:", updatedPet);
+      const response = await petApi.update(updatedPet.id, {
+        name: updatedPet.name,
+        species: updatedPet.type,
+        breed: updatedPet.breed,
+        birthDate: updatedPet.dateOfBirth,
+        gender: updatedPet.gender,
+        weight: parseFloat(updatedPet.weight.replace(' kg', '')) || 0,
+        color: updatedPet.color,
+        initialHealthStatus: updatedPet.medicalHistory, 
+        specialNotes: updatedPet.notes
+      });
       
       if (response.success) {
         showToast("Đã cập nhật thông tin thú cưng!", "success");
