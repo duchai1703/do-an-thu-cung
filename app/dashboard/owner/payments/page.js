@@ -41,14 +41,14 @@ export default function OwnerPaymentsPage() {
         return;
       }
 
-      const response = await invoiceApi.getAll();
+      const response = await invoiceApi.getAll({ includeAppointment: true, includePet: true, includePetOwner: true });
       
       if (response.success && response.data) {
         // Map backend data to frontend format
         const mappedInvoices = response.data.map(inv => {
           const firstService = inv.invoiceItems?.[0];
           return {
-            id: inv.invoiceId || inv.id,
+            id: inv.invoiceId,
             invoiceCode: formatInvoiceId(inv.invoiceId),
             serviceName: firstService?.service?.name || inv.invoiceItems?.map(i => i.service?.name).join(', ') || 'Dịch vụ',
             serviceIcon: getServiceIcon(firstService?.service?.categoryId),

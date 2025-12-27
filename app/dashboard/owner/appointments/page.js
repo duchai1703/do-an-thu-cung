@@ -49,18 +49,19 @@ export default function OwnerAppointmentsPage() {
         return;
       }
 
-      const response = await appointmentApi.getAll();
+      const response = await appointmentApi.getMyAppointments();
       
       if (response.success && response.data) {
         // Map backend data to frontend format
+        console.log('Loaded appointments:', response.data);
         const mappedAppointments = response.data.map(apt => ({
-          id: formatAppointmentId(apt.appointmentId || apt.id),
-          code: formatAppointmentId(apt.appointmentId || apt.id),
-          petId: apt.petId || apt.pet?.petId,
+          id: apt.appointmentId,
+          code: formatAppointmentId(apt.appointmentId),
+          petId: apt.pet?.petId,
           petName: apt.pet?.name || 'Unknown',
           petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          serviceId: apt.serviceId || apt.service?.serviceId,
-          serviceName: apt.service?.name || 'Unknown Service',
+          serviceId: apt.service?.serviceId,
+          serviceName: apt.service?.serviceName || 'Unknown Service',
           serviceIcon: getServiceIcon(apt.service?.categoryId),
           date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '',
           time: apt.startTime || '',
@@ -108,19 +109,7 @@ export default function OwnerAppointmentsPage() {
   };
 
   const handleBookAppointment = async (data) => {
-    try {
-      const response = await appointmentApi.create(data);
-      
-      if (response.success) {
-        showToast("Đặt lịch thành công!", "success");
-        loadAppointments(); // Reload the list
-      } else {
-        showToast(response.error || "Không thể đặt lịch", "error");
-      }
-    } catch (error) {
-      console.error("Error booking appointment:", error);
-      showToast("Lỗi khi đặt lịch", "error");
-    }
+    setIsBookModalOpen(false);
   };
 
   const handleViewDetail = (appointment) => {
@@ -135,6 +124,7 @@ export default function OwnerAppointmentsPage() {
 
   const handleCancelSuccess = async (data) => {
     try {
+      console.log(data);
       const response = await appointmentApi.cancel(data.appointmentId, data.reason);
       
       if (response.success) {
