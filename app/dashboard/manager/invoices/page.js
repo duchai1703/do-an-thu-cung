@@ -39,7 +39,8 @@ export default function ManagerInvoicesPage() {
         return;
       }
 
-      const response = await invoiceApi.getAll();
+      const response = await invoiceApi.getAll({ includeAppointment: true, includePetOwner: true, includePet: true });
+      console.log("Invoices API response:", response);
 
       // TODO: This is very wrong
       if (response.success && response.data) {
@@ -58,13 +59,13 @@ export default function ManagerInvoicesPage() {
 
           return {
             id: inv.invoiceNumber || `INV-${inv.invoiceID}`,
-            customerName: inv.appointment?.petOwner?.fullName || inv.petOwner?.fullName || 'N/A',
-            customerPhone: inv.appointment?.petOwner?.phoneNumber || inv.petOwner?.phoneNumber || 'N/A',
-            customerEmail: inv.appointment?.petOwner?.account?.email || 'N/A',
-            petName: inv.appointment?.pet?.name || 'N/A',
+            customerName: inv.petOwner?.fullName || inv.petOwner?.fullName || 'N/A',
+            customerPhone: inv.petOwner?.phoneNumber || inv.petOwner?.phoneNumber || 'N/A',
+            customerEmail: inv.petOwner?.account?.email || 'N/A',
+            petName: inv.pet?.name || 'N/A',
             petIcon: petIcon,
-            petBreed: inv.appointment?.pet?.breed || 'N/A',
-            petAge: calculateAge(inv.appointment?.pet?.birthDate),
+            petBreed: inv.pet?.breed || 'N/A',
+            petAge: calculateAge(inv.pet?.birthDate),
             date: inv.invoiceDate || inv.createdAt,
             services: services,
             subtotal: parseFloat(inv.subtotal || 0),

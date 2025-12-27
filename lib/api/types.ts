@@ -708,6 +708,9 @@ export interface GetInvoicesQuery {
   status?: InvoiceStatus;
   startDate?: string;
   endDate?: string;
+  includeAppointment?: boolean;
+  includePetOwner?: boolean;
+  includePet?: boolean;
 }
 
 /**
