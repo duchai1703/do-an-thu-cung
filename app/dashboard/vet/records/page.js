@@ -1,11 +1,11 @@
 // app/(dashboard)/veterinarian/records/page.js
 "use client";
+import "../vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetRecordDetailModal from "@/components/modals/VetRecordDetailModal";
 import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
-import { FileText, DollarSign, Clock, Search, Eye, Edit, Calendar, RefreshCw, ClipboardList, PawPrint, Cat, User, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,73 +199,105 @@ export default function VeterinarianRecordsPage() {
         subtitle="Quản lý và tra cứu hồ sơ khám bệnh"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng hồ sơ</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
+      {/* Stats - Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">📋</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
+          </div>
+          <div className="value">{stats.total}</div>
+          <div className="label mt-1">Tổng hồ sơ</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đã có hóa đơn</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.withInvoice}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-success">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">💰</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Đã thanh toán</span>
+          </div>
+          <div className="value">{stats.withInvoice}</div>
+          <div className="label mt-1">Đã có hóa đơn</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chưa có hóa đơn</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.noInvoice}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">⏰</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Chờ thanh toán</span>
+          </div>
+          <div className="value">{stats.noInvoice}</div>
+          <div className="label mt-1">Chưa có hóa đơn</div>
+        </div>
       </div>
 
-      {/* Filter Buttons */}
-      <Tabs value={filter} onValueChange={setFilter} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="all">Tất cả</TabsTrigger>
-          <TabsTrigger value="with_invoice">Đã có hóa đơn</TabsTrigger>
-          <TabsTrigger value="no_invoice">Chưa có hóa đơn</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Filter Tabs - Premium Style */}
+      <div className="vet-glass-card-dark rounded-2xl p-2">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { value: 'all', label: 'Tất cả', emoji: '📋', gradient: 'from-pink-500 to-rose-400' },
+            { value: 'with_invoice', label: 'Đã có hóa đơn', emoji: '💰', gradient: 'from-green-500 to-emerald-400' },
+            { value: 'no_invoice', label: 'Chưa có hóa đơn', emoji: '⏰', gradient: 'from-amber-500 to-orange-400' }
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                "px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-300",
+                "flex items-center justify-center gap-2",
+                filter === tab.value
+                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
+                  : "bg-white/50 text-gray-600 hover:bg-white/80"
+              )}
+            >
+              <span className="text-xl">{tab.emoji}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Search Only - Create records from appointments now */}
-      <div className="flex flex-col md:flex-row items-center justify-end gap-4">
-        <div className="relative flex-1 max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo tên thú cưng, chủ nuôi, mã hồ sơ..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      {/* Search - Premium Card */}
+      <div className="vet-glass-card rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-2xl shadow-lg">
+            🔍
+          </div>
+          <div className="flex-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">
+              Tìm kiếm
+            </label>
+            <Input
+              type="text"
+              placeholder="Tên thú cưng, chủ nuôi, mã hồ sơ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-0 bg-transparent p-0 h-auto font-medium text-gray-800 placeholder:text-gray-400 focus-visible:ring-0"
+            />
+          </div>
         </div>
       </div>
 
       {/* Records Table */}
-      <div className="space-y-6">
+      {/* Records Table - Premium Style */}
+      <div className="space-y-4">
+        {/* Table Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-primary" />
-            Danh sách hồ sơ bệnh án
-          </h2>
-          <Badge variant="secondary">{filteredRecords.length} hồ sơ</Badge>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+              📋
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Danh sách hồ sơ bệnh án</h2>
+              <p className="text-sm text-gray-500">Quản lý và tra cứu hồ sơ khám bệnh</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+            <span className="text-2xl">{filteredRecords.length}</span>
+            <span className="text-sm opacity-90">hồ sơ</span>
+          </div>
         </div>
 
-        <div className="rounded-md border">
+        {/* Table */}
+        <div className="rounded-xl border border-pink-100 overflow-hidden bg-white shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -283,13 +315,14 @@ export default function VeterinarianRecordsPage() {
               {filteredRecords.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <FileText className="mx-auto h-8 w-8 mb-2" />
-                    Không có hồ sơ nào
+                    <div className="flex flex-col items-center">
+                      <span className="text-4xl mb-2">📋</span>
+                      Không có hồ sơ nào
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredRecords.map((record) => {
-                  const PetIcon = record.petIcon === '🐕' ? PawPrint : record.petIcon === '🐈' ? Cat : PawPrint;
                   return (
                     <TableRow key={record.id}>
                       <TableCell>
@@ -299,12 +332,12 @@ export default function VeterinarianRecordsPage() {
                       <TableCell>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-base">📅</span>
                             <span className="text-sm font-medium">
                               {record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A'}
                             </span>
                           </div>
-                          <span className="text-xs text-muted-foreground pl-4">
+                          <span className="text-xs text-muted-foreground pl-5">
                             {record.date ? new Date(record.date).toLocaleTimeString('vi-VN') : ''}
                           </span>
                         </div>
@@ -312,8 +345,8 @@ export default function VeterinarianRecordsPage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground">
-                            <PetIcon className="h-4 w-4" />
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-50 text-xl">
+                            {record.petIcon || '🐾'}
                           </div>
                           <div>
                             <p className="font-semibold">{record.petName}</p>
@@ -335,7 +368,7 @@ export default function VeterinarianRecordsPage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-base">🔄</span>
                           <span className="text-sm">{record.followUpDate}</span>
                         </div>
                       </TableCell>
@@ -343,22 +376,22 @@ export default function VeterinarianRecordsPage() {
                       <TableCell>
                         {record.invoiceCreated ? (
                           <Badge variant="success" className="flex items-center gap-1 w-fit">
-                            <CheckCircle2 className="h-3 w-3" /> {record.invoiceId}
+                            <span className="text-sm">✅</span> {record.invoiceId}
                           </Badge>
                         ) : (
                           <Badge variant="warning" className="flex items-center gap-1 w-fit">
-                            <XCircle className="h-3 w-3" /> Chưa có
+                            <span className="text-sm">⏰</span> Chưa có
                           </Badge>
                         )}
                       </TableCell>
                       
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="icon" onClick={() => handleViewDetail(record)}>
-                            <Eye className="h-4 w-4" />
+                          <Button variant="outline" size="icon" onClick={() => handleViewDetail(record)} title="Xem chi tiết">
+                            <span className="text-lg">👁️</span>
                           </Button>
-                          <Button variant="outline" size="icon" onClick={() => handleEditRecord(record)}>
-                            <Edit className="h-4 w-4" />
+                          <Button variant="outline" size="icon" onClick={() => handleEditRecord(record)} title="Chỉnh sửa">
+                            <span className="text-lg">✏️</span>
                           </Button>
                         </div>
                       </TableCell>

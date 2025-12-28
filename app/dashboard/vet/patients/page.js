@@ -1,10 +1,10 @@
 // app/(dashboard)/veterinarian/patients/page.js
 "use client";
+import "../vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetPatientDetailModal from "@/components/modals/VetPatientDetailModal";
-import { PawPrint, Cat, Search, Eye, Calendar, Cake, ClipboardList, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,69 +184,100 @@ export default function VeterinarianPatientsPage() {
         subtitle="Danh sách thú cưng đã và đang điều trị"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng bệnh nhân</CardTitle>
-            <PawPrint className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chó</CardTitle>
-            <PawPrint className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.dogs}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mèo</CardTitle>
-            <Cat className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.cats}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filter Buttons */}
-      <Tabs value={filter} onValueChange={setFilter} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="all">Tất cả</TabsTrigger>
-          <TabsTrigger value="dog">Chó</TabsTrigger>
-          <TabsTrigger value="cat">Mèo</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Search Bar */}
-      <div className="relative flex-1 max-w-sm ml-auto">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="Tìm kiếm theo tên thú cưng, chủ nuôi, giống..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {/* Patients Table */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-primary" />
-            Danh sách bệnh nhân
-          </h2>
-          <Badge variant="secondary">{filteredPatients.length} bệnh nhân</Badge>
+      {/* Stats - Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🐾</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
+          </div>
+          <div className="value">{stats.total}</div>
+          <div className="label mt-1">Tổng bệnh nhân</div>
         </div>
+
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🐕</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Chó</span>
+          </div>
+          <div className="value">{stats.dogs}</div>
+          <div className="label mt-1">Bệnh nhân chó</div>
+        </div>
+
+        <div className="vet-stat-card vet-gradient-info">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🐈</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Mèo</span>
+          </div>
+          <div className="value">{stats.cats}</div>
+          <div className="label mt-1">Bệnh nhân mèo</div>
+        </div>
+      </div>
+
+      {/* Filter Tabs - Premium Style */}
+      <div className="vet-glass-card-dark rounded-xl p-2">
+        <div className="flex gap-2">
+          {[
+            { value: 'all', label: '🐾 Tất cả', gradient: 'from-pink-500 to-rose-400' },
+            { value: 'dog', label: '🐕 Chó', gradient: 'from-amber-500 to-orange-400' },
+            { value: 'cat', label: '🐈 Mèo', gradient: 'from-blue-500 to-cyan-400' }
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                "flex-1 px-6 py-3 rounded-lg font-semibold transition-all duration-200",
+                filter === tab.value
+                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
+                  : "bg-white/50 text-gray-700 hover:bg-white/80"
+              )}
+            >
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Search Bar - Premium Style */}
+      <div className="vet-glass-card rounded-2xl p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => document.getElementById('patient-search')?.focus()}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl shadow-lg hover:scale-110 transition-transform">
+            🔍
+          </div>
+          <div className="flex-1">
+            <label htmlFor="patient-search" className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 block">
+              Tìm kiếm bệnh nhân
+            </label>
+            <Input
+              id="patient-search"
+              type="text"
+              placeholder="Nhập tên thú cưng, chủ nuôi, giống..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-0 bg-transparent p-0 h-auto text-lg font-semibold text-gray-900 placeholder:text-gray-400 focus-visible:ring-0"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Patients Table - Premium Style */}
+      <div className="space-y-6">
+        <div className="vet-glass-card rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+                📋
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Danh sách bệnh nhân</h2>
+                <p className="text-sm text-gray-500">Quản lý thú cưng điều trị</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+              <span className="text-2xl">{filteredPatients.length}</span>
+              <span className="text-sm opacity-90">bệnh nhân</span>
+            </div>
+          </div>
 
         <div className="rounded-md border">
           <Table>
@@ -266,13 +297,12 @@ export default function VeterinarianPatientsPage() {
               {filteredPatients.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <PawPrint className="mx-auto h-8 w-8 mb-2" />
+                    <div className="text-5xl mb-2">🐾</div>
                     Không có bệnh nhân nào
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredPatients.map((patient) => {
-                  const PetIcon = patient.icon === '🐕' ? PawPrint : patient.icon === '🐈' ? Cat : PawPrint;
                   return (
                     <TableRow key={patient.id}>
                       <TableCell>
@@ -281,8 +311,8 @@ export default function VeterinarianPatientsPage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground">
-                            <PetIcon className="h-4 w-4" />
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-50 text-xl">
+                            {patient.icon || '🐾'}
                           </div>
                           <div>
                             <p className="font-semibold">{patient.name}</p>
@@ -297,7 +327,7 @@ export default function VeterinarianPatientsPage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Cake className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-base">🎂</span>
                           <span className="text-sm">{patient.age}</span>
                         </div>
                       </TableCell>
@@ -311,7 +341,7 @@ export default function VeterinarianPatientsPage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-base">📅</span>
                           <span className="text-sm">{patient.lastVisit}</span>
                         </div>
                       </TableCell>
@@ -321,8 +351,8 @@ export default function VeterinarianPatientsPage() {
                       </TableCell>
                       
                       <TableCell>
-                        <Button variant="outline" size="icon" onClick={() => handleViewDetail(patient)}>
-                          <Eye className="h-4 w-4" />
+                        <Button variant="outline" size="icon" onClick={() => handleViewDetail(patient)} title="Xem chi tiết">
+                          <span className="text-lg">👁️</span>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -331,6 +361,7 @@ export default function VeterinarianPatientsPage() {
               )}
             </TableBody>
           </Table>
+        </div>
         </div>
       </div>
 

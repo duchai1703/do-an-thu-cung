@@ -1,24 +1,9 @@
 // app/dashboard/vet/boarding/page.js
 "use client";
+import "../vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
-import { 
-  Home, 
-  PawPrint, 
-  Cat, 
-  Clock, 
-  CheckCircle2, 
-  Search, 
-  Plus, 
-  User, 
-  Calendar, 
-  LogOut,
-  Loader2,
-  Settings,
-  Eye,
-  Phone
-} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -246,10 +231,10 @@ export default function VeterinarianBoardingPage() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      available: { label: "Trống", variant: "success", icon: CheckCircle2 },
-      occupied: { label: "Đang sử dụng", variant: "warning", icon: PawPrint },
-      maintenance: { label: "Bảo trì", variant: "secondary", icon: Settings },
-      reserved: { label: "Đã đặt", variant: "info", icon: Clock }
+      available: { label: "Trống", variant: "success", emoji: "✅" },
+      occupied: { label: "Đang sử dụng", variant: "warning", emoji: "🐾" },
+      maintenance: { label: "Bảo trì", variant: "secondary", emoji: "🔧" },
+      reserved: { label: "Đã đặt", variant: "info", emoji: "⏰" }
     };
     return badges[status] || badges.available;
   };
@@ -270,100 +255,107 @@ export default function VeterinarianBoardingPage() {
         subtitle="Theo dõi và quản lý thú cưng lưu trú tại trung tâm"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng chuồng</CardTitle>
-            <Home className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
+      {/* Stats - Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-4">
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🏠</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
+          </div>
+          <div className="value">{stats.total}</div>
+          <div className="label mt-1">Tổng chuồng</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chuồng trống</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{stats.available}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-success">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">✅</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Trống</span>
+          </div>
+          <div className="value">{stats.available}</div>
+          <div className="label mt-1">Chuồng trống</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang lưu trú</CardTitle>
-            <PawPrint className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">{stats.occupied}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🐾</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Đang ở</span>
+          </div>
+          <div className="value">{stats.occupied}</div>
+          <div className="label mt-1">Đang lưu trú</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bảo trì</CardTitle>
-            <Settings className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.maintenance}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-info">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">🔧</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Bảo trì</span>
+          </div>
+          <div className="value">{stats.maintenance}</div>
+          <div className="label mt-1">Đang bảo trì</div>
+        </div>
       </div>
 
-      {/* Tabs and Actions */}
+      {/* Tabs and Actions - Premium Style */}
       <div className="flex items-center justify-between">
-        <div className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
-          <button
-            type="button"
-            onClick={() => setMainTab("monitoring")}
-            className={cn(
-              "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all gap-2",
-              mainTab === "monitoring"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background/50"
-            )}
-          >
-            <Eye className="h-4 w-4" /> Theo dõi hàng ngày
-          </button>
-          <button
-            type="button"
-            onClick={() => setMainTab("cages")}
-            className={cn(
-              "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all gap-2",
-              mainTab === "cages"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background/50"
-            )}
-          >
-            <Home className="h-4 w-4" /> Sơ đồ chuồng
-          </button>
+        <div className="vet-glass-card-dark rounded-xl p-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMainTab("monitoring")}
+              className={cn(
+                "px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2",
+                mainTab === "monitoring"
+                  ? "bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-lg scale-105"
+                  : "bg-white/50 text-gray-700 hover:bg-white/80"
+              )}
+            >
+              <span className="text-lg">👁️</span> Theo dõi hàng ngày
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainTab("cages")}
+              className={cn(
+                "px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2",
+                mainTab === "cages"
+                  ? "bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-lg scale-105"
+                  : "bg-white/50 text-gray-700 hover:bg-white/80"
+              )}
+            >
+              <span className="text-lg">🏠</span> Sơ đồ chuồng
+            </button>
+          </div>
         </div>
         
-        <Button onClick={() => handleOpenAssignModal()} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" /> Nhập thú cưng mới
+        <Button onClick={() => handleOpenAssignModal()} className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-400 hover:from-green-600 hover:to-emerald-500 text-white font-bold px-6 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all">
+          <span className="text-xl">➕</span> Nhập thú cưng mới
         </Button>
       </div>
 
       {/* Tab Content */}
       {mainTab === "monitoring" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PawPrint className="h-5 w-5" />
-              Danh sách thú cưng đang lưu trú ({activeAssignments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="vet-glass-card rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+                🐾
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Danh sách thú cưng đang lưu trú</h2>
+                <p className="text-sm text-gray-500">Theo dõi và quản lý</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+              <span className="text-2xl">{activeAssignments.length}</span>
+              <span className="text-sm opacity-90">thú cưng</span>
+            </div>
+          </div>
             {loading ? (
               <div className="text-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <div className="text-5xl mb-2">⏳</div>
+                <p className="text-muted-foreground">Đang tải...</p>
               </div>
             ) : activeAssignments.length === 0 ? (
               <div className="text-center py-8">
-                <Home className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <div className="text-5xl mb-2">🏠</div>
                 <p className="text-muted-foreground">Chưa có thú cưng nào đang lưu trú</p>
               </div>
             ) : (
@@ -395,7 +387,7 @@ export default function VeterinarianBoardingPage() {
                         <div>
                           <p className="text-sm">{asn.ownerName}</p>
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {asn.ownerPhone}
+                            <span>📞</span> {asn.ownerPhone}
                           </p>
                         </div>
                       </TableCell>
@@ -419,8 +411,9 @@ export default function VeterinarianBoardingPage() {
                           size="sm" 
                           variant="outline"
                           onClick={() => handleCheckOut(asn.id)}
+                          className="flex items-center gap-1"
                         >
-                          <LogOut className="h-4 w-4 mr-1" /> Trả
+                          <span className="text-base">🚪</span> Trả
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -428,8 +421,7 @@ export default function VeterinarianBoardingPage() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {mainTab === "cages" && (
@@ -460,7 +452,7 @@ export default function VeterinarianBoardingPage() {
             </div>
             
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🔍</span>
               <Input
                 type="text"
                 placeholder="Tìm theo số chuồng..."
@@ -475,11 +467,12 @@ export default function VeterinarianBoardingPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {loading ? (
               <div className="col-span-full text-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <div className="text-5xl mb-2">⏳</div>
+                <p className="text-muted-foreground">Đang tải...</p>
               </div>
             ) : filteredCages.length === 0 ? (
               <div className="col-span-full text-center py-8">
-                <Home className="h-8 w-8 mx-auto text-muted-foreground" />
+                <div className="text-5xl mb-2">🏠</div>
                 <p className="mt-2 text-muted-foreground">Không có chuồng nào</p>
               </div>
             ) : (
@@ -500,7 +493,7 @@ export default function VeterinarianBoardingPage() {
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-lg">{cage.number}</CardTitle>
                         <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                          <statusBadge.icon className="h-3 w-3" />
+                          <span className="text-sm">{statusBadge.emoji}</span>
                           {statusBadge.label}
                         </Badge>
                       </div>
@@ -520,31 +513,31 @@ export default function VeterinarianBoardingPage() {
                             <div>
                               <p className="font-semibold text-sm">{cage.currentPet.name}</p>
                               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <User className="h-3 w-3" /> {cage.currentPet.ownerName}
+                                <span>👤</span> {cage.currentPet.ownerName}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
+                            <span>📅</span>
                             {new Date(cage.currentPet.checkInDate).toLocaleDateString('vi-VN')} 
                             ({cage.currentPet.daysStayed} ngày)
                           </div>
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="w-full"
+                            className="w-full flex items-center gap-1"
                             onClick={() => handleCheckOut(cage.currentPet.assignmentId)}
                           >
-                            <LogOut className="h-4 w-4 mr-1" /> Trả chuồng
+                            <span className="text-base">🚪</span> Trả chuồng
                           </Button>
                         </div>
                       ) : cage.status === 'available' ? (
                         <Button 
                           size="sm" 
-                          className="w-full"
+                          className="w-full flex items-center gap-1"
                           onClick={() => handleOpenAssignModal(cage)}
                         >
-                          <Plus className="h-4 w-4 mr-1" /> Phân bổ
+                          <span className="text-base">➕</span> Phân bổ
                         </Button>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-2">
@@ -565,7 +558,7 @@ export default function VeterinarianBoardingPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-primary" />
+              <span className="text-xl">➕</span>
               Nhập thú cưng lưu trú
             </DialogTitle>
           </DialogHeader>
@@ -660,7 +653,7 @@ export default function VeterinarianBoardingPage() {
                 Hủy
               </Button>
               <Button type="submit" disabled={formLoading || !formData.petId || !formData.cageId}>
-                {formLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                {formLoading ? <span className="text-base mr-1">⏳</span> : <span className="text-base mr-1">✅</span>}
                 Xác nhận
               </Button>
             </DialogFooter>

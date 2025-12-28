@@ -1,5 +1,6 @@
 // app/dashboard/vet/page.js
 "use client";
+import "./vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
@@ -19,13 +20,22 @@ import {
   ClipboardList, 
   PawPrint, 
   Cat, 
+  Dog,
+  Bird,
   Stethoscope, 
   User,
   Play,
   Eye,
   Home,
   Syringe,
-  AlertTriangle
+  AlertTriangle,
+  Heart,
+  Activity,
+  TrendingUp,
+  Zap,
+  CalendarCheck,
+  UserCheck,
+  Phone
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -351,23 +361,27 @@ export default function VeterinarianDashboard() {
 
   const quickActions = [
     {
-      icon: ClipboardList,
+      icon: Zap,
+      emoji: "⚡",
       label: "Công việc hôm nay",
       onClick: () => router.push("/dashboard/vet/today"),
       highlight: true
     },
     {
-      icon: Calendar,
+      icon: CalendarCheck,
+      emoji: "📅",
       label: "Xem lịch khám",
       onClick: () => router.push("/dashboard/vet/schedule")
     },
     {
-      icon: FileText,
+      icon: Heart,
+      emoji: "📋",
       label: "Hồ sơ bệnh án",
       onClick: () => router.push("/dashboard/vet/records")
     },
     {
-      icon: Home,
+      icon: PawPrint,
+      emoji: "🏠",
       label: "Chuồng nuôi",
       onClick: () => router.push("/dashboard/vet/boarding")
     }
@@ -375,11 +389,11 @@ export default function VeterinarianDashboard() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      'PENDING': { label: "Chờ xác nhận", variant: "secondary", icon: Clock },
-      'CONFIRMED': { label: "Chờ khám", variant: "warning", icon: Clock },
-      'IN_PROGRESS': { label: "Đang khám", variant: "info", icon: RefreshCw },
-      'COMPLETED': { label: "Hoàn thành", variant: "success", icon: CheckCircle2 },
-      'CANCELLED': { label: "Đã hủy", variant: "destructive", icon: Clock }
+      'PENDING': { label: "Chờ xác nhận", variant: "secondary", emoji: "⏳" },
+      'CONFIRMED': { label: "Chờ khám", variant: "warning", emoji: "⏰" },
+      'IN_PROGRESS': { label: "Đang khám", variant: "info", emoji: "🔄" },
+      'COMPLETED': { label: "Hoàn thành", variant: "success", emoji: "✅" },
+      'CANCELLED': { label: "Đã hủy", variant: "destructive", emoji: "⚠️" }
     };
     return badges[status] || badges.PENDING;
   };
@@ -408,12 +422,55 @@ export default function VeterinarianDashboard() {
         </Card>
       )}
 
-      {/* Stats - Tổng quan công việc */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard icon={Calendar} title="Tổng lịch khám hôm nay" value={stats.todayAppointments} color="primary" />
-        <StatsCard icon={Clock} title="Chờ khám" value={stats.waiting} color="warning" />
-        <StatsCard icon={RefreshCw} title="Đang khám" value={stats.inProgress} color="info" />
-        <StatsCard icon={CheckCircle2} title="Đã hoàn thành" value={stats.completed} color="success" />
+      {/* Stats - Tổng quan công việc với Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Appointments */}
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              📅
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Hôm nay</span>
+          </div>
+          <div className="value">{stats.todayAppointments}</div>
+          <div className="label mt-1">Tổng lịch khám</div>
+        </div>
+
+        {/* Waiting */}
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              ⏰
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Chờ khám</span>
+          </div>
+          <div className="value">{stats.waiting}</div>
+          <div className="label mt-1">Bệnh nhân đang chờ</div>
+        </div>
+
+        {/* In Progress */}
+        <div className="vet-stat-card vet-gradient-info">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl vet-animate-pulse">
+              🔄
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Đang khám</span>
+          </div>
+          <div className="value">{stats.inProgress}</div>
+          <div className="label mt-1">Đang thực hiện</div>
+        </div>
+
+        {/* Completed */}
+        <div className="vet-stat-card vet-gradient-success">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              ✅
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Hoàn thành</span>
+          </div>
+          <div className="value">{stats.completed}</div>
+          <div className="label mt-1">Đã hoàn thành hôm nay</div>
+        </div>
       </div>
 
       {/* Vaccination Alerts */}
@@ -481,13 +538,31 @@ export default function VeterinarianDashboard() {
         </div>
       )}
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Premium Style */}
       <div className="space-y-4">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Thao tác nhanh
-        </h2>
-        <QuickActions actions={quickActions} />
+        <div className="vet-section-header">
+          <div className="icon-wrapper text-2xl">
+            ✨
+          </div>
+          <h2>Thao tác nhanh</h2>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {quickActions.map((action, idx) => (
+            <button
+              key={idx}
+              onClick={action.onClick}
+              className={cn(
+                "vet-action-btn",
+                action.highlight && "highlight"
+              )}
+            >
+              <div className="icon-bg text-3xl">
+                {action.emoji}
+              </div>
+              <span className="font-semibold text-gray-700">{action.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* My Work Schedule This Week */}
@@ -531,76 +606,94 @@ export default function VeterinarianDashboard() {
         </Card>
       )}
 
-      {/* Today's Appointments - Công việc hôm nay */}
-      <Card>
-        <CardHeader>
+      {/* Today's Appointments - Công việc hôm nay - Premium Style */}
+      <div className="vet-glass-card-dark rounded-2xl overflow-hidden">
+        {/* Header with gradient */}
+        <div className="p-6 border-b border-pink-100">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-primary" />
-                Công việc hôm nay
-              </CardTitle>
-              <CardDescription>Danh sách các ca khám trong ngày</CardDescription>
+            <div className="flex items-center gap-4">
+              <div className="vet-section-header" style={{ marginBottom: 0 }}>
+                <div className="icon-wrapper text-2xl">
+                  📋
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Công việc hôm nay</h2>
+                  <p className="text-sm text-gray-500">Danh sách các ca khám trong ngày</p>
+                </div>
+              </div>
             </div>
-            <Badge variant="secondary" className="text-lg px-3 py-1">{todaySchedule.length} ca</Badge>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+              <span className="text-2xl">{todaySchedule.length}</span>
+              <span className="text-sm opacity-90">ca khám</span>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        
+        {/* Content */}
+        <div className="p-6">
           {todaySchedule.length === 0 ? (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">Không có lịch khám hôm nay</p>
+            <div className="text-center py-12">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-pink-100 to-rose-50 flex items-center justify-center text-4xl">
+                📅
+              </div>
+              <p className="text-gray-400 text-lg">Không có lịch khám hôm nay</p>
+              <p className="text-gray-300 text-sm mt-1">Tận hưởng ngày nghỉ! 🎉</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4 vet-scrollbar max-h-[500px] overflow-y-auto pr-2">
               {todaySchedule.map((apt) => {
                 const statusBadge = getStatusBadge(apt.status);
                 const PetIcon = apt.petIcon === '🐕' ? PawPrint : Cat;
-                // Backend chỉ cho start từ CONFIRMED → IN_PROGRESS
                 const canStart = apt.status === 'CONFIRMED';
                 
                 return (
                   <div 
                     key={apt.id} 
                     className={cn(
-                      "flex items-center gap-4 p-4 rounded-lg border transition-all",
-                      // Color coding theo yêu cầu
-                      apt.status === 'PENDING' && "border-gray-300 bg-gray-50",
-                      apt.status === 'CONFIRMED' && "border-yellow-300 bg-yellow-50 hover:border-primary/50",
-                      apt.status === 'IN_PROGRESS' && "border-blue-400 bg-blue-50",
-                      apt.status === 'COMPLETED' && "border-green-300 bg-green-50"
+                      "vet-apt-card",
+                      apt.status === 'PENDING' && "border-gray-200",
+                      apt.status === 'CONFIRMED' && "waiting",
+                      apt.status === 'IN_PROGRESS' && "in-progress",
+                      apt.status === 'COMPLETED' && "completed"
                     )}
                   >
-                    {/* Time */}
-                    <div className="flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-primary/10 flex-shrink-0">
-                      <Clock className="h-4 w-4 text-primary mb-1" />
-                      <span className="text-sm font-bold text-primary">{apt.time || '--:--'}</span>
+                    {/* Time Badge */}
+                    <div className="time-badge flex-shrink-0">
+                      <span className="text-lg mb-1">🕐</span>
+                      <span className="text-sm font-bold">{apt.time || '--:--'}</span>
                     </div>
 
-                    {/* Pet Info */}
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary">
-                        <PetIcon className="h-5 w-5" />
+                    {/* Pet Avatar & Info */}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="pet-avatar flex-shrink-0 text-2xl">
+                        {apt.petIcon || '🐾'}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold truncate">{apt.petName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{apt.petBreed}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <User className="h-3 w-3" /> {apt.ownerName}
+                        <p className="font-bold text-gray-800 truncate text-lg">{apt.petName}</p>
+                        <p className="text-sm text-gray-500 truncate">{apt.petBreed}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                          <span>👤</span> {apt.ownerName}
                         </p>
                       </div>
                     </div>
 
                     {/* Service */}
-                    <div className="hidden md:flex items-center gap-2 flex-1">
-                      <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{apt.service}</span>
+                    <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                      <span className="text-lg">🩺</span>
+                      <span className="text-sm font-medium text-gray-600">{apt.service}</span>
                     </div>
 
-                    {/* Status */}
-                    <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                      <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                    </Badge>
+                    {/* Status Badge */}
+                    <div className={cn(
+                      "vet-badge",
+                      apt.status === 'PENDING' && "bg-gray-100 text-gray-600 border-gray-200",
+                      apt.status === 'CONFIRMED' && "vet-badge-warning",
+                      apt.status === 'IN_PROGRESS' && "vet-badge-info",
+                      apt.status === 'COMPLETED' && "vet-badge-success"
+                    )}>
+                      <span className="text-sm">{statusBadge.emoji}</span>
+                      {statusBadge.label}
+                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-2">
@@ -666,8 +759,8 @@ export default function VeterinarianDashboard() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
 
       {/* VetRecordFormModal - Full form for creating records from appointments */}

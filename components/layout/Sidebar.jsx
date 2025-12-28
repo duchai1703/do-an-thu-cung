@@ -3,95 +3,49 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Home,
-  Users,
-  Sparkles,
-  Calendar,
-  DollarSign,
-  BarChart3,
-  Bell,
-  LogOut,
-  ClipboardList,
-  FileText,
-  CreditCard,
-  ShoppingBag,
-  PawPrint,
-  Box,
-  Menu,
-  X,
-} from "lucide-react";
 import { AccountController } from "@/lib/controllers/AccountController";
 import { cn } from "@/lib/utils.js";
 
-// Icon mapping function
-const getIcon = (iconName, label) => {
-  if (label === "Chuồng nuôi") {
-    return Box;
-  }
-  if (label === "Tiêm phòng") {
-    return ClipboardList; // Use ClipboardList as fallback for Syringe
-  }
-
-  const iconMap = {
-    "🏠": Home,
-    "👥": Users,
-    "✨": Sparkles,
-    "📅": Calendar,
-    "💰": DollarSign,
-    "📊": BarChart3,
-    "🔔": Bell,
-    "🚪": LogOut,
-    "📋": ClipboardList,
-    "📄": FileText,
-    "💳": CreditCard,
-    "🛍️": ShoppingBag,
-    "🐾": PawPrint,
-    "💉": ClipboardList,
-  };
-  return iconMap[iconName] || Home;
-};
-
 const menuItems = {
   manager: [
-    { icon: "🏠", label: "Tổng quan", path: "/dashboard/manager" },
-    { icon: "👥", label: "Nhân viên", path: "/dashboard/manager/staff" },
-    { icon: "📆", label: "Lịch làm việc", path: "/dashboard/manager/schedules" },
-    { icon: "✨", label: "Dịch vụ", path: "/dashboard/manager/services" },
-    { icon: "📅", label: "Lịch đặt", path: "/dashboard/manager/appointments" },
-    { icon: "🐾", label: "Thú cưng", path: "/dashboard/manager/pets" },
-    { icon: "👤", label: "Khách hàng", path: "/dashboard/manager/customers" },
-    { icon: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
-    { icon: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
-    { icon: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
+    { emoji: "🏠", label: "Tổng quan", path: "/dashboard/manager" },
+    { emoji: "👥", label: "Nhân viên", path: "/dashboard/manager/staff" },
+    { emoji: "📆", label: "Lịch làm việc", path: "/dashboard/manager/schedules" },
+    { emoji: "✨", label: "Dịch vụ", path: "/dashboard/manager/services" },
+    { emoji: "📅", label: "Lịch đặt", path: "/dashboard/manager/appointments" },
+    { emoji: "🐾", label: "Thú cưng", path: "/dashboard/manager/pets" },
+    { emoji: "👤", label: "Khách hàng", path: "/dashboard/manager/customers" },
+    { emoji: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
+    { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
+    { emoji: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
   ],
   veterinarian: [
-    { icon: "🏠", label: "Tổng quan", path: "/dashboard/vet" },
-    { icon: "📅", label: "Lịch làm việc", path: "/dashboard/vet/schedule" },
-    { icon: "👥", label: "Hồ sơ bệnh án", path: "/dashboard/vet/records" },
-    { icon: "📋", label: "Công việc hôm nay", path: "/dashboard/vet/today" },
-    { icon: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
-    { icon: "🏠", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
+    { emoji: "🏠", label: "Tổng quan", path: "/dashboard/vet" },
+    { emoji: "📅", label: "Lịch làm việc", path: "/dashboard/vet/schedule" },
+    { emoji: "❤️", label: "Hồ sơ bệnh án", path: "/dashboard/vet/records" },
+    { emoji: "⚡", label: "Công việc hôm nay", path: "/dashboard/vet/today" },
+    { emoji: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
+    { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
   ],
   care_staff: [
-    { icon: "🏠", label: "Tổng quan", path: "/dashboard/care-staff" },
-    { icon: "📅", label: "Lịch làm việc", path: "/dashboard/care-staff/schedule" },
-    { icon: "📋", label: "Công việc hôm nay", path: "/dashboard/care-staff/today" },
+    { emoji: "🏠", label: "Tổng quan", path: "/dashboard/care-staff" },
+    { emoji: "📅", label: "Lịch làm việc", path: "/dashboard/care-staff/schedule" },
+    { emoji: "📋", label: "Công việc hôm nay", path: "/dashboard/care-staff/today" },
   ],
   receptionist: [
-    { icon: "🏠", label: "Tổng quan", path: "/dashboard/receptionist" },
-    { icon: "📅", label: "Đặt lịch", path: "/dashboard/receptionist/appointments" },
-    { icon: "📄", label: "Phiếu hẹn", path: "/dashboard/receptionist/slips" },
-    { icon: "🔔", label: "Nhắc lịch", path: "/dashboard/receptionist/reminders" },
-    { icon: "💳", label: "Thanh toán", path: "/dashboard/receptionist/payments" },
-    { icon: "👥", label: "Khách hàng", path: "/dashboard/receptionist/customers" },
+    { emoji: "🏠", label: "Tổng quan", path: "/dashboard/receptionist" },
+    { emoji: "📅", label: "Đặt lịch", path: "/dashboard/receptionist/appointments" },
+    { emoji: "📄", label: "Phiếu hẹn", path: "/dashboard/receptionist/slips" },
+    { emoji: "🔔", label: "Nhắc lịch", path: "/dashboard/receptionist/reminders" },
+    { emoji: "💳", label: "Thanh toán", path: "/dashboard/receptionist/payments" },
+    { emoji: "👥", label: "Khách hàng", path: "/dashboard/receptionist/customers" },
   ],
   pet_owner: [
-    { icon: "🏠", label: "Tổng quan", path: "/dashboard/owner" },
-    { icon: "🐾", label: "Thú cưng của tôi", path: "/dashboard/owner/pets" },
-    { icon: "📅", label: "Lịch đặt", path: "/dashboard/owner/appointments" },
-    { icon: "💳", label: "Thanh Toán", path: "/dashboard/owner/payments" },
-    { icon: "🛍️", label: "Xem dịch vụ", path: "/dashboard/owner/services" },
+    { emoji: "🏠", label: "Tổng quan", path: "/dashboard/owner" },
+    { emoji: "🐾", label: "Thú cưng của tôi", path: "/dashboard/owner/pets" },
+    { emoji: "📅", label: "Lịch đặt", path: "/dashboard/owner/appointments" },
+    { emoji: "💳", label: "Thanh Toán", path: "/dashboard/owner/payments" },
+    { emoji: "🛍️", label: "Xem dịch vụ", path: "/dashboard/owner/services" },
   ],
 };
 
@@ -141,7 +95,7 @@ export default function Sidebar({ role, userInfo }) {
   };
 
   // Calculate sidebar width
-  const sidebarWidth = isMobile ? "240px" : (isCollapsed ? "64px" : "240px");
+  const sidebarWidth = isMobile ? "240px" : (isCollapsed ? "80px" : "260px");
 
   return (
     <>
@@ -149,17 +103,17 @@ export default function Sidebar({ role, userInfo }) {
       {isMobile && (
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="fixed top-4 left-4 z-[1100] p-2 rounded-lg bg-gradient-to-r from-[#FF6B9D] to-[#C239B3] text-white shadow-lg"
+          className="fixed top-4 left-4 z-[1100] p-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-xl text-2xl"
           aria-label="Toggle menu"
         >
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {mobileOpen ? '✕' : '☰'}
         </button>
       )}
 
       {/* Mobile overlay */}
       {isMobile && mobileOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-[999]"
+          className="fixed inset-0 bg-black/50 z-[999] backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -168,55 +122,63 @@ export default function Sidebar({ role, userInfo }) {
       <aside
         className={cn(
           "fixed left-0 top-0 bottom-0 z-[1000] flex flex-col transition-all duration-300",
-          "bg-gradient-to-b from-[#FF6B9D] to-[#C239B3] text-white shadow-lg",
+          "bg-gradient-to-b from-pink-500 via-rose-400 to-pink-500 text-white shadow-2xl",
           isMobile && !mobileOpen && "-translate-x-full"
         )}
         style={{ width: sidebarWidth }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        {/* Header with Logo */}
+        <div className="p-6 border-b border-white/20">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10">
-              <PawPrint className="h-6 w-6" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm text-3xl">
+              🐾
             </div>
             {!isCollapsed && (
               <div>
-                <h2 className="text-lg font-bold">PAW LOVERS</h2>
-                <p className="text-xs opacity-90">Pet Care System</p>
+                <h2 className="text-xl font-bold tracking-wide">PAW LOVERS</h2>
+                <p className="text-xs opacity-90 font-medium">Pet Care System</p>
               </div>
             )}
           </div>
-          {!isMobile && (
+          {!isMobile && !isCollapsed && (
             <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
-              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={() => setIsCollapsed(true)}
+              className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm font-medium"
             >
-              {isCollapsed ? "→" : "←"}
+              ← Thu gọn
+            </button>
+          )}
+          {!isMobile && isCollapsed && (
+            <button
+              onClick={() => setIsCollapsed(false)}
+              className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-xl"
+            >
+              →
             </button>
           )}
         </div>
 
         {/* User Info */}
-        <div className="flex items-center gap-3 p-4 border-b border-white/10">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 font-bold text-lg shrink-0">
-            {userInfo?.name?.charAt(0)?.toUpperCase() || "U"}
-          </div>
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm truncate">
-                {userInfo?.name || "User"}
-              </p>
-              <p className="text-xs opacity-80 truncate">{getRoleLabel(role)}</p>
+        <div className="p-4 border-b border-white/20">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/30 backdrop-blur-sm font-bold text-xl shrink-0 shadow-lg">
+              {userInfo?.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
-          )}
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-sm truncate drop-shadow-md">
+                  {userInfo?.name || "User"}
+                </p>
+                <p className="text-xs opacity-90 truncate font-medium">{getRoleLabel(role)}</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-2">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {menuList.map((item, index) => {
             const isActive = pathname === item.path;
-            const IconComponent = getIcon(item.icon, item.label);
 
             return (
               <Link
@@ -224,19 +186,24 @@ export default function Sidebar({ role, userInfo }) {
                 href={item.path}
                 onClick={handleNavClick}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-all",
-                  "hover:bg-white/10 active:bg-white/20",
-                  isActive && "bg-white/20 shadow-md"
+                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                  "hover:bg-white/20 hover:shadow-lg hover:scale-[1.02]",
+                  isActive && "bg-white/30 shadow-xl backdrop-blur-sm"
                 )}
               >
-                <IconComponent
-                  className={cn("h-5 w-5 shrink-0", isActive && "text-white")}
-                />
+                <span className={cn(
+                  "text-2xl shrink-0 transition-transform",
+                  "group-hover:scale-110"
+                )}>
+                  {item.emoji}
+                </span>
                 {!isCollapsed && (
-                  <span className="font-medium text-sm truncate">{item.label}</span>
+                  <span className="font-semibold text-sm truncate drop-shadow-md">
+                    {item.label}
+                  </span>
                 )}
                 {isActive && !isCollapsed && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                  <div className="ml-auto w-2 h-2 rounded-full bg-white shrink-0 shadow-lg" />
                 )}
               </Link>
             );
@@ -244,18 +211,20 @@ export default function Sidebar({ role, userInfo }) {
         </nav>
 
         {/* Footer - Logout */}
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/20">
           <button
             onClick={handleLogout}
             className={cn(
-              "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg",
-              "hover:bg-white/10 active:bg-white/20 transition-colors",
+              "flex items-center gap-3 w-full px-4 py-3 rounded-xl",
+              "hover:bg-white/20 hover:shadow-lg transition-all group",
               "text-left"
             )}
           >
-            <LogOut className="h-5 w-5 shrink-0" />
+            <span className="text-2xl shrink-0 group-hover:scale-110 transition-transform">
+              🚪
+            </span>
             {!isCollapsed && (
-              <span className="font-medium text-sm">Đăng xuất</span>
+              <span className="font-semibold text-sm drop-shadow-md">Đăng xuất</span>
             )}
           </button>
         </div>

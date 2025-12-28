@@ -1,10 +1,10 @@
 // app/(dashboard)/vet/today/page.js
 "use client";
+import "../vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
-import { ClipboardList, Clock, RefreshCw, CheckCircle2, AlertCircle, Eye, PawPrint, Cat, Stethoscope, Syringe, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,7 @@ export default function VetTodayPage() {
           ownerName: apt.pet?.owner?.fullName || apt.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
           ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
           serviceName: apt.service?.serviceName || apt.service?.name || 'Unknown Service',
-          serviceIcon: getServiceIcon(apt.service?.serviceName || apt.service?.name),
+          serviceIcon: '🩺', // Default service emoji
           status: mapStatus(apt.status),
           priority: apt.status === 'IN_PROGRESS' ? 'high' : 'normal',
           symptoms: apt.notes || 'N/A',
@@ -110,13 +110,13 @@ export default function VetTodayPage() {
 
   const mapStatus = (backendStatus) => {
     const statusMap = {
-      'PENDING': 'waiting',
-      'CONFIRMED': 'waiting',
+      'PENDING': 'pending',
+      'CONFIRMED': 'pending', // Treat CONFIRMED as pending for UI
       'IN_PROGRESS': 'in_progress',
       'COMPLETED': 'completed',
       'CANCELLED': 'cancelled'
     };
-    return statusMap[backendStatus] || 'waiting';
+    return statusMap[backendStatus] || 'pending';
   };
 
   const handleViewDetail = (task) => {
@@ -145,17 +145,17 @@ export default function VetTodayPage() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      pending: { label: "Chưa làm", variant: "warning", icon: Clock },
-      in_progress: { label: "Đang làm", variant: "info", icon: RefreshCw },
-      completed: { label: "Hoàn thành", variant: "success", icon: CheckCircle2 }
+      pending: { label: "Chưa làm", variant: "warning", emoji: "⏰" },
+      in_progress: { label: "Đang làm", variant: "info", emoji: "🔄" },
+      completed: { label: "Hoàn thành", variant: "success", emoji: "✅" }
     };
     return badges[status] || badges.pending;
   };
 
   const getPriorityBadge = (priority) => {
     const badges = {
-      high: { label: "Quan trọng", variant: "destructive", icon: AlertCircle },
-      normal: { label: "Bình thường", variant: "secondary", icon: Clock }
+      high: { label: "Quan trọng", variant: "destructive", emoji: "⚠️" },
+      normal: { label: "Bình thường", variant: "secondary", emoji: "📌" }
     };
     return badges[priority] || badges.normal;
   };
@@ -167,13 +167,13 @@ export default function VetTodayPage() {
     completed: todayTasks.filter(t => t.status === 'completed').length
   };
 
-  const getServiceIcon = (icon) => {
+  const getServiceEmoji = (icon) => {
     switch (icon) {
-      case '🏥': return Stethoscope;
-      case '💉': return Syringe;
-      case '🔄': return RefreshCw;
-      case '🩺': return Stethoscope;
-      default: return Stethoscope;
+      case '🏥': return '🩺';
+      case '💉': return '💉';
+      case '🔄': return '🔄';
+      case '🩺': return '🩺';
+      default: return '🩺';
     }
   };
 
@@ -184,119 +184,138 @@ export default function VetTodayPage() {
         subtitle="Danh sách công việc và lịch khám trong ngày"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng công việc</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
+      {/* Stats - Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-4">
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">📋</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
+          </div>
+          <div className="value">{stats.total}</div>
+          <div className="label mt-1">Tổng công việc</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chưa làm</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">⏰</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Chờ làm</span>
+          </div>
+          <div className="value">{stats.pending}</div>
+          <div className="label mt-1">Chưa làm</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang làm</CardTitle>
-            <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-info">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl vet-animate-pulse">🔄</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Đang làm</span>
+          </div>
+          <div className="value">{stats.inProgress}</div>
+          <div className="label mt-1">Đang thực hiện</div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
+        <div className="vet-stat-card vet-gradient-success">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">✅</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Hoàn thành</span>
+          </div>
+          <div className="value">{stats.completed}</div>
+          <div className="label mt-1">Đã hoàn thành</div>
+        </div>
       </div>
 
       {/* Today's Tasks */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-primary" />
-            Công việc hôm nay - Thứ Hai, 27/10/2025
-          </h2>
-          <Badge variant="secondary">{todayTasks.length} công việc</Badge>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+              📋
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Công việc hôm nay</h2>
+              <p className="text-sm text-gray-500">Thứ Hai, 27/10/2025</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+            <span className="text-2xl">{todayTasks.length}</span>
+            <span className="text-sm opacity-90">công việc</span>
+          </div>
         </div>
 
         <div className="space-y-3">
           {todayTasks.map((task) => {
             const statusBadge = getStatusBadge(task.status);
             const priorityBadge = getPriorityBadge(task.priority);
-            const ServiceIcon = task.serviceIcon ? getServiceIcon(task.serviceIcon) : null;
-            const PetIcon = task.petIcon === '🐕' ? PawPrint : task.petIcon === '🐈' ? Cat : PawPrint;
+            const serviceEmoji = task.serviceIcon ? getServiceEmoji(task.serviceIcon) : null;
             
             return (
-              <Card key={task.id} className="flex items-center gap-4 p-4">
-                <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-primary/10">
-                  <Clock className="h-5 w-5 text-primary" />
-                  <span className="ml-1 font-semibold">{task.time}</span>
-                </div>
-
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">{task.title}</h3>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={priorityBadge.variant} className="flex items-center gap-1">
-                        <priorityBadge.icon className="h-3 w-3" /> {priorityBadge.label}
-                      </Badge>
-                      <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                        <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                      </Badge>
+              <Card key={task.id} className="p-0 overflow-hidden">
+                <div className="flex items-stretch gap-0">
+                  {/* Time Box - Separate pink section */}
+                  <div className="flex items-center justify-center bg-gradient-to-br from-pink-500 to-rose-400 text-white px-6 py-4 min-w-[120px]">
+                    <div className="text-center">
+                      <div className="text-sm opacity-90 mb-1">🕐</div>
+                      <div className="text-xl font-bold">{task.time}</div>
                     </div>
                   </div>
 
-                  {task.type === 'appointment' && (
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground">
-                        <PetIcon className="h-4 w-4" />
+                  {/* Content Section */}
+                  <div className="flex-1 p-4 flex items-center gap-4">
+                    {/* Pet Info */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-pink-50 text-2xl flex-shrink-0">
+                        {task.petIcon || '🐾'}
                       </div>
-                      <span className="font-medium">{task.petName}</span>
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <User className="h-3 w-3" /> {task.ownerName}
-                      </span>
-                      {ServiceIcon && (
-                        <span className="text-sm text-muted-foreground flex items-center gap-1">
-                          <ServiceIcon className="h-3 w-3" /> {task.serviceName}
-                        </span>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-gray-900 mb-1">{task.title}</h3>
+                        {task.type === 'appointment' && (
+                          <div className="flex items-center gap-3 text-sm text-gray-600">
+                            <span className="flex items-center gap-1">
+                              <span>🐕</span>
+                              <span className="font-medium">{task.petName}</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span>👤</span>
+                              <span>{task.ownerName}</span>
+                            </span>
+                            {serviceEmoji && (
+                              <span className="flex items-center gap-1">
+                                <span>{serviceEmoji}</span>
+                                <span>{task.serviceName}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {task.type === 'reminder' && task.description && (
+                          <p className="text-sm text-muted-foreground">{task.description}</p>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  {task.type === 'reminder' && task.description && (
-                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                  )}
-                </div>
-
-                <div>
-                  {task.type === 'appointment' && (
-                    <Button variant="outline" onClick={() => handleViewDetail(task)}>
-                      <Eye className="h-4 w-4 mr-2" /> Chi tiết
-                    </Button>
-                  )}
-                  {task.type === 'reminder' && (
-                    <Button variant="outline" onClick={() => router.push("/dashboard/vet/records")}>
-                      Xem ngay
-                    </Button>
-                  )}
+                    {/* Badges and Button - Aligned vertically center */}
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="flex flex-col gap-2">
+                        <Badge variant={priorityBadge.variant} className="flex items-center gap-1 justify-center">
+                          <span className="text-sm">{priorityBadge.emoji}</span> {priorityBadge.label}
+                        </Badge>
+                        <Badge variant={statusBadge.variant} className="flex items-center gap-1 justify-center">
+                          <span className="text-sm">{statusBadge.emoji}</span> {statusBadge.label}
+                        </Badge>
+                      </div>
+                      
+                      <div>
+                        {task.type === 'appointment' && (
+                          <Button variant="outline" onClick={() => handleViewDetail(task)} className="h-full">
+                            <span className="text-lg mr-2">👁️</span> Chi tiết
+                          </Button>
+                        )}
+                        {task.type === 'reminder' && (
+                          <Button variant="outline" onClick={() => router.push("/dashboard/vet/records")}>
+                            Xem ngay
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </Card>
             );

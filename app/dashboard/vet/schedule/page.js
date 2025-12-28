@@ -1,11 +1,11 @@
 // app/(dashboard)/vet/schedule/page.js
 "use client";
+import "../vet-dashboard.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
 import VetRecordModal from "@/components/modals/VetRecordModal";
-import { Calendar, Clock, CheckCircle2, RefreshCw, Search, Eye, Play, ClipboardList, PawPrint, Cat, Stethoscope, Syringe, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,20 +164,20 @@ export default function VeterinarianSchedulePage() {
 
   const getStatusBadge = (status) => {
     const badges = {
-      waiting: { label: "Chờ khám", variant: "warning", icon: Clock },
-      in_progress: { label: "Đang khám", variant: "info", icon: RefreshCw },
-      completed: { label: "Hoàn thành", variant: "success", icon: CheckCircle2 }
+      waiting: { label: "Chờ khám", variant: "warning", emoji: "⏰" },
+      in_progress: { label: "Đang khám", variant: "info", emoji: "🔄" },
+      completed: { label: "Hoàn thành", variant: "success", emoji: "✅" }
     };
     return badges[status] || badges.waiting;
   };
 
-  const getServiceIcon = (icon) => {
+  const getServiceEmoji = (icon) => {
     switch (icon) {
-      case '🏥': return Stethoscope;
-      case '💉': return Syringe;
-      case '🔄': return RefreshCw;
-      case '🩺': return Stethoscope;
-      default: return Stethoscope;
+      case '🏥': return '🩺';
+      case '💉': return '💉';
+      case '🔄': return '🔄';
+      case '🩺': return '🩺';
+      default: return '🩺';
     }
   };
 
@@ -195,95 +195,159 @@ export default function VeterinarianSchedulePage() {
         subtitle="Quản lý lịch khám và thực hiện ca khám"
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng ca khám</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chờ khám</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.waiting}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang khám</CardTitle>
-            <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filter Buttons */}
-      <Tabs value={filter} onValueChange={setFilter} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">Tất cả</TabsTrigger>
-          <TabsTrigger value="waiting">Chờ khám</TabsTrigger>
-          <TabsTrigger value="in_progress">Đang khám</TabsTrigger>
-          <TabsTrigger value="completed">Hoàn thành</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Date Picker and Search */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <label className="text-sm font-medium">Chọn ngày:</label>
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
-          />
+      {/* Stats - Premium Gradient Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total */}
+        <div className="vet-stat-card vet-gradient-primary">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              📅
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Tổng ca</span>
+          </div>
+          <div className="value">{stats.total}</div>
+          <div className="label mt-1">Tổng ca khám</div>
         </div>
-        <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo tên thú cưng hoặc chủ nuôi..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+
+        {/* Waiting */}
+        <div className="vet-stat-card vet-gradient-warning">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              ⏰
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Chờ khám</span>
+          </div>
+          <div className="value">{stats.waiting}</div>
+          <div className="label mt-1">Đang chờ</div>
+        </div>
+
+        {/* In Progress */}
+        <div className="vet-stat-card vet-gradient-info">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl vet-animate-pulse">
+              🔄
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Đang khám</span>
+          </div>
+          <div className="value">{stats.inProgress}</div>
+          <div className="label mt-1">Đang thực hiện</div>
+        </div>
+
+        {/* Completed */}
+        <div className="vet-stat-card vet-gradient-success">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl">
+              ✅
+            </div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Hoàn thành</span>
+          </div>
+          <div className="value">{stats.completed}</div>
+          <div className="label mt-1">Đã hoàn thành</div>
         </div>
       </div>
 
-      {/* Appointments Table */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-primary" />
-            Lịch khám ngày {selectedDate}
-          </h2>
-          <Badge variant="secondary">{filteredAppointments.length} ca khám</Badge>
+      {/* Filter Tabs - Premium Style */}
+      <div className="vet-glass-card-dark rounded-2xl p-2">
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { value: 'all', label: 'Tất cả', emoji: '📋', gradient: 'from-pink-500 to-rose-400' },
+            { value: 'waiting', label: 'Chờ khám', emoji: '⏰', gradient: 'from-amber-500 to-orange-400' },
+            { value: 'in_progress', label: 'Đang khám', emoji: '🔄', gradient: 'from-blue-500 to-cyan-400' },
+            { value: 'completed', label: 'Hoàn thành', emoji: '✅', gradient: 'from-green-500 to-emerald-400' }
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                "px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-300",
+                "flex items-center justify-center gap-2",
+                filter === tab.value
+                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
+                  : "bg-white/50 text-gray-600 hover:bg-white/80"
+              )}
+            >
+              <span className="text-xl">{tab.emoji}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date Picker and Search - Premium Cards với UX cải thiện */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Date Picker Card */}
+        <div className="vet-glass-card rounded-2xl p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => {
+          const input = document.getElementById('date-input');
+          input?.focus();
+          input?.showPicker?.();
+        }}>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-3xl shadow-lg hover:scale-110 transition-transform">
+              📅
+            </div>
+            <div className="flex-1">
+              <label htmlFor="date-input" className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 block">
+                Chọn ngày khám
+              </label>
+              <Input
+                id="date-input"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border-0 bg-transparent p-0 h-auto text-xl font-bold text-gray-900 focus-visible:ring-0 cursor-pointer"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="rounded-md border">
-          <Table>
+        {/* Search Card */}
+        <div className="vet-glass-card rounded-2xl p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => document.getElementById('search-input')?.focus()}>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl shadow-lg hover:scale-110 transition-transform">
+              🔍
+            </div>
+            <div className="flex-1">
+              <label htmlFor="search-input" className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 block">
+                Tìm kiếm lịch khám
+              </label>
+              <Input
+                id="search-input"
+                type="text"
+                placeholder="Nhập tên thú cưng hoặc chủ nuôi..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="border-0 bg-transparent p-0 h-auto text-lg font-semibold text-gray-900 placeholder:text-gray-400 focus-visible:ring-0"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Appointments Table - Premium Style */}
+      <div className="vet-glass-card-dark rounded-2xl overflow-hidden">
+        {/* Table Header */}
+        <div className="p-6 border-b border-pink-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+                📋
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Lịch khám ngày {selectedDate}</h2>
+                <p className="text-sm text-gray-500">Danh sách các ca khám trong ngày</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
+              <span className="text-2xl">{filteredAppointments.length}</span>
+              <span className="text-sm opacity-90">ca khám</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Table Content */}
+        <div className="p-6">
+          <div className="rounded-xl border border-pink-100 overflow-hidden bg-white/50">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[8%]">Mã</TableHead>
@@ -299,15 +363,15 @@ export default function VeterinarianSchedulePage() {
               {filteredAppointments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    <Calendar className="mx-auto h-8 w-8 mb-2" />
-                    Không có ca khám nào
+                    <div className="flex flex-col items-center">
+                      <span className="text-4xl mb-2">📅</span>
+                      Không có ca khám nào
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredAppointments.map((apt) => {
                   const statusBadge = getStatusBadge(apt.status);
-                  const ServiceIcon = getServiceIcon(apt.serviceIconName);
-                  const PetIcon = apt.petIcon === '🐕' ? PawPrint : apt.petIcon === '🐈' ? Cat : PawPrint;
                   return (
                     <TableRow key={apt.id}>
                       <TableCell>
@@ -316,15 +380,15 @@ export default function VeterinarianSchedulePage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-base">🕐</span>
                           <span className="font-medium">{apt.time}</span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground">
-                            <PetIcon className="h-4 w-4" />
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-50 text-xl">
+                            {apt.petIcon || '🐾'}
                           </div>
                           <div>
                             <p className="font-semibold">{apt.petName}</p>
@@ -342,32 +406,32 @@ export default function VeterinarianSchedulePage() {
                       
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <ServiceIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-lg">{getServiceEmoji(apt.serviceIconName)}</span>
                           <span className="text-sm">{apt.serviceName}</span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
                         <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
-                          <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
+                          <span className="text-sm">{statusBadge.emoji}</span> {statusBadge.label}
                         </Badge>
                       </TableCell>
                       
                       <TableCell>
                         <div className="flex justify-center gap-2">
-                          <Button variant="outline" size="icon" onClick={() => handleViewDetail(apt)}>
-                            <Eye className="h-4 w-4" />
+                          <Button variant="outline" size="icon" onClick={() => handleViewDetail(apt)} title="Xem chi tiết">
+                            <span className="text-lg">👁️</span>
                           </Button>
                           
                           {apt.status === 'waiting' && (
-                            <Button variant="default" size="icon" onClick={() => handleStartExam(apt.id)}>
-                              <Play className="h-4 w-4" />
+                            <Button variant="default" size="icon" onClick={() => handleStartExam(apt.id)} title="Bắt đầu khám">
+                              <span className="text-lg">▶️</span>
                             </Button>
                           )}
                           
                           {(apt.status === 'in_progress' || apt.status === 'waiting') && (
-                            <Button variant="success" size="icon" onClick={() => handleCompleteExam(apt)}>
-                              <CheckCircle2 className="h-4 w-4" />
+                            <Button variant="success" size="icon" onClick={() => handleCompleteExam(apt)} title="Hoàn thành">
+                              <span className="text-lg">✅</span>
                             </Button>
                           )}
                         </div>
@@ -378,6 +442,7 @@ export default function VeterinarianSchedulePage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
 
