@@ -1,230 +1,417 @@
-// app/(dashboard)/care-staff/schedule/page.js
+// app/dashboard/care-staff/schedule/page.js
 "use client";
+import "../../vet/vet-dashboard.css";
 import { useState, useEffect } from "react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Calendar, Clock, RefreshCw, CheckCircle2, Search, ClipboardList, PawPrint, Cat, Bath, Scissors, Home, Sparkles, User } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { careStaffApi } from "@/lib/api/care-staff";
+import { useToast } from "@/lib/contexts/ToastContext";
+import apiClient from "@/lib/api/client";
 
 export default function CareStaffSchedulePage() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [schedule, setSchedule] = useState([]);
-  const [filter, setFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const { showToast } = useToast();
+  const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [employeeId, setEmployeeId] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [stats, setStats] = useState({
+    total: 0,
+    available: 0,
+    unavailable: 0,
+    hoursThisWeek: 0
+  });
 
-  // Get current employee ID from localStorage or session
-  const getEmployeeId = () => {
-    if (typeof window !== 'undefined') {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      return user.employeeId || user.id || 1; // Default to 1 for testing
-    }
-    return 1;
+  // Get week date range based on offset
+  const getWeekRange = (offset = 0) => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset + (offset * 7));
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    return {
+      start: monday.toISOString().split('T')[0],
+      end: sunday.toISOString().split('T')[0],
+      monday,
+      sunday
+    };
   };
 
+  const weekRange = getWeekRange(weekOffset);
+
   useEffect(() => {
-    loadSchedule();
-  }, [selectedDate]);
+    loadData();
+  }, [weekOffset]);
 
-  const loadSchedule = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const employeeId = getEmployeeId();
-
+    
     try {
-      const result = await careStaffApi.getSchedule(employeeId, {
-        date: selectedDate,
-      });
-
-      if (result.success) {
-        setSchedule(result.data);
+      // Step 1: Get employeeId from user profile
+      const meResponse = await apiClient.get('/auth/me');
+      const userData = meResponse.data || meResponse;
+      const currentEmployeeId = userData?.employee?.employeeId;
+      
+      if (!currentEmployeeId) {
+        showToast("Không tìm thấy thông tin nhân viên", "error");
+        setLoading(false);
+        return;
+      }
+      
+      setEmployeeId(currentEmployeeId);
+      
+      // Step 2: Get schedules for the selected week
+      console.log('Loading schedules for week:', weekRange.start, '-', weekRange.end);
+      const result = await careStaffApi.getWorkScheduleRange(
+        currentEmployeeId,
+        weekRange.start,
+        weekRange.end
+      );
+      
+      console.log('Schedules API result:', result);
+      if (result.success && result.data) {
+        // Sort by workDate
+        const sortedSchedules = result.data.sort((a, b) => 
+          new Date(a.workDate) - new Date(b.workDate)
+        );
+        setSchedules(sortedSchedules);
+        
+        // Calculate stats
+        const available = sortedSchedules.filter(s => s.isAvailable !== false).length;
+        const unavailable = sortedSchedules.filter(s => s.isAvailable === false).length;
+        const totalHours = sortedSchedules.reduce((acc, s) => {
+          if (s.startTime && s.endTime) {
+            const start = parseTimeToMinutes(s.startTime);
+            const end = parseTimeToMinutes(s.endTime);
+            const breakDuration = s.breakStart && s.breakEnd
+              ? parseTimeToMinutes(s.breakEnd) - parseTimeToMinutes(s.breakStart)
+              : 0;
+            return acc + ((end - start - breakDuration) / 60);
+          }
+          return acc;
+        }, 0);
+        
+        setStats({
+          total: sortedSchedules.length,
+          available,
+          unavailable,
+          hoursThisWeek: Math.round(totalHours)
+        });
+        
+        console.log('Calculated stats:', {
+          total: sortedSchedules.length,
+          available,
+          unavailable,
+          hoursThisWeek: Math.round(totalHours)
+        });
       } else {
-        console.error('Error loading schedule:', result.error);
+        setSchedules([]);
+        setStats({ total: 0, available: 0, unavailable: 0, hoursThisWeek: 0 });
       }
     } catch (error) {
-      console.error('Error loading schedule:', error);
+      console.error('Error loading schedules:', error);
+      showToast("Không thể tải lịch làm việc", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSchedule = schedule.filter(item => {
-    const matchFilter = filter === "all" || item.status === filter;
-    const matchSearch = item.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       item.ownerName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
-  });
-
-  const getStatusBadge = (status) => {
-    const badges = {
-      pending: { label: "Chưa làm", variant: "warning", icon: Clock },
-      in_progress: { label: "Đang làm", variant: "info", icon: RefreshCw },
-      completed: { label: "Hoàn thành", variant: "success", icon: CheckCircle2 }
-    };
-    return badges[status] || badges.pending;
+  const parseTimeToMinutes = (timeStr) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
   };
 
-  const getServiceIcon = (icon) => {
-    switch (icon) {
-      case '🛁': return Bath;
-      case '✂️': return Scissors;
-      case '🧼': return Sparkles;
-      case '🪮': return Sparkles;
-      case '🏠': return Home;
-      default: return Sparkles;
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '--:--';
+    return timeStr.slice(0, 5);
+  };
+
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const dayName = days[date.getDay()];
+    return {
+      dayName,
+      day: date.getDate(),
+      month: date.getMonth() + 1,
+      full: `${dayName}, ${date.getDate()}/${date.getMonth() + 1}`
+    };
+  };
+
+  const handleToggleAvailability = async (scheduleId, currentAvailable) => {
+    const newStatus = !currentAvailable;
+    
+    try {
+      const result = await careStaffApi.toggleScheduleAvailability(scheduleId, newStatus);
+      
+      if (result.success) {
+        // Update local state
+        setSchedules(schedules.map(s => 
+          s.id === scheduleId 
+            ? { ...s, isAvailable: newStatus }
+            : s
+        ));
+        
+        // Update stats
+        if (newStatus) {
+          setStats(prev => ({ ...prev, available: prev.available + 1, unavailable: prev.unavailable - 1 }));
+        } else {
+          setStats(prev => ({ ...prev, available: prev.available - 1, unavailable: prev.unavailable + 1 }));
+        }
+        
+        showToast(newStatus ? "Đã đánh dấu sẵn sàng làm việc" : "Đã đánh dấu không rảnh");
+      } else {
+        showToast(result.error || "Không thể cập nhật trạng thái", "error");
+      }
+    } catch (error) {
+      console.error('Error toggling availability:', error);
+      showToast("Có lỗi xảy ra", "error");
     }
   };
 
-  const stats = {
-    total: schedule.length,
-    pending: schedule.filter(s => s.status === 'pending').length,
-    inProgress: schedule.filter(s => s.status === 'in_progress').length,
-    completed: schedule.filter(s => s.status === 'completed').length
+  const isToday = (dateStr) => {
+    return dateStr === new Date().toISOString().split('T')[0];
+  };
+
+  const weekLabel = () => {
+    const start = formatDate(weekRange.start);
+    const end = formatDate(weekRange.end);
+    return `${start.day}/${start.month} - ${end.day}/${end.month}`;
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Lịch làm việc"
-        subtitle="Quản lý lịch chăm sóc thú cưng"
-      />
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng lịch</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Chưa làm</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đang làm</CardTitle>
-            <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inProgress}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoàn thành</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
+    <div className="flex-1 space-y-6 p-8">
+      {/* Extended Gradient Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 p-8 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
+        
+        <div className="relative z-10 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-4xl">📅</span>
+              <h1 className="text-3xl font-bold">Lịch làm việc của tôi</h1>
+            </div>
+            <p className="text-lg opacity-90">
+              Xem và quản lý ca làm việc trong tuần
+            </p>
+          </div>
+          
+          <div className="text-right">
+            <div className="flex items-center gap-2 justify-end mb-1">
+              <span className="text-3xl">🕐</span>
+              <div>
+                <p className="text-2xl font-bold">
+                  {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+                <p className="text-sm opacity-75">
+                  {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Tabs value={filter} onValueChange={setFilter} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">Tất cả</TabsTrigger>
-          <TabsTrigger value="pending">Chưa làm</TabsTrigger>
-          <TabsTrigger value="in_progress">Đang làm</TabsTrigger>
-          <TabsTrigger value="completed">Hoàn thành</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">📅</span>
+            <div>
+              <p className="text-sm opacity-90">Tổng ca</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
+            </div>
+          </div>
+        </div>
 
-      {/* Date Picker & Search */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <label className="text-sm font-medium">Chọn ngày:</label>
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
-          />
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-green-500 to-emerald-400 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">✅</span>
+            <div>
+              <p className="text-sm opacity-90">Sẵn sàng</p>
+              <p className="text-2xl font-bold">{stats.available}</p>
+            </div>
+          </div>
         </div>
-        <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo tên thú cưng hoặc chủ nuôi..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🚫</span>
+            <div>
+              <p className="text-sm opacity-90">Không rảnh</p>
+              <p className="text-2xl font-bold">{stats.unavailable}</p>
+            </div>
+          </div>
         </div>
+
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-purple-500 to-pink-400 text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">⏱️</span>
+            <div>
+              <p className="text-sm opacity-90">Giờ làm</p>
+              <p className="text-2xl font-bold">{stats.hoursThisWeek}h</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Week Navigator */}
+      <div className="vet-glass-card rounded-2xl p-4">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={() => setWeekOffset(prev => prev - 1)}
+            className="flex items-center gap-2"
+          >
+            <span>◀️</span> Tuần trước
+          </Button>
+          
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🗓️</span>
+            <div className="text-center">
+              <p className="text-lg font-bold">
+                {weekOffset === 0 ? 'Tuần này' : weekOffset > 0 ? `Tuần sau ${weekOffset > 1 ? `(+${weekOffset})` : ''}` : `Tuần trước ${weekOffset < -1 ? `(${weekOffset})` : ''}`}
+              </p>
+              <p className="text-sm text-gray-500">{weekLabel()}</p>
+            </div>
+          </div>
+          
+          <Button
+            variant="outline"
+            onClick={() => setWeekOffset(prev => prev + 1)}
+            className="flex items-center gap-2"
+          >
+            Tuần sau <span>▶️</span>
+          </Button>
+        </div>
+        
+        {weekOffset !== 0 && (
+          <div className="text-center mt-3">
+            <Button
+              variant="link"
+              onClick={() => setWeekOffset(0)}
+              className="text-sm"
+            >
+              Về tuần hiện tại
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Schedule List */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-primary" />
-            Lịch ngày {selectedDate}
-          </h2>
-          <Badge variant="secondary">{filteredSchedule.length} lịch</Badge>
+      <div className="vet-glass-card rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-2xl shadow-lg">
+            📋
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Lịch làm việc</h2>
+            <p className="text-sm text-gray-500">Nhấn vào nút để đổi trạng thái</p>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {filteredSchedule.length === 0 ? (
-            <Card className="p-8 text-center">
-              <Calendar className="mx-auto h-12 w-12 mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Không có lịch nào</p>
-            </Card>
-          ) : (
-            filteredSchedule.map((item) => {
-              const statusBadge = getStatusBadge(item.status);
-              const ServiceIcon = getServiceIcon(item.serviceIcon);
-              const PetIcon = item.petIcon === '🐕' ? PawPrint : item.petIcon === '🐈' ? Cat : PawPrint;
+        {loading ? (
+          <div className="text-center py-12">
+            <span className="text-5xl">⏳</span>
+            <p className="text-gray-500 mt-4">Đang tải lịch làm việc...</p>
+          </div>
+        ) : schedules.length === 0 ? (
+          <div className="text-center py-12">
+            <span className="text-5xl">📭</span>
+            <p className="text-gray-500 mt-4">Không có lịch làm việc trong tuần này</p>
+            <p className="text-sm text-gray-400">Liên hệ quản lý để được xếp ca</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {schedules.map((schedule) => {
+              const dateInfo = formatDate(schedule.workDate);
+              const scheduleIsToday = isToday(schedule.workDate);
+              const isAvailable = schedule.isAvailable !== false;
+              
               return (
-                <Card key={item.id} className="flex items-center gap-4 p-4">
-                  <div className="flex items-center justify-center w-16 h-16 rounded-lg bg-primary/10">
-                    <Clock className="h-5 w-5 text-primary" />
-                    <span className="ml-1 font-semibold">{item.time}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground">
-                      <PetIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{item.petName}</p>
-                      <p className="text-sm text-muted-foreground">{item.petType}</p>
-                    </div>
+                <div
+                  key={schedule.id}
+                  className={cn(
+                    "flex items-center gap-4 p-4 rounded-xl transition-all",
+                    scheduleIsToday
+                      ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300"
+                      : "bg-gray-50 hover:bg-gray-100"
+                  )}
+                >
+                  {/* Date */}
+                  <div className={cn(
+                    "flex flex-col items-center justify-center w-16 h-16 rounded-xl",
+                    scheduleIsToday
+                      ? "bg-gradient-to-br from-blue-500 to-cyan-400 text-white"
+                      : "bg-white shadow text-gray-700"
+                  )}>
+                    <span className="text-xs font-medium">{dateInfo.dayName}</span>
+                    <span className="text-2xl font-bold">{dateInfo.day}</span>
                   </div>
 
+                  {/* Time Info */}
                   <div className="flex-1">
-                    <p className="font-semibold">{item.ownerName}</p>
-                    <p className="text-sm text-muted-foreground">{item.ownerPhone}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🕐</span>
+                      <span className="text-lg font-semibold">
+                        {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                      </span>
+                      {scheduleIsToday && (
+                        <Badge className="bg-blue-500 text-white ml-2">Hôm nay</Badge>
+                      )}
+                    </div>
+                    {schedule.breakStart && schedule.breakEnd && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        ☕ Nghỉ: {formatTime(schedule.breakStart)} - {formatTime(schedule.breakEnd)}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 flex-1">
-                    <ServiceIcon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{item.service}</span>
+                  {/* Availability Toggle */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleToggleAvailability(schedule.id, isAvailable)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-md",
+                        isAvailable
+                          ? "bg-gradient-to-r from-green-500 to-emerald-400 text-white hover:shadow-lg"
+                          : "bg-gradient-to-r from-gray-400 to-gray-500 text-white hover:shadow-lg"
+                      )}
+                    >
+                      <span>{isAvailable ? '✅' : '🚫'}</span>
+                      {isAvailable ? 'Sẵn sàng' : 'Không rảnh'}
+                    </button>
                   </div>
-
-                  <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                    <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                  </Badge>
-                </Card>
+                </div>
               );
-            })
-          )}
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="vet-glass-card rounded-xl p-4">
+        <div className="flex items-center justify-center gap-8 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-gradient-to-r from-green-500 to-emerald-400"></div>
+            <span>Sẵn sàng làm việc</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-gradient-to-r from-gray-400 to-gray-500"></div>
+            <span>Không thể làm việc</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border-2 border-blue-300 bg-blue-50"></div>
+            <span>Ca hôm nay</span>
+          </div>
         </div>
       </div>
     </div>

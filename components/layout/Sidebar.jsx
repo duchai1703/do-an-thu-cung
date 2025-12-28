@@ -31,6 +31,7 @@ const menuItems = {
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/care-staff" },
     { emoji: "📅", label: "Lịch làm việc", path: "/dashboard/care-staff/schedule" },
     { emoji: "📋", label: "Công việc hôm nay", path: "/dashboard/care-staff/today" },
+    { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/care-staff/cages" },
   ],
   receptionist: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/receptionist" },
