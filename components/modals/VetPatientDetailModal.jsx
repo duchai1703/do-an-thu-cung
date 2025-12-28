@@ -13,7 +13,10 @@ import {
   Calendar,
   Hash,
   FileText,
-  TrendingUp
+  TrendingUp,
+  Syringe,
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -158,7 +161,7 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
 
             {/* Medical History */}
             {patient.medicalHistory && patient.medicalHistory.length > 0 && (
-              <div>
+              <div className="mb-5">
                 <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   Lịch sử khám bệnh
@@ -185,6 +188,91 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Vaccination History */}
+            {patient.vaccinationHistory && patient.vaccinationHistory.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                  <Syringe className="h-4 w-4" />
+                  Lịch sử tiêm phòng ({patient.vaccinationHistory.length} lần)
+                </h3>
+                <div className="space-y-3">
+                  {patient.vaccinationHistory.map((vac, index) => {
+                    const isOverdue = vac.daysUntilDue !== null && vac.daysUntilDue < 0;
+                    const isUpcoming = vac.daysUntilDue !== null && vac.daysUntilDue >= 0 && vac.daysUntilDue <= 14;
+                    return (
+                      <div key={index} className={`p-4 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' : isUpcoming ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-semibold text-foreground">{vac.vaccineName || 'Vaccine'}</p>
+                            {vac.manufacturer && (
+                              <p className="text-xs text-muted-foreground">{vac.manufacturer}</p>
+                            )}
+                          </div>
+                          {isOverdue ? (
+                            <Badge variant="destructive" className="flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" /> Quá hạn
+                            </Badge>
+                          ) : isUpcoming ? (
+                            <Badge variant="warning" className="flex items-center gap-1 bg-yellow-500">
+                              <AlertCircle className="h-3 w-3" /> Sắp đến hạn
+                            </Badge>
+                          ) : (
+                            <Badge variant="success" className="flex items-center gap-1 bg-green-500">
+                              <CheckCircle2 className="h-3 w-3" /> Hoàn thành
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Ngày tiêm: {vac.date ? new Date(vac.date).toLocaleDateString('vi-VN') : 'N/A'}
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {vac.nextDue && (
+                            <p>
+                              <strong className="text-foreground">Hạn tiếp theo:</strong>{' '}
+                              <span className="text-muted-foreground">{new Date(vac.nextDue).toLocaleDateString('vi-VN')}</span>
+                            </p>
+                          )}
+                          {vac.site && (
+                            <p>
+                              <strong className="text-foreground">Vị trí tiêm:</strong>{' '}
+                              <span className="text-muted-foreground">{vac.site}</span>
+                            </p>
+                          )}
+                          {vac.batchNumber && (
+                            <p>
+                              <strong className="text-foreground">Mã lô:</strong>{' '}
+                              <span className="font-mono text-muted-foreground">{vac.batchNumber}</span>
+                            </p>
+                          )}
+                          {vac.reactions && (
+                            <p>
+                              <strong className="text-foreground">Phản ứng phụ:</strong>{' '}
+                              <span className="text-red-600">{vac.reactions}</span>
+                            </p>
+                          )}
+                          {vac.administeredByName && (
+                            <p>
+                              <strong className="text-foreground">Bác sĩ tiêm:</strong>{' '}
+                              <span className="text-muted-foreground">{vac.administeredByName}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* No vaccination history message */}
+            {(!patient.vaccinationHistory || patient.vaccinationHistory.length === 0) && (
+              <div className="p-4 bg-muted rounded-lg border border-border text-center">
+                <Syringe className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Chưa có lịch sử tiêm phòng</p>
               </div>
             )}
           </div>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetRecordDetailModal from "@/components/modals/VetRecordDetailModal";
 import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
-import { FileText, DollarSign, Clock, Plus, Search, Eye, Edit, Receipt, Calendar, RefreshCw, ClipboardList, PawPrint, Cat, User, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, DollarSign, Clock, Search, Eye, Edit, Calendar, RefreshCw, ClipboardList, PawPrint, Cat, User, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,11 @@ export default function VeterinarianRecordsPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Helper function
+  const formatMedicalRecordId = (id) => {
+    return `MR${String(id).padStart(4, '0')}`;
+  };
 
   useEffect(() => {
     loadRecords();
@@ -80,7 +85,7 @@ export default function VeterinarianRecordsPage() {
           prescription: record.medicalSummary?.prescription || 'N/A',
           treatment: record.treatment || 'N/A',
           notes: record.medicalSummary?.notes || '',
-          followUpDate: record.followUpDate || 'N/A',
+          followUpDate: record.followUpDate || null,
           veterinarianId: record.veterinarian?.employeeId || record.veterinarianId,
           veterinarianName: record.veterinarian?.fullName || record.veterinarian?.account?.email?.split('@')[0] || 'Veterinarian',
           appointmentId: record.appointmentId || null,
@@ -105,10 +110,7 @@ export default function VeterinarianRecordsPage() {
     setIsDetailModalOpen(true);
   };
 
-  const handleCreateRecord = () => {
-    setEditingRecord(null);
-    setIsFormModalOpen(true);
-  };
+  // handleCreateRecord removed - records are now created from appointments only
 
   const handleEditRecord = (record) => {
     setEditingRecord(record);
@@ -178,9 +180,9 @@ export default function VeterinarianRecordsPage() {
     const matchFilter = filter === "all" || 
                        (filter === "with_invoice" && rec.invoiceCreated) ||
                        (filter === "no_invoice" && !rec.invoiceCreated);
-    const matchSearch = rec.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       rec.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       rec.code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch = rec.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       rec.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       rec.code?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
 
@@ -239,12 +241,9 @@ export default function VeterinarianRecordsPage() {
         </TabsList>
       </Tabs>
 
-      {/* Add Button and Search */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <Button onClick={handleCreateRecord} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" /> Tạo hồ sơ mới
-        </Button>
-        <div className="relative flex-1 max-w-sm w-full">
+      {/* Search Only - Create records from appointments now */}
+      <div className="flex flex-col md:flex-row items-center justify-end gap-4">
+        <div className="relative flex-1 max-w-md w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
@@ -298,9 +297,16 @@ export default function VeterinarianRecordsPage() {
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{record.date}</span>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              {record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground pl-4">
+                            {record.date ? new Date(record.date).toLocaleTimeString('vi-VN') : ''}
+                          </span>
                         </div>
                       </TableCell>
                       
@@ -354,11 +360,6 @@ export default function VeterinarianRecordsPage() {
                           <Button variant="outline" size="icon" onClick={() => handleEditRecord(record)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          {!record.invoiceCreated && (
-                            <Button variant="outline" size="icon" onClick={() => handleCreateInvoice(record.id)}>
-                              <Receipt className="h-4 w-4" />
-                            </Button>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>

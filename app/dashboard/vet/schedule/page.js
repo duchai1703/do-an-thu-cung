@@ -80,6 +80,8 @@ export default function VeterinarianSchedulePage() {
           ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
           serviceId: apt.service?.serviceId || apt.service?.id,
           serviceName: apt.service?.serviceName || apt.service?.name || 'Unknown Service',
+          servicePrice: apt.service?.price || apt.service?.basePrice || null,
+          serviceDescription: apt.service?.description || null,
           serviceIconName: apt.service?.serviceName || apt.service?.name || '',
           status: mapStatus(apt.status),
           symptoms: apt.notes || 'N/A',

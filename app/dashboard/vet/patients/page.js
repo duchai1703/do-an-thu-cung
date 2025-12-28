@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, petApi, getToken } from "@/lib/api";
 import { formatPetId } from "@/lib/utils/id-formatter";
 
 export default function VeterinarianPatientsPage() {
@@ -71,6 +71,15 @@ export default function VeterinarianPatientsPage() {
           }
         });
 
+        // Load vaccine types first for mapping
+        const vaccineTypesRes = await medicalRecordApi.getVaccineTypes();
+        const vaccineTypesMap = {};
+        if (vaccineTypesRes.success && vaccineTypesRes.data) {
+          vaccineTypesRes.data.forEach(vt => {
+            vaccineTypesMap[vt.vaccineTypeId] = vt;
+          });
+        }
+
         // Fetch medical records for each pet
         const patientsData = [];
         for (const [petId, data] of petMap.entries()) {
@@ -81,6 +90,26 @@ export default function VeterinarianPatientsPage() {
               diagnosis: record.diagnosis || 'N/A',
               treatment: record.treatment || 'N/A'
             })) : [];
+
+          // Fetch vaccination history
+          const vacRes = await petApi.getVaccinations(petId);
+          const vaccinationHistory = vacRes.success && vacRes.data ?
+            vacRes.data.map(vac => {
+              const vaccineType = vaccineTypesMap[vac.vaccineTypeId];
+              return {
+                date: vac.administrationDate,
+                nextDue: vac.nextDueDate,
+                batchNumber: vac.batchNumber,
+                site: vac.site,
+                reactions: vac.reactions,
+                isDue: vac.isDue,
+                daysUntilDue: vac.daysUntilDue,
+                vaccineTypeId: vac.vaccineTypeId,
+                vaccineName: vaccineType?.vaccineName || `Vaccine #${vac.vaccineTypeId}`,
+                manufacturer: vaccineType?.manufacturer || '',
+                administeredByName: vac.administeredByName || null
+              };
+            }) : [];
 
           const sortedAppointments = data.appointments.sort((a, b) => 
             new Date(b.appointmentDate) - new Date(a.appointmentDate)
@@ -103,7 +132,9 @@ export default function VeterinarianPatientsPage() {
             ownerPhone: data.owner?.phoneNumber || 'N/A',
             lastVisit: sortedAppointments[0]?.appointmentDate || 'N/A',
             totalVisits: data.appointments.length,
-            medicalHistory
+            medicalHistory,
+            vaccinationHistory,
+            vaccinationCount: vaccinationHistory.length
           });
         }
 

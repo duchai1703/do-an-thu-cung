@@ -71,7 +71,6 @@ const menuItems = {
     { icon: "👥", label: "Hồ sơ bệnh án", path: "/dashboard/vet/records" },
     { icon: "📋", label: "Công việc hôm nay", path: "/dashboard/vet/today" },
     { icon: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
-    { icon: "💉", label: "Tiêm phòng", path: "/dashboard/vet/vaccinations" },
     { icon: "🏠", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
   ],
   care_staff: [

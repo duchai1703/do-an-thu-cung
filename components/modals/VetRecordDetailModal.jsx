@@ -1,5 +1,6 @@
 // components/modals/VetRecordDetailModal.jsx
 "use client";
+import { useState, useEffect } from "react";
 import { 
   ClipboardList, 
   X, 
@@ -15,7 +16,9 @@ import {
   RefreshCw,
   CheckCircle2,
   Hourglass,
-  Hash
+  Hash,
+  Home,
+  Loader2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,70 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.js";
 
 export default function VetRecordDetailModal({ isOpen, onClose, record }) {
+  const [vaccination, setVaccination] = useState(null);
+  const [cageAssignment, setCageAssignment] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch related vaccination and cage data when modal opens
+  useEffect(() => {
+    if (isOpen && record?.id) {
+      fetchRelatedData();
+    }
+  }, [isOpen, record?.id]);
+
+  const fetchRelatedData = async () => {
+    if (!record?.petId) return;
+    
+    setLoading(true);
+    try {
+      const { petApi, cageApi, medicalRecordApi } = await import('@/lib/api');
+      
+      // Fetch vaccination history for this pet
+      const vacResponse = await petApi.getVaccinations(Number(record.petId));
+      if (vacResponse.success && vacResponse.data?.length > 0) {
+        // Find vaccination linked to this medical record
+        let linkedVac = vacResponse.data.find(
+          v => v.medicalRecordId === record.id || v.medicalRecordId === record.recordId
+        );
+        
+        if (linkedVac) {
+          // If vaccineType is not included, fetch vaccine types and map
+          if (!linkedVac.vaccineType && linkedVac.vaccineTypeId) {
+            try {
+              const vtResponse = await medicalRecordApi.getVaccineTypes();
+              if (vtResponse.success && vtResponse.data) {
+                const vaccineType = vtResponse.data.find(
+                  vt => vt.vaccineTypeId === linkedVac.vaccineTypeId
+                );
+                if (vaccineType) {
+                  linkedVac = { ...linkedVac, vaccineType };
+                }
+              }
+            } catch (e) {
+              console.warn('Error fetching vaccine types:', e);
+            }
+          }
+          setVaccination(linkedVac);
+        }
+      }
+      
+      // Fetch active cage assignment for this pet
+      const cageResponse = await cageApi.getActiveAssignments();
+      if (cageResponse.success && cageResponse.data?.length > 0) {
+        const petCage = cageResponse.data.find(
+          a => a.petId === Number(record.petId) && a.status === 'ACTIVE'
+        );
+        if (petCage) {
+          setCageAssignment(petCage);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching related data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen || !record) return null;
 
   return (
@@ -144,11 +211,116 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
               <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
                 <p className="text-sm font-semibold text-green-900 flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  {record.followUpDate}
+                  {record.followUpDate ? record.followUpDate.split('T')[0] : 'Chưa có lịch tái khám'}
                 </p>
               </div>
             </div>
           </div>
+
+          {/* Vaccination Section - if vaccination was included */}
+          {vaccination && (
+            <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                <Syringe className="h-4 w-4" />
+                Tiêm phòng kèm theo
+              </h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Loại vaccine:</span>
+                  <span className="ml-2 font-semibold text-blue-900">
+                    {vaccination.vaccineType?.vaccineName || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Nhà sản xuất:</span>
+                  <span className="ml-2 font-semibold text-blue-900">
+                    {vaccination.vaccineType?.manufacturer || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Ngày tiêm:</span>
+                  <span className="ml-2 font-semibold text-blue-900">
+                    {vaccination.administrationDate 
+                      ? new Date(vaccination.administrationDate).toLocaleDateString('vi-VN') 
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Vị trí tiêm:</span>
+                  <span className="ml-2 font-semibold text-blue-900">
+                    {vaccination.site || 'N/A'}
+                  </span>
+                </div>
+                {vaccination.nextDueDate && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Hạn tiêm tiếp theo:</span>
+                    <span className="ml-2 font-semibold text-green-700">
+                      {new Date(vaccination.nextDueDate).toLocaleDateString('vi-VN')}
+                    </span>
+                  </div>
+                )}
+                {vaccination.reactions && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Phản ứng phụ:</span>
+                    <span className="ml-2 text-yellow-700">{vaccination.reactions}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Cage Assignment Section - if pet is hospitalized */}
+          {cageAssignment && (
+            <div className="p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
+              <h3 className="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                Điều trị nội trú
+              </h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Chuồng:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {cageAssignment.cage?.cageNumber || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Kích thước:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {cageAssignment.cage?.size || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Vị trí:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {cageAssignment.cage?.location || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Giá/ngày:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {Number(cageAssignment.dailyRate || cageAssignment.cage?.dailyRate || 0).toLocaleString()}đ
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Ngày nhập:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {cageAssignment.checkInDate 
+                      ? new Date(cageAssignment.checkInDate).toLocaleDateString('vi-VN') 
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Dự kiến xuất:</span>
+                  <span className="ml-2 font-semibold text-orange-900">
+                    {cageAssignment.expectedCheckOutDate 
+                      ? new Date(cageAssignment.expectedCheckOutDate).toLocaleDateString('vi-VN') 
+                      : 'Chưa xác định'}
+                  </span>
+                </div>
+              </div>
+              <Badge className="mt-3 bg-green-600">Đang nội trú</Badge>
+            </div>
+          )}
 
           {/* Invoice Status */}
           <div className="p-4 bg-muted rounded-lg border border-border">

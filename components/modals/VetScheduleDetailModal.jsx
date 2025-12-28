@@ -105,12 +105,22 @@ export default function VetScheduleDetailModal({ isOpen, onClose, appointment })
           <div>
             <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
               <Hospital className="h-4 w-4" />
-              Dịch vụ
+              Dịch vụ đăng ký
             </h3>
-            <div className="p-4 bg-muted rounded-lg border border-border">
-              <p className="text-base font-semibold text-foreground">
-                🏥 {appointment.serviceName}
-              </p>
+            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between">
+                <p className="text-base font-semibold text-foreground">
+                  🏥 {appointment.serviceName}
+                </p>
+                {appointment.servicePrice && (
+                  <Badge className="bg-green-500 text-white">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(appointment.servicePrice)}
+                  </Badge>
+                )}
+              </div>
+              {appointment.serviceDescription && (
+                <p className="text-sm text-muted-foreground mt-2">{appointment.serviceDescription}</p>
+              )}
             </div>
           </div>
 

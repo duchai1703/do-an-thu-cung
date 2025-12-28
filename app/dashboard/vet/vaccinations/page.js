@@ -80,13 +80,13 @@ export default function VeterinarianVaccinationsPage() {
                   petName: pet.name,
                   petIcon: pet.icon,
                   ownerName: pet.ownerName,
-                  vaccineName: vac.vaccineType?.name || vac.vaccineName || 'Unknown',
-                  vaccinationType: vac.vaccineType?.category || 'General',
+                  vaccineTypeId: vac.vaccineTypeId,
                   dateAdministered: vac.administrationDate || vac.createdAt,
                   nextDueDate: vac.nextDueDate,
                   batchNumber: vac.batchNumber || 'N/A',
-                  manufacturer: vac.vaccineType?.manufacturer || 'N/A',
-                  status: getVaccinationStatus(vac.nextDueDate),
+                  site: vac.site || '',
+                  isDue: vac.isDue,
+                  daysUntilDue: vac.daysUntilDue,
                   notes: vac.notes || ''
                 });
               });
@@ -122,11 +122,8 @@ export default function VeterinarianVaccinationsPage() {
   const handleOpenModal = () => {
     setFormData({
       petId: "",
-      vaccineName: "",
-      vaccinationType: "",
       batchNumber: "",
-      manufacturer: "",
-      nextDueDate: "",
+      site: "",
       notes: ""
     });
     setIsModalOpen(true);
@@ -143,7 +140,7 @@ export default function VeterinarianVaccinationsPage() {
     setFormLoading(true);
     try {
       // Get current vet info
-      const userRes = await authApi.me();
+      const userRes = await authApi.getCurrentUser();
       if (!userRes.success || !userRes.data?.employee?.employeeId) {
         throw new Error('Không tìm thấy thông tin bác sĩ');
       }
@@ -152,11 +149,12 @@ export default function VeterinarianVaccinationsPage() {
       
       // Create vaccination record using petApi
       const response = await petApi.addVaccination(Number(formData.petId), {
-        vaccineTypeId: 1, // Default vaccine type, should be selected from list
-        administratorId: veterinarianId,
+        vaccineTypeId: 1, // Default vaccine type
+        administeredBy: veterinarianId,
+        administrationDate: new Date().toISOString(),
         batchNumber: formData.batchNumber || `BATCH-${Date.now()}`,
-        nextDueDate: formData.nextDueDate || null,
-        notes: formData.notes || `${formData.vaccineName} - ${formData.vaccinationType}`
+        site: formData.site || undefined,
+        notes: formData.notes || undefined
       });
       
       if (response.success) {
@@ -282,12 +280,12 @@ export default function VeterinarianVaccinationsPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[15%]">Thú cưng</TableHead>
-              <TableHead className="w-[12%]">Chủ nuôi</TableHead>
-              <TableHead className="w-[18%]">Tên vaccine</TableHead>
-              <TableHead className="w-[12%]">Ngày tiêm</TableHead>
-              <TableHead className="w-[12%]">Hạn tiêm tiếp</TableHead>
-              <TableHead className="w-[10%]">Mã lô</TableHead>
-              <TableHead className="w-[12%]">Trạng thái</TableHead>
+              <TableHead className="w-[15%]">Chủ nuôi</TableHead>
+              <TableHead className="w-[15%]">Ngày tiêm</TableHead>
+              <TableHead className="w-[15%]">Hạn tiếp theo</TableHead>
+              <TableHead className="w-[12%]">Mã lô</TableHead>
+              <TableHead className="w-[12%]">Vị trí tiêm</TableHead>
+              <TableHead className="w-[16%]">Trạng thái</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -300,7 +298,13 @@ export default function VeterinarianVaccinationsPage() {
               </TableRow>
             ) : (
               filteredVaccinations.map((vac) => {
-                const statusBadge = getStatusBadge(vac.status);
+                // Calculate status from isDue and daysUntilDue
+                let status = 'completed';
+                if (vac.daysUntilDue !== null) {
+                  if (vac.daysUntilDue < 0) status = 'overdue';
+                  else if (vac.daysUntilDue <= 14) status = 'upcoming';
+                }
+                const statusBadge = getStatusBadge(status);
                 const PetIcon = vac.petIcon === '🐕' ? PawPrint : Cat;
                 return (
                   <TableRow key={vac.id}>
@@ -315,13 +319,6 @@ export default function VeterinarianVaccinationsPage() {
                     
                     <TableCell>
                       <span className="text-sm">{vac.ownerName}</span>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div>
-                        <p className="font-semibold">{vac.vaccineName}</p>
-                        <p className="text-xs text-muted-foreground">{vac.manufacturer}</p>
-                      </div>
                     </TableCell>
                     
                     <TableCell>
@@ -341,6 +338,10 @@ export default function VeterinarianVaccinationsPage() {
                     
                     <TableCell>
                       <Badge variant="secondary" className="font-mono text-xs">{vac.batchNumber}</Badge>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">{vac.site || '-'}</span>
                     </TableCell>
                     
                     <TableCell>
@@ -382,58 +383,28 @@ export default function VeterinarianVaccinationsPage() {
               </Select>
             </div>
 
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>Lưu ý:</strong> Thông tin vaccine sẽ được lấy từ danh mục vaccine đã đăng ký trong hệ thống.
+              </p>
+            </div>
+
             <div className="space-y-2">
-              <Label>Tên vaccine *</Label>
+              <Label>Mã lô vaccine (batch)</Label>
               <Input
-                value={formData.vaccineName}
-                onChange={(e) => setFormData({ ...formData, vaccineName: e.target.value })}
-                placeholder="VD: Vaccine dại, vaccine 5 bệnh..."
+                value={formData.batchNumber}
+                onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
+                placeholder="VD: LOT-2024-001"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Loại vaccine</Label>
-                <Select
-                  value={formData.vaccinationType}
-                  onChange={(e) => setFormData({ ...formData, vaccinationType: e.target.value })}
-                >
-                  <option value="">Chọn loại</option>
-                  <option value="Rabies">Vaccine dại</option>
-                  <option value="Core">Vaccine cơ bản</option>
-                  <option value="Non-Core">Vaccine bổ sung</option>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Mã lô (batch)</Label>
-                <Input
-                  value={formData.batchNumber}
-                  onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-                  placeholder="VD: LOT-2024-001"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nhà sản xuất</Label>
-                <Input
-                  value={formData.manufacturer}
-                  onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                  placeholder="VD: Pfizer, Moderna..."
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Ngày tiêm tiếp theo</Label>
-                <Input
-                  type="date"
-                  value={formData.nextDueDate}
-                  onChange={(e) => setFormData({ ...formData, nextDueDate: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Vị trí tiêm</Label>
+              <Input
+                value={formData.site}
+                onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                placeholder="VD: Vai trái, Đùi phải..."
+              />
             </div>
 
             <div className="space-y-2">
@@ -445,6 +416,7 @@ export default function VeterinarianVaccinationsPage() {
                 rows={3}
               />
             </div>
+
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>

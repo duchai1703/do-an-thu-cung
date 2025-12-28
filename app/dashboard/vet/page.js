@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import StatsCard from "@/components/dashboard/StatsCard";
 import QuickActions from "@/components/dashboard/QuickActions";
+import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
+import VetRecordDetailModal from "@/components/modals/VetRecordDetailModal";
+import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
 import { 
   Calendar, 
   RefreshCw, 
@@ -20,13 +23,15 @@ import {
   User,
   Play,
   Eye,
-  Home
+  Home,
+  Syringe,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, authApi, scheduleApi, getToken } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, authApi, scheduleApi, petApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function VeterinarianDashboard() {
@@ -45,6 +50,17 @@ export default function VeterinarianDashboard() {
   const [myWorkSchedule, setMyWorkSchedule] = useState([]);
   const [upcomingAlert, setUpcomingAlert] = useState(null);
   const [employeeId, setEmployeeId] = useState(null);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [vaccinationAlerts, setVaccinationAlerts] = useState({ upcoming: [], overdue: [] });
+  
+  // State for viewing completed appointment's record
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState(null);
+  
+  // State for viewing appointment details (Chi tiết modal)
+  const [isAptDetailModalOpen, setIsAptDetailModalOpen] = useState(false);
+  const [viewingAppointment, setViewingAppointment] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -105,11 +121,17 @@ export default function VeterinarianDashboard() {
         const mappedSchedule = todayAppointments.map(apt => ({
           id: apt.appointmentId || apt.id,
           time: apt.startTime || '',
+          // Pet info - important for medical record form
+          petId: apt.pet?.petId || apt.petId,
           petName: apt.pet?.name || 'Unknown',
           petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
           petBreed: apt.pet?.breed || '',
+          petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
+          // Owner info
+          ownerId: apt.pet?.owner?.petOwnerId,
           ownerName: apt.pet?.owner?.fullName || 'Unknown',
           ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
+          // Service & Status
           service: apt.service?.serviceName || apt.service?.name || 'Khám bệnh',
           status: apt.status,
           symptoms: apt.notes || ''
@@ -163,6 +185,57 @@ export default function VeterinarianDashboard() {
           console.log('Error loading work schedule:', e);
         }
       }
+
+      // Load vaccination alerts - pets with upcoming/overdue vaccinations
+      try {
+        // Get all pets from today's appointments to check their vaccinations
+        const allPetIds = new Set();
+        if (appointmentsRes?.success && appointmentsRes?.data) {
+          appointmentsRes.data.forEach(apt => {
+            if (apt.pet?.petId) allPetIds.add(apt.pet.petId);
+          });
+        }
+
+        const upcomingVacs = [];
+        const overdueVacs = [];
+
+        for (const petId of allPetIds) {
+          try {
+            const [upcomingRes, overdueRes] = await Promise.all([
+              petApi.getUpcomingVaccinations(petId, 14),
+              petApi.getOverdueVaccinations(petId)
+            ]);
+
+            if (upcomingRes.success && upcomingRes.data?.length > 0) {
+              upcomingRes.data.forEach(v => {
+                const apt = appointmentsRes.data.find(a => a.pet?.petId === petId);
+                upcomingVacs.push({
+                  ...v,
+                  petName: apt?.pet?.name || 'Unknown',
+                  petIcon: apt?.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈'
+                });
+              });
+            }
+
+            if (overdueRes.success && overdueRes.data?.length > 0) {
+              overdueRes.data.forEach(v => {
+                const apt = appointmentsRes.data.find(a => a.pet?.petId === petId);
+                overdueVacs.push({
+                  ...v,
+                  petName: apt?.pet?.name || 'Unknown',
+                  petIcon: apt?.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈'
+                });
+              });
+            }
+          } catch (e) {
+            console.log('Error loading vaccinations for pet:', petId, e);
+          }
+        }
+
+        setVaccinationAlerts({ upcoming: upcomingVacs, overdue: overdueVacs });
+      } catch (e) {
+        console.log('Error loading vaccination alerts:', e);
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
     } finally {
@@ -214,6 +287,65 @@ export default function VeterinarianDashboard() {
     } catch (error) {
       console.error("Error starting exam:", error);
       showToast(error.message || "Có lỗi xảy ra", "error");
+    }
+  };
+
+  const handleCompleteExam = (appointment) => {
+    setSelectedAppointment(appointment);
+    setIsRecordModalOpen(true);
+  };
+
+  const handleRecordSuccess = (result) => {
+    showToast(result.message || "Hoàn thành khám thành công!");
+    setIsRecordModalOpen(false);
+    setSelectedAppointment(null);
+    loadDashboardData();
+  };
+
+  // Handler to view medical record for completed appointment
+  const handleViewRecord = async (appointment) => {
+    try {
+      // Fetch medical record by appointmentId
+      const response = await medicalRecordApi.getAll();
+      
+      if (response.success && response.data) {
+        // Find record matching this appointment
+        const record = response.data.find(r => 
+          r.appointmentId === appointment.id || 
+          r.appointment?.appointmentId === appointment.id
+        );
+        
+        if (record) {
+          // Format record for detail modal
+          const formattedRecord = {
+            id: record.recordId || record.id,
+            code: `MR${String(record.recordId || record.id).padStart(4, '0')}`,
+            date: record.createdAt,
+            petId: record.pet?.petId || record.petId,
+            petName: record.pet?.name || appointment.petName,
+            petIcon: appointment.petIcon || '🐾',
+            petType: `${record.pet?.species || ''} ${record.pet?.breed || ''}`.trim(),
+            ownerId: record.pet?.owner?.petOwnerId,
+            ownerName: record.pet?.owner?.fullName || appointment.ownerName,
+            ownerPhone: record.pet?.owner?.phoneNumber || appointment.ownerPhone,
+            symptoms: record.symptoms || record.medicalSummary?.symptoms || '',
+            diagnosis: record.diagnosis,
+            treatment: record.treatment,
+            prescription: record.prescription || record.medicalSummary?.prescription || '',
+            notes: record.notes || record.medicalSummary?.notes || '',
+            followUpDate: record.followUpDate,
+            invoiceCreated: !!record.invoice?.invoiceId
+          };
+          
+          setViewingRecord(formattedRecord);
+          setIsDetailModalOpen(true);
+        } else {
+          showToast("Không tìm thấy hồ sơ bệnh án cho cuộc hẹn này", "warning");
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching medical record:', error);
+      showToast("Có lỗi khi tải hồ sơ bệnh án", "error");
     }
   };
 
@@ -283,6 +415,71 @@ export default function VeterinarianDashboard() {
         <StatsCard icon={RefreshCw} title="Đang khám" value={stats.inProgress} color="info" />
         <StatsCard icon={CheckCircle2} title="Đã hoàn thành" value={stats.completed} color="success" />
       </div>
+
+      {/* Vaccination Alerts */}
+      {(vaccinationAlerts.overdue.length > 0 || vaccinationAlerts.upcoming.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Overdue Vaccinations */}
+          {vaccinationAlerts.overdue.length > 0 && (
+            <Card className="border-red-200 bg-red-50/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-red-700 text-base">
+                  <AlertTriangle className="h-5 w-5" />
+                  Quá hạn tiêm phòng ({vaccinationAlerts.overdue.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {vaccinationAlerts.overdue.map((vac, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-red-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{vac.petIcon}</span>
+                        <div>
+                          <p className="font-medium text-sm">{vac.petName}</p>
+                          <p className="text-xs text-red-600">
+                            Quá {Math.abs(vac.daysUntilDue || 0)} ngày
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="destructive" className="text-xs">Quá hạn</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Upcoming Vaccinations */}
+          {vaccinationAlerts.upcoming.length > 0 && (
+            <Card className="border-yellow-200 bg-yellow-50/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-yellow-700 text-base">
+                  <Syringe className="h-5 w-5" />
+                  Sắp đến hạn tiêm ({vaccinationAlerts.upcoming.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {vaccinationAlerts.upcoming.map((vac, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-yellow-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{vac.petIcon}</span>
+                        <div>
+                          <p className="font-medium text-sm">{vac.petName}</p>
+                          <p className="text-xs text-yellow-600">
+                            Còn {vac.daysUntilDue || 0} ngày
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-yellow-500 text-xs">Sắp đến</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="space-y-4">
@@ -361,15 +558,17 @@ export default function VeterinarianDashboard() {
                 const PetIcon = apt.petIcon === '🐕' ? PawPrint : Cat;
                 // Backend chỉ cho start từ CONFIRMED → IN_PROGRESS
                 const canStart = apt.status === 'CONFIRMED';
-                const canView = apt.status === 'IN_PROGRESS' || apt.status === 'COMPLETED';
                 
                 return (
                   <div 
                     key={apt.id} 
                     className={cn(
                       "flex items-center gap-4 p-4 rounded-lg border transition-all",
-                      apt.status === 'IN_PROGRESS' && "border-info bg-info/5",
-                      canStart && "hover:border-primary/50"
+                      // Color coding theo yêu cầu
+                      apt.status === 'PENDING' && "border-gray-300 bg-gray-50",
+                      apt.status === 'CONFIRMED' && "border-yellow-300 bg-yellow-50 hover:border-primary/50",
+                      apt.status === 'IN_PROGRESS' && "border-blue-400 bg-blue-50",
+                      apt.status === 'COMPLETED' && "border-green-300 bg-green-50"
                     )}
                   >
                     {/* Time */}
@@ -414,14 +613,51 @@ export default function VeterinarianDashboard() {
                           <Play className="h-4 w-4" /> Bắt đầu
                         </Button>
                       )}
-                      {canView && (
+                      {apt.status === 'IN_PROGRESS' && (
+                        <Button 
+                          size="sm" 
+                          variant="success"
+                          onClick={() => handleCompleteExam(apt)}
+                          className="flex items-center gap-1"
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Hoàn thành
+                        </Button>
+                      )}
+                      {apt.status === 'COMPLETED' && (
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => router.push(`/dashboard/vet/schedule`)}
+                          onClick={() => handleViewRecord(apt)}
+                          className="flex items-center gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                        >
+                          <Eye className="h-4 w-4" /> Xem hồ sơ
+                        </Button>
+                      )}
+                      {apt.status === 'IN_PROGRESS' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setViewingAppointment({
+                              id: apt.id,
+                              code: `APT${String(apt.id).padStart(3, '0')}`,
+                              time: apt.time,
+                              petName: apt.petName,
+                              petIcon: apt.petIcon,
+                              petType: apt.petType,
+                              petAge: apt.petAge || 'N/A',
+                              petWeight: apt.petWeight || 'N/A',
+                              ownerName: apt.ownerName,
+                              ownerPhone: apt.ownerPhone,
+                              serviceName: apt.service,
+                              serviceIcon: Stethoscope,
+                              symptoms: apt.symptoms
+                            });
+                            setIsAptDetailModalOpen(true);
+                          }}
                           className="flex items-center gap-1"
                         >
-                          <Eye className="h-4 w-4" /> Xem
+                          <Eye className="h-4 w-4" /> Chi tiết
                         </Button>
                       )}
                     </div>
@@ -432,6 +668,38 @@ export default function VeterinarianDashboard() {
           )}
         </CardContent>
       </Card>
+
+
+      {/* VetRecordFormModal - Full form for creating records from appointments */}
+      <VetRecordFormModal
+        isOpen={isRecordModalOpen}
+        onClose={() => {
+          setIsRecordModalOpen(false);
+          setSelectedAppointment(null);
+        }}
+        onSuccess={handleRecordSuccess}
+        appointment={selectedAppointment}
+      />
+
+      {/* VetRecordDetailModal - View medical record details */}
+      <VetRecordDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setViewingRecord(null);
+        }}
+        record={viewingRecord}
+      />
+
+      {/* VetScheduleDetailModal - View appointment details */}
+      <VetScheduleDetailModal
+        isOpen={isAptDetailModalOpen}
+        onClose={() => {
+          setIsAptDetailModalOpen(false);
+          setViewingAppointment(null);
+        }}
+        appointment={viewingAppointment}
+      />
     </div>
   );
 }

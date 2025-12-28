@@ -86,7 +86,7 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
       const { medicalRecordApi, appointmentApi, authApi } = await import('@/lib/api');
       
       // Get current vet user
-      const userRes = await authApi.me();
+      const userRes = await authApi.getCurrentUser();
       if (!userRes.success || !userRes.data?.employee?.employeeId) {
         throw new Error('Không tìm thấy thông tin bác sĩ');
       }
@@ -106,8 +106,7 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
           prescription: formData.prescription,
           notes: formData.notes
         },
-        followUpDate: formData.followUpDate || null,
-        examinationDate: new Date().toISOString()
+        followUpDate: formData.followUpDate || null
       };
       
       const recordRes = await medicalRecordApi.create(recordData);
@@ -124,7 +123,8 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
       // Success
       onSuccess({
         appointmentId: appointment.id,
-        recordData: { ...formData, recordId: recordRes.data?.recordId }
+        recordId: recordRes.data?.recordId,
+        message: 'Hồ sơ bệnh án đã được tạo thành công! Lễ tân sẽ tạo hóa đơn.'
       });
       
       // Reset form
@@ -306,6 +306,13 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
               <p className="text-sm text-destructive">{errors.submit}</p>
             </div>
           )}
+
+          {/* Note about invoice */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              💡 Sau khi lưu hồ sơ, lễ tân sẽ tạo hóa đơn cho cuộc hẹn này.
+            </p>
+          </div>
 
           {/* Footer */}
           <DialogFooter>
