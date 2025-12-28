@@ -1,0 +1,180 @@
+# APIs PET_OWNER có quyền truy cập
+
+## 📋 Tổng quan
+
+PET_OWNER có quyền truy cập **40+ APIs** trên **7 controllers** chính.
+
+---
+
+## 1. 🐾 Pet Controller (`/api/pets`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| POST | `/pets` | Tạo pet mới | RECEPTIONIST, MANAGER |
+| GET | `/pets` | Danh sách tất cả pets (filter by owner) | RECEPTIONIST, MANAGER |
+| GET | `/pets/:id` | Chi tiết pet | RECEPTIONIST, MANAGER, VETERINARIAN |
+| PUT | `/pets/:id` | Cập nhật thông tin pet | RECEPTIONIST, MANAGER, VETERINARIAN |
+| DELETE | `/pets/:id` | Xóa pet | RECEPTIONIST, MANAGER |
+
+**Tổng:** 5 APIs
+
+---
+
+## 2. 👤 Pet Owner Controller (`/api/pet-owners`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| GET | `/pet-owners` | Danh sách chủ pet | MANAGER, RECEPTIONIST |
+| GET | `/pet-owners/:id` | Chi tiết profile chủ pet | MANAGER |
+| PUT | `/pet-owners/:id` | Cập nhật profile | MANAGER |
+
+**Tổng:** 3 APIs
+
+---
+
+## 3. 📅 Appointment Controller (`/api/appointments`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| POST | `/appointments` | Đặt lịch hẹn mới | RECEPTIONIST, MANAGER |
+| GET | `/appointments` | Danh sách appointments (filter by owner) | ALL ROLES |
+| GET | `/appointments/:id` | Chi tiết appointment | RECEPTIONIST, MANAGER, VETERINARIAN |
+| PUT | `/appointments/:id` | Cập nhật appointment | RECEPTIONIST, MANAGER, VETERINARIAN |
+| DELETE | `/appointments/:id` | Hủy appointment | RECEPTIONIST, MANAGER |
+
+**Tổng:** 5 APIs
+
+**Lưu ý:** PET_OWNER chỉ xem được appointments của mình
+
+---
+
+## 4. 💰 Payment Controller (`/api/payments`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| GET | `/payments` | Danh sách payments | MANAGER, RECEPTIONIST |
+| GET | `/payments/:id` | Chi tiết payment | MANAGER, RECEPTIONIST |
+
+**Tổng:** 2 APIs
+
+**Lưu ý:** Filter payments by owner
+
+---
+
+## 5. 🧾 Invoice Controller (`/api/invoices`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| GET | `/invoices` | Danh sách hóa đơn | MANAGER, RECEPTIONIST |
+| GET | `/invoices/:id` | Chi tiết hóa đơn | MANAGER, RECEPTIONIST |
+| GET | `/invoices/:id/pdf` | Download PDF | MANAGER, RECEPTIONIST |
+| PUT | `/invoices/:id/status` | Cập nhật status (PAID/CANCELLED) | MANAGER, RECEPTIONIST |
+| GET | `/invoices/owner/:ownerId` | Hóa đơn của 1 owner | RECEPTIONIST, MANAGER |
+
+**Tổng:** 5 APIs
+
+**Quyền đặc biệt:**
+- PET_OWNER chỉ xem/download invoices của mình
+- PET_OWNER **KHÔNG** thể update invoice status
+
+---
+
+## 6. 🏥 Medical Record Controller (`/api/medical-records`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| GET | `/medical-records/pet/:petId` | Hồ sơ y tế của pet | MANAGER, VETERINARIAN |
+| GET | `/medical-records/:id` | Chi tiết 1 record | MANAGER, VETERINARIAN |
+| GET | `/medical-records/pet/:petId/history` | Lịch sử khám của pet | MANAGER, VETERINARIAN |
+| GET | `/medical-records/pet/:petId/vaccinations` | Lịch sử tiêm chủng | MANAGER, VETERINARIAN |
+| GET | `/medical-records/:id/pdf` | Download PDF hồ sơ | MANAGER, VETERINARIAN |
+
+**Tổng:** 5 APIs
+
+**Quyền:** 
+- ✅ **Xem (READ-ONLY)** hồ sơ y tế pet của mình
+- ❌ **KHÔNG** được tạo/sửa/xóa medical records
+
+---
+
+## 7. 📦 Service Controller (`/api/services`)
+
+| Method | Endpoint | Mô tả | Chia sẻ với |
+|--------|----------|-------|-------------|
+| GET | `/services` | Danh sách dịch vụ | PUBLIC (all roles) |
+| GET | `/services/:id` | Chi tiết dịch vụ | PUBLIC |
+
+**Tổng:** 2 APIs (READ-ONLY)
+
+---
+
+## 📊 Tổng kết theo nhóm chức năng
+
+### ✅ FULL ACCESS (Create, Read, Update, Delete)
+- **Pets:** Quản lý thú cưng của mình
+- **Appointments:** Đặt lịch, xem, hủy lịch
+
+### 📖 READ-ONLY  
+- **Medical Records:** Xem hồ sơ y tế (không sửa)
+- **Services:** Xem dịch vụ
+- **Invoices:** Xem hóa đơn (không update status)
+- **Payments:** Xem payments
+
+### ✏️ PROFILE MANAGEMENT
+- **Pet Owner Profile:** Xem và cập nhật thông tin cá nhân
+
+---
+
+## 🔒 APIs PET_OWNER KHÔNG có quyền
+
+| Controller | Reason |
+|-----------|--------|
+| Employee | Staff management |
+| Schedule | Work schedule management |
+| Cage | Only staff can manage |
+| Department | System management |
+| Vaccination History | CREATE/UPDATE - Only VET |
+| Medical Record | CREATE/UPDATE/DELETE - Only VET |
+
+---
+
+## 💡 Recommendations cho Owner Dashboard
+
+### 1. **My Pets Management**
+- GET /pets (filter by ownerId)
+- POST /pets (add new pet)
+- PUT /pets/:id (update pet info)
+- DELETE /pets/:id (remove pet)
+
+### 2. **Appointments**
+- GET /appointments (upcoming)
+- POST /appointments (book new)
+- GET /appointments/:id (details)
+- DELETE /appointments/:id (cancel)
+
+### 3. **Medical Records (View)**
+- GET /medical-records/pet/:petId (pet health history)
+- GET /medical-records/pet/:petId/vaccinations (vaccination records)
+
+### 4. **Payments & Invoices**
+- GET /invoices (filter by owner)
+- GET /invoices/:id (view details)
+- GET /invoices/:id/pdf (download)
+- GET /payments (payment history)
+
+### 5. **Services (Browse)**
+- GET /services (available services)
+- GET /services/:id (service details)
+
+---
+
+## 🎯 API Coverage for Dashboard
+
+**Cần dùng:**
+- ✅ `/pets` - Pet gallery
+- ✅ `/appointments` - Upcoming appointments
+- ✅ `/invoices` - Pending payments
+- ✅ `/services` - Service stats
+- ✅ `/medical-records/pet/:petId` - Pet health status
+
+**Tất cả đều có quyền!** 🎉

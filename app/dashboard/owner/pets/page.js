@@ -97,7 +97,7 @@ export default function OwnerPetsPage() {
         breed: newPet.breed,
         birthDate: newPet.dateOfBirth,
         gender: newPet.gender,
-        weight: parseFloat(newPet.weight.replace(' kg', '')) || 0,
+        weight: parseFloat(String(newPet.weight).replace(' kg', '')) || 0,
         color: newPet.color,
         initialHealthStatus: newPet.medicalHistory, 
         specialNotes: newPet.notes
@@ -124,7 +124,7 @@ export default function OwnerPetsPage() {
         breed: updatedPet.breed,
         birthDate: updatedPet.dateOfBirth,
         gender: updatedPet.gender,
-        weight: parseFloat(updatedPet.weight.replace(' kg', '')) || 0,
+        weight: parseFloat(String(updatedPet.weight).replace(' kg', '')) || 0,
         color: updatedPet.color,
         initialHealthStatus: updatedPet.medicalHistory, 
         specialNotes: updatedPet.notes

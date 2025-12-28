@@ -42,6 +42,28 @@ export default function CareStaffCagesPage() {
     loadData();
   }, [filter]);
 
+  // Auto-refresh history when modal is opened
+  useEffect(() => {
+    const refreshHistory = async () => {
+      console.log('🔄 useEffect triggered:', { showHistoryModal, cageId: selectedCage?.cageId });
+      
+      if (showHistoryModal && selectedCage?.cageId) {
+        try {
+          console.log('📡 Fetching history for cage:', selectedCage.cageId);
+          const response = await apiClient.get(`/cages/${selectedCage.cageId}/assignments`);
+          const data = response.data || response;
+          console.log('✅ History data received:', data);
+          setCageHistory(data);
+        } catch (error) {
+          console.error('❌ Error refreshing history:', error);
+        }
+      }
+    };
+    
+    refreshHistory();
+  }, [showHistoryModal, selectedCage?.cageId]); // ← Trigger khi modal mở HOẶC đổi cage
+
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -205,7 +227,7 @@ export default function CareStaffCagesPage() {
     try {
       await apiClient.put(`/cages/assignments/${cage.currentAssignment.assignmentId}/checkout`);
       showToast("Đã check-out pet thành công!");
-      loadData();
+      await loadData(); // Reload cages - useEffect sẽ tự động refresh history nếu modal đang mở
     } catch (error) {
       showToast(error.response?.data?.message || "Không thể check-out pet", "error");
     }
@@ -748,8 +770,8 @@ export default function CareStaffCagesPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge className={assignment.checkOutDate ? "bg-gray-500" : "bg-green-500"}>
-                        {assignment.checkOutDate ? 'Đã check-out' : 'Đang ở'}
+                      <Badge className={assignment.actualCheckOutDate ? "bg-gray-500" : "bg-green-500"}>
+                        {assignment.actualCheckOutDate ? 'Đã check-out' : 'Đang ở'}
                       </Badge>
                     </div>
                     
@@ -763,8 +785,8 @@ export default function CareStaffCagesPage() {
                       <div>
                         <span className="text-gray-600">Check-out:</span>
                         <p className="font-medium">
-                          {assignment.checkOutDate 
-                            ? new Date(assignment.checkOutDate).toLocaleDateString('vi-VN')
+                          {assignment.actualCheckOutDate 
+                            ? new Date(assignment.actualCheckOutDate).toLocaleDateString('vi-VN')
                             : 'Chưa check-out'}
                         </p>
                       </div>
