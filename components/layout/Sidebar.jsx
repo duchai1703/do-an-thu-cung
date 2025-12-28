@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils.js";
 const menuItems = {
   manager: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/manager" },
-    { emoji: "👥", label: "Nhân viên", path: "/dashboard/manager/staff" },
+    { emoji: "👥", label: "Nhân viên", path: "/dashboard/manager/employees" },
     { emoji: "📆", label: "Lịch làm việc", path: "/dashboard/manager/schedules" },
     { emoji: "✨", label: "Dịch vụ", path: "/dashboard/manager/services" },
     { emoji: "📅", label: "Lịch đặt", path: "/dashboard/manager/appointments" },
@@ -18,6 +18,7 @@ const menuItems = {
     { emoji: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
     { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
     { emoji: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
+    { emoji: "⚙️", label: "Cài đặt", path: "/dashboard/manager/settings" },
   ],
   veterinarian: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/vet" },

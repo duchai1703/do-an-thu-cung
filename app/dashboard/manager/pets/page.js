@@ -1,447 +1,592 @@
+/**
+ * Pet Management - Premium UI với Emoji Icons
+ * 
+ * Route: /dashboard/manager/pets
+ * 
+ * Features:
+ * - Gradient header (Amber → Orange)
+ * - Stats cards: Total, Dogs, Cats, Others
+ * - Species filter tabs
+ * - Search & filters
+ * - Pet cards với owner info
+ * - Pet detail modal với medical history
+ * 
+ * APIs:
+ * - GET /pets
+ * - GET /pets/:id
+ * - GET /pets/:id/medical-history
+ * - PUT /pets/:id
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import {
-  Search, Edit, Eye, Trash2, RefreshCw, PawPrint,
-  Dog, Cat, Bird, Filter, X
-} from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import StatsCard from "@/components/dashboard/StatsCard";
-import { petApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function ManagerPetsPage() {
+export default function PetsPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [pets, setPets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [speciesFilter, setSpeciesFilter] = useState("");
-  const [selectedPet, setSelectedPet] = useState(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Edit form data
-  const [formData, setFormData] = useState({
-    name: "",
-    species: "",
-    breed: "",
-    gender: "",
-    weight: "",
-    notes: ""
+  const [loading, setLoading] = useState(true);
+  const [pets, setPets] = useState([]);
+  const [filteredPets, setFilteredPets] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [speciesFilter, setSpeciesFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("grid"); // grid | list
+
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPet, setSelectedPet] = useState(null);
+  const [medicalHistory, setMedicalHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    dogs: 0,
+    cats: 0,
+    others: 0
   });
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    loadPets();
+    loadData();
   }, []);
 
-  const loadPets = async () => {
+  useEffect(() => {
+    filterPets();
+    calculateStats();
+  }, [pets, searchTerm, speciesFilter]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      const response = await petApi.getAll();
-
-      if (response.success && response.data) {
-        setPets(response.data);
-      } else {
-        showToast("Không thể tải danh sách thú cưng", "error");
-      }
+      
+      const response = await apiClient.get('/pets');
+      const data = Array.isArray(response.data) ? response.data : 
+                  (response.data?.data || []);
+      
+      setPets(data);
     } catch (error) {
       console.error("Error loading pets:", error);
-      showToast("Lỗi khi tải dữ liệu", "error");
+      showToast("Không thể tải danh sách thú cưng", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const getPetIcon = (species) => {
-    const s = species?.toUpperCase();
-    if (s === 'DOG') return "🐕";
-    if (s === 'CAT') return "🐈";
-    if (s === 'BIRD') return "🐦";
-    if (s === 'RABBIT') return "🐇";
-    if (s === 'HAMSTER') return "🐹";
-    return "🐾";
+  const filterPets = () => {
+    let filtered = [...pets];
+
+    // Filter by species
+    if (speciesFilter !== "all") {
+      if (speciesFilter === "other") {
+        // "Other" means not dog and not cat
+        filtered = filtered.filter(pet => {
+          const species = pet.species?.toLowerCase() || '';
+          return species !== 'dog' && species !== 'cat';
+        });
+      } else {
+        filtered = filtered.filter(pet => 
+          pet.species?.toLowerCase() === speciesFilter.toLowerCase()
+        );
+      }
+    }
+
+    // Filter by search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(pet => 
+        pet.name?.toLowerCase().includes(term) ||
+        pet.breed?.toLowerCase().includes(term) ||
+        pet.owner?.fullName?.toLowerCase().includes(term) ||
+        pet.species?.toLowerCase().includes(term)
+      );
+    }
+
+    setFilteredPets(filtered);
+  };
+
+  const calculateStats = () => {
+    const total = pets.length;
+    const dogs = pets.filter(p => p.species?.toLowerCase() === 'dog').length;
+    const cats = pets.filter(p => p.species?.toLowerCase() === 'cat').length;
+    const others = total - dogs - cats;
+
+    setStats({ total, dogs, cats, others });
+  };
+
+  const handleViewPet = async (pet) => {
+    setSelectedPet(pet);
+    setIsModalOpen(true);
+    
+    // Load medical history
+    try {
+      setLoadingHistory(true);
+      const petId = pet.petId || pet.id;
+      const response = await apiClient.get(`/pets/${petId}/medical-history`);
+      const history = Array.isArray(response.data) ? response.data : 
+                     (response.data?.data || []);
+      setMedicalHistory(history);
+    } catch (error) {
+      console.log("Could not load medical history:", error);
+      setMedicalHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPet(null);
+    setMedicalHistory([]);
+  };
+
+  // UI Helpers
+  const getSpeciesEmoji = (species) => {
+    const s = species?.toLowerCase() || '';
+    const emojis = {
+      'dog': '🐕',
+      'cat': '🐱',
+      'bird': '🐦',
+      'fish': '🐟',
+      'rabbit': '🐰',
+      'hamster': '🐹',
+      'turtle': '🐢',
+      'snake': '🐍'
+    };
+    return emojis[s] || '🐾';
   };
 
   const getSpeciesLabel = (species) => {
+    const s = species?.toLowerCase() || '';
     const labels = {
-      'DOG': 'Chó',
-      'CAT': 'Mèo',
-      'BIRD': 'Chim',
-      'RABBIT': 'Thỏ',
-      'HAMSTER': 'Hamster',
-      'OTHER': 'Khác'
+      'dog': 'Chó',
+      'cat': 'Mèo',
+      'bird': 'Chim',
+      'fish': 'Cá',
+      'rabbit': 'Thỏ',
+      'hamster': 'Hamster',
+      'turtle': 'Rùa',
+      'snake': 'Rắn'
     };
-    return labels[species?.toUpperCase()] || species || 'N/A';
+    return labels[s] || species || 'Khác';
+  };
+
+  const getGenderEmoji = (gender) => {
+    const g = gender?.toLowerCase() || '';
+    if (g === 'male' || g === 'đực') return '♂️';
+    if (g === 'female' || g === 'cái') return '♀️';
+    return '⚪';
   };
 
   const getGenderLabel = (gender) => {
-    if (gender?.toUpperCase() === 'MALE') return 'Đực';
-    if (gender?.toUpperCase() === 'FEMALE') return 'Cái';
-    return gender || 'N/A';
+    const g = gender?.toLowerCase() || '';
+    if (g === 'male' || g === 'đực') return 'Đực';
+    if (g === 'female' || g === 'cái') return 'Cái';
+    return 'Chưa rõ';
   };
 
-  const handleViewDetail = (pet) => {
-    setSelectedPet(pet);
-    setIsDetailModalOpen(true);
-  };
-
-  const handleOpenEdit = (pet) => {
-    setSelectedPet(pet);
-    setFormData({
-      name: pet.name || "",
-      species: pet.species || "",
-      breed: pet.breed || "",
-      gender: pet.gender || "",
-      weight: pet.weight || "",
-      notes: pet.notes || ""
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await petApi.update(selectedPet.petId || selectedPet.id, {
-        name: formData.name,
-        species: formData.species,
-        breed: formData.breed,
-        gender: formData.gender,
-        weight: formData.weight ? parseFloat(formData.weight) : undefined,
-        notes: formData.notes || undefined
-      });
-
-      if (response.success) {
-        showToast("Cập nhật thú cưng thành công!", "success");
-        setIsEditModalOpen(false);
-        loadPets();
-      } else {
-        showToast(response.error || "Không thể cập nhật", "error");
-      }
-    } catch (error) {
-      showToast("Lỗi khi cập nhật", "error");
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 'Chưa rõ';
+    const birth = new Date(birthDate);
+    const today = new Date();
+    const years = today.getFullYear() - birth.getFullYear();
+    const months = today.getMonth() - birth.getMonth();
+    
+    if (years < 1) {
+      return `${months + 12} tháng`;
     }
+    return `${years} tuổi`;
   };
 
-  const handleDelete = async (petId) => {
-    if (confirm("Xác nhận xóa thú cưng này? Hành động này không thể hoàn tác.")) {
-      try {
-        const response = await petApi.delete(petId);
-        if (response.success) {
-          showToast("Đã xóa thú cưng", "success");
-          loadPets();
-        } else {
-          showToast(response.error || "Không thể xóa", "error");
-        }
-      } catch (error) {
-        showToast("Lỗi khi xóa", "error");
-      }
-    }
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('vi-VN');
   };
 
-  // Filter pets
-  const filteredPets = pets.filter(pet => {
-    const matchSearch = !searchTerm ||
-      pet.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pet.breed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pet.petOwner?.fullName?.toLowerCase().includes(searchTerm.toLowerCase());
+  const tabs = [
+    { id: 'all', label: '🐾 Tất cả', count: stats.total },
+    { id: 'dog', label: '🐕 Chó', count: stats.dogs },
+    { id: 'cat', label: '🐱 Mèo', count: stats.cats },
+    { id: 'other', label: '🦜 Khác', count: stats.others }
+  ];
 
-    const matchSpecies = !speciesFilter || pet.species?.toUpperCase() === speciesFilter;
-
-    return matchSearch && matchSpecies;
-  });
-
-  // Stats
-  const stats = {
-    total: pets.length,
-    dogs: pets.filter(p => p.species?.toUpperCase() === 'DOG').length,
-    cats: pets.filter(p => p.species?.toUpperCase() === 'CAT').length,
-    others: pets.filter(p => !['DOG', 'CAT'].includes(p.species?.toUpperCase())).length
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-8xl mb-4 animate-bounce">🐾</div>
+          <p className="text-gray-500 text-lg">Đang tải danh sách thú cưng...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Quản lý thú cưng"
-        subtitle="Xem và quản lý thông tin tất cả thú cưng"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard icon={PawPrint} title="Tổng thú cưng" value={stats.total} color="primary" />
-        <StatsCard icon={Dog} title="Chó" value={stats.dogs} color="warning" />
-        <StatsCard icon={Cat} title="Mèo" value={stats.cats} color="info" />
-        <StatsCard icon={Bird} title="Khác" value={stats.others} color="success" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* 🌈 Gradient Header */}
+      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white p-8 pb-28 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+                <span className="text-4xl">🐾</span>
+                Quản Lý Thú Cưng
+              </h1>
+              <p className="text-white/90">
+                Xem thông tin và lịch sử y tế của thú cưng
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Search & Filter */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="max-w-7xl mx-auto px-6 -mt-20 pb-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm text-gray-500">🐾 Tổng thú cưng</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-amber-600">{stats.dogs}</p>
+              <p className="text-sm text-gray-500">🐕 Số chó</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-orange-600">{stats.cats}</p>
+              <p className="text-sm text-gray-500">🐱 Số mèo</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-red-600">{stats.others}</p>
+              <p className="text-sm text-gray-500">🦜 Loài khác</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card className="bg-white shadow-xl mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Search */}
+              <div className="flex-1 min-w-[200px] relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🔍</span>
                 <Input
-                  placeholder="Tìm theo tên, giống, chủ nuôi..."
+                  type="text"
+                  placeholder="Tìm kiếm theo tên, giống, chủ..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-10"
                 />
               </div>
+
+              {/* View Mode */}
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${
+                    viewMode === "grid" 
+                      ? "bg-white text-amber-600 shadow" 
+                      : "text-gray-600"
+                  }`}
+                >
+                  📦 Lưới
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${
+                    viewMode === "list" 
+                      ? "bg-white text-amber-600 shadow" 
+                      : "text-gray-600"
+                  }`}
+                >
+                  📋 Danh sách
+                </button>
+              </div>
             </div>
-            <Select
-              value={speciesFilter}
-              onChange={(e) => setSpeciesFilter(e.target.value)}
-              className="w-40"
+          </CardContent>
+        </Card>
+
+        {/* Species Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setSpeciesFilter(tab.id === 'other' ? 'other' : tab.id)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                speciesFilter === tab.id || (tab.id === 'other' && speciesFilter === 'other')
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
             >
-              <option value="">Tất cả loài</option>
-              <option value="DOG">Chó</option>
-              <option value="CAT">Mèo</option>
-              <option value="BIRD">Chim</option>
-              <option value="RABBIT">Thỏ</option>
-              <option value="OTHER">Khác</option>
-            </Select>
-            <Button variant="outline" onClick={loadPets}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Làm mới
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
 
-      {/* Pets Table */}
-      {loading ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-            <p className="text-muted-foreground">Đang tải...</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Thú cưng</TableHead>
-                  <TableHead>Loài</TableHead>
-                  <TableHead>Giống</TableHead>
-                  <TableHead>Giới tính</TableHead>
-                  <TableHead>Cân nặng</TableHead>
-                  <TableHead>Chủ nuôi</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPets.length > 0 ? filteredPets.map(pet => (
-                  <TableRow key={pet.petId || pet.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{getPetIcon(pet.species)}</span>
-                        <span className="font-medium">{pet.name}</span>
+        {/* Pet Count */}
+        <p className="text-sm text-gray-500 mb-4">
+          Hiển thị {filteredPets.length} / {pets.length} thú cưng
+        </p>
+
+        {/* Pet List */}
+        {filteredPets.length > 0 ? (
+          viewMode === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredPets.map((pet, idx) => {
+                const petId = pet.petId || pet.id;
+                
+                return (
+                  <Card 
+                    key={petId || idx} 
+                    className="bg-white shadow-lg hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                    onClick={() => handleViewPet(pet)}
+                  >
+                    {/* Pet Header */}
+                    <div className="bg-gradient-to-r from-amber-100 to-orange-100 p-4 text-center">
+                      <span className="text-6xl">{getSpeciesEmoji(pet.species)}</span>
+                    </div>
+                    
+                    <CardContent className="p-4">
+                      <div className="text-center mb-3">
+                        <h3 className="font-bold text-lg text-gray-900">{pet.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {getSpeciesLabel(pet.species)} • {pet.breed || 'Chưa rõ giống'}
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getSpeciesLabel(pet.species)}</Badge>
-                    </TableCell>
-                    <TableCell>{pet.breed || 'N/A'}</TableCell>
-                    <TableCell>{getGenderLabel(pet.gender)}</TableCell>
-                    <TableCell>{pet.weight ? `${pet.weight} kg` : 'N/A'}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{pet.petOwner?.fullName || pet.petOwner?.name || 'N/A'}</p>
-                        <p className="text-xs text-muted-foreground">{pet.petOwner?.phoneNumber || ''}</p>
+                      
+                      <div className="flex items-center justify-center gap-4 text-sm text-gray-600 mb-3">
+                        <span>{getGenderEmoji(pet.gender)} {getGenderLabel(pet.gender)}</span>
+                        <span>🎂 {calculateAge(pet.birthDate)}</span>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleViewDetail(pet)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(pet)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(pet.petId || pet.id)}
+
+                      {pet.owner && (
+                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                          <p className="text-xs text-gray-500">👤 Chủ sở hữu</p>
+                          <p className="text-sm font-medium text-gray-700">{pet.owner.fullName}</p>
+                        </div>
+                      )}
+
+                      <button
+                        className="w-full mt-3 py-2 bg-amber-50 text-amber-600 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors"
+                      >
+                        👁️ Xem chi tiết
+                      </button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredPets.map((pet, idx) => {
+                const petId = pet.petId || pet.id;
+                
+                return (
+                  <Card 
+                    key={petId || idx} 
+                    className="bg-white shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                    onClick={() => handleViewPet(pet)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
+                        {/* Pet Icon */}
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 flex items-center justify-center text-3xl">
+                          {getSpeciesEmoji(pet.species)}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-gray-900">{pet.name}</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                              {getSpeciesLabel(pet.species)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            🐾 {pet.breed || 'Chưa rõ giống'} • {getGenderEmoji(pet.gender)} {getGenderLabel(pet.gender)} • 🎂 {calculateAge(pet.birthDate)}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {pet.weight && <span>⚖️ {pet.weight}kg • </span>}
+                            {pet.color && <span>🎨 {pet.color}</span>}
+                          </p>
+                        </div>
+
+                        {/* Owner */}
+                        {pet.owner && (
+                          <div className="text-right">
+                            <p className="text-xs text-gray-400">👤 Chủ sở hữu</p>
+                            <p className="font-medium text-gray-700">{pet.owner.fullName}</p>
+                            <p className="text-xs text-gray-500">📞 {pet.owner.phoneNumber}</p>
+                          </div>
+                        )}
+
+                        {/* Action */}
+                        <button
+                          className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                          onClick={(e) => { e.stopPropagation(); handleViewPet(pet); }}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                          👁️
+                        </button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      {searchTerm || speciesFilter ? "Không tìm thấy thú cưng phù hợp" : "Chưa có thú cưng nào"}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <Card className="bg-white shadow-xl">
+            <CardContent className="py-16 text-center">
+              <span className="text-8xl block mb-4">🐾</span>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Không tìm thấy thú cưng</h3>
+              <p className="text-gray-500 mb-4">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-      {/* Detail Modal */}
-      <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="text-2xl">{getPetIcon(selectedPet?.species)}</span>
-              Chi tiết thú cưng
-            </DialogTitle>
-          </DialogHeader>
-          {selectedPet && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Tên</Label>
-                  <p className="font-medium">{selectedPet.name}</p>
+      {/* Pet Detail Modal */}
+      {isModalOpen && selectedPet && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center text-4xl">
+                    {getSpeciesEmoji(selectedPet.species)}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">{selectedPet.name}</h2>
+                    <p className="text-white/90">
+                      {getSpeciesLabel(selectedPet.species)} • {selectedPet.breed || 'Chưa rõ giống'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Loài</Label>
-                  <p className="font-medium">{getSpeciesLabel(selectedPet.species)}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Giống</Label>
-                  <p className="font-medium">{selectedPet.breed || 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Giới tính</Label>
+                <button onClick={handleCloseModal} className="text-white/80 hover:text-white text-2xl">
+                  ❌
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl mb-1">{getGenderEmoji(selectedPet.gender)}</p>
+                  <p className="text-xs text-gray-500">Giới tính</p>
                   <p className="font-medium">{getGenderLabel(selectedPet.gender)}</p>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Cân nặng</Label>
-                  <p className="font-medium">{selectedPet.weight ? `${selectedPet.weight} kg` : 'N/A'}</p>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl mb-1">🎂</p>
+                  <p className="text-xs text-gray-500">Tuổi</p>
+                  <p className="font-medium">{calculateAge(selectedPet.birthDate)}</p>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Tuổi</Label>
-                  <p className="font-medium">{selectedPet.age || 'N/A'}</p>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl mb-1">⚖️</p>
+                  <p className="text-xs text-gray-500">Cân nặng</p>
+                  <p className="font-medium">{selectedPet.weight ? `${selectedPet.weight}kg` : 'N/A'}</p>
                 </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <Label className="text-muted-foreground">Chủ nuôi</Label>
-                <div className="mt-1 p-3 bg-muted rounded-lg">
-                  <p className="font-medium">{selectedPet.petOwner?.fullName || 'N/A'}</p>
-                  <p className="text-sm text-muted-foreground">{selectedPet.petOwner?.phoneNumber}</p>
-                  <p className="text-sm text-muted-foreground">{selectedPet.petOwner?.email}</p>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-2xl mb-1">🎨</p>
+                  <p className="text-xs text-gray-500">Màu lông</p>
+                  <p className="font-medium">{selectedPet.color || 'N/A'}</p>
                 </div>
               </div>
 
-              {selectedPet.notes && (
-                <div>
-                  <Label className="text-muted-foreground">Ghi chú</Label>
-                  <p className="mt-1">{selectedPet.notes}</p>
+              {/* Owner Info */}
+              {selectedPet.owner && (
+                <div className="bg-amber-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-700 mb-3">👤 Thông tin chủ sở hữu</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <p>Họ tên: <span className="font-medium">{selectedPet.owner.fullName}</span></p>
+                    <p>SĐT: <span className="font-medium">{selectedPet.owner.phoneNumber}</span></p>
+                    <p>Địa chỉ: <span className="font-medium">{selectedPet.owner.address || 'N/A'}</span></p>
+                    <p>Email: <span className="font-medium">{selectedPet.owner.account?.email || 'N/A'}</span></p>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Edit Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cập nhật thông tin thú cưng</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleUpdate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tên *</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Loài</Label>
-                <Select
-                  value={formData.species}
-                  onChange={(e) => setFormData({ ...formData, species: e.target.value })}
-                >
-                  <option value="">-- Chọn --</option>
-                  <option value="DOG">Chó</option>
-                  <option value="CAT">Mèo</option>
-                  <option value="BIRD">Chim</option>
-                  <option value="RABBIT">Thỏ</option>
-                  <option value="HAMSTER">Hamster</option>
-                  <option value="OTHER">Khác</option>
-                </Select>
+              {/* Medical History */}
+              <div>
+                <h3 className="font-semibold text-gray-700 mb-3">🏥 Lịch sử y tế</h3>
+                {loadingHistory ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin text-4xl mb-2">⏳</div>
+                    <p className="text-gray-500">Đang tải...</p>
+                  </div>
+                ) : medicalHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {medicalHistory.map((record, idx) => (
+                      <div key={idx} className="border rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900">
+                            📅 {formatDate(record.date || record.createdAt)}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            {record.type || 'Khám bệnh'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          🩺 {record.diagnosis || record.notes || 'Không có ghi chú'}
+                        </p>
+                        {record.treatment && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            💊 Điều trị: {record.treatment}
+                          </p>
+                        )}
+                        {record.veterinarian && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            👨‍⚕️ Bác sĩ: {record.veterinarian.fullName || record.veterinarian}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-xl p-6 text-center">
+                    <span className="text-4xl block mb-2">📋</span>
+                    <p className="text-gray-500">Chưa có lịch sử y tế</p>
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>Giới tính</Label>
-                <Select
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+
+              {/* Notes */}
+              {selectedPet.notes && (
+                <div className="bg-yellow-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-700 mb-2">📝 Ghi chú</h3>
+                  <p className="text-sm">{selectedPet.notes}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button variant="outline" onClick={handleCloseModal}>
+                  Đóng
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/dashboard/manager/appointments?petId=${selectedPet.petId || selectedPet.id}`)}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
                 >
-                  <option value="">-- Chọn --</option>
-                  <option value="MALE">Đực</option>
-                  <option value="FEMALE">Cái</option>
-                </Select>
+                  📅 Xem lịch hẹn
+                </Button>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>Giống</Label>
-              <Input
-                value={formData.breed}
-                onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
-                placeholder="VD: Golden Retriever"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Cân nặng (kg)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ghi chú</Label>
-              <Input
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Ghi chú đặc biệt..."
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit">Cập nhật</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

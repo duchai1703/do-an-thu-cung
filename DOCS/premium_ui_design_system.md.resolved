@@ -1,0 +1,734 @@
+# Premium UI Design System - PAW LOVERS 🐾
+
+## Phiên bản: 1.0 | Production-Ready
+
+Hệ thống thiết kế UI cao cấp sử dụng **Emoji Icons** cho trung tâm chăm sóc thú cưng PAW LOVERS.
+
+---
+
+## 🎨 Color Palette
+
+### Brand Colors
+```css
+:root {
+  /* Primary - Purple/Violet */
+  --primary-50: #faf5ff;
+  --primary-100: #f3e8ff;
+  --primary-200: #e9d5ff;
+  --primary-300: #d8b4fe;
+  --primary-400: #c084fc;
+  --primary-500: #a855f7;  /* Main brand color */
+  --primary-600: #9333ea;
+  --primary-700: #7e22ce;
+  --primary-800: #6b21a8;
+  --primary-900: #581c87;
+
+  /* Secondary - Teal */
+  --secondary-50: #f0fdfa;
+  --secondary-100: #ccfbf1;
+  --secondary-500: #14b8a6;
+  --secondary-600: #0d9488;
+  --secondary-700: #0f766e;
+}
+```
+
+### Gradient Presets
+```css
+:root {
+  /* Page Header Gradients */
+  --gradient-dashboard: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  --gradient-employees: linear-gradient(135deg, #3b82f6 0%, #0ea5e9 50%, #06b6d4 100%);
+  --gradient-appointments: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #fbbf24 100%);
+  --gradient-services: linear-gradient(135deg, #a855f7 0%, #d946ef 50%, #ec4899 100%);
+  --gradient-schedules: linear-gradient(135deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
+  --gradient-cages: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  --gradient-invoices: linear-gradient(135deg, #22c55e 0%, #10b981 50%, #14b8a6 100%);
+  --gradient-pets: linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%);
+  --gradient-reports: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #c084fc 100%);
+  --gradient-settings: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%);
+
+  /* Card Gradients */
+  --gradient-card-hover: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(168, 85, 247, 0.1));
+  --gradient-success: linear-gradient(135deg, #22c55e, #10b981);
+  --gradient-warning: linear-gradient(135deg, #f59e0b, #fbbf24);
+  --gradient-danger: linear-gradient(135deg, #ef4444, #f87171);
+}
+```
+
+### Status Colors
+```css
+:root {
+  /* Status */
+  --status-pending: #f59e0b;      /* 🟡 Amber */
+  --status-confirmed: #22c55e;    /* 🟢 Green */
+  --status-in-progress: #3b82f6;  /* 🔵 Blue */
+  --status-completed: #10b981;    /* ✅ Emerald */
+  --status-cancelled: #ef4444;    /* 🔴 Red */
+  --status-maintenance: #f97316;  /* 🟠 Orange */
+  --status-available: #22c55e;    /* ⬜ Available */
+  --status-occupied: #3b82f6;     /* 🔵 Occupied */
+}
+```
+
+### Neutral Colors
+```css
+:root {
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+}
+```
+
+---
+
+## 🔤 Typography
+
+### Font Family
+```css
+:root {
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', var(--font-primary);
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+```
+
+### Font Sizes
+```css
+:root {
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+}
+```
+
+### Font Weights
+```css
+:root {
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+}
+```
+
+---
+
+## 📐 Spacing System
+
+```css
+:root {
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+}
+```
+
+---
+
+## 📦 Border Radius
+
+```css
+:root {
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-md: 0.375rem;  /* 6px */
+  --radius-lg: 0.5rem;    /* 8px */
+  --radius-xl: 0.75rem;   /* 12px */
+  --radius-2xl: 1rem;     /* 16px */
+  --radius-3xl: 1.5rem;   /* 24px */
+  --radius-full: 9999px;
+}
+```
+
+---
+
+## 🌟 Shadow System
+
+```css
+:root {
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  
+  /* Colored shadows */
+  --shadow-primary: 0 10px 40px -10px rgba(139, 92, 246, 0.4);
+  --shadow-success: 0 10px 40px -10px rgba(34, 197, 94, 0.4);
+  --shadow-warning: 0 10px 40px -10px rgba(245, 158, 11, 0.4);
+  --shadow-danger: 0 10px 40px -10px rgba(239, 68, 68, 0.4);
+}
+```
+
+---
+
+## 😊 Emoji Icon System
+
+### Cách sử dụng Emoji trong React
+
+```jsx
+// Component EmojiIcon
+const EmojiIcon = ({ emoji, size = 'md', className = '' }) => {
+  const sizes = {
+    xs: 'text-sm',     // 14px
+    sm: 'text-base',   // 16px
+    md: 'text-xl',     // 20px
+    lg: 'text-2xl',    // 24px
+    xl: 'text-3xl',    // 30px
+    '2xl': 'text-4xl', // 36px
+  };
+
+  return (
+    <span 
+      className={`inline-flex items-center justify-center ${sizes[size]} ${className}`}
+      role="img"
+      aria-hidden="true"
+    >
+      {emoji}
+    </span>
+  );
+};
+
+// Sử dụng
+<EmojiIcon emoji="🐾" size="lg" />
+<EmojiIcon emoji="📊" size="xl" />
+```
+
+### Emoji Mapping Object
+
+```javascript
+export const EMOJI_ICONS = {
+  // Navigation
+  dashboard: '📊',
+  employees: '👥',
+  appointments: '📅',
+  services: '💼',
+  schedules: '📆',
+  cages: '🏠',
+  invoices: '💰',
+  pets: '🐾',
+  reports: '📈',
+  settings: '⚙️',
+
+  // Actions
+  add: '➕',
+  edit: '✏️',
+  delete: '🗑️',
+  view: '👁️',
+  search: '🔍',
+  filter: '📂',
+  save: '💾',
+  cancel: '❌',
+  confirm: '✅',
+  loading: '⏳',
+  warning: '⚠️',
+  notification: '🔔',
+  refresh: '🔄',
+  download: '📥',
+  upload: '📤',
+  print: '🖨️',
+
+  // Status
+  pending: '🟡',
+  confirmed: '🟢',
+  inProgress: '🔵',
+  completed: '✅',
+  cancelled: '🔴',
+  maintenance: '🟠',
+  available: '⬜',
+
+  // Pets
+  dog: '🐕',
+  cat: '🐈',
+  bird: '🐦',
+  rabbit: '🐇',
+  hamster: '🐹',
+  turtle: '🐢',
+  fish: '🐟',
+  other: '🐾',
+
+  // People
+  doctor: '👨‍⚕️',
+  femaleStaff: '👩',
+  maleStaff: '👨',
+  customer: '👤',
+  users: '👥',
+
+  // Finance
+  money: '💵',
+  card: '💳',
+  wallet: '👛',
+  receipt: '🧾',
+  chart: '📊',
+
+  // Time
+  calendar: '📅',
+  clock: '⏰',
+  alarm: '⏰',
+
+  // Communication
+  phone: '📞',
+  email: '📧',
+  location: '📍',
+  message: '💬',
+
+  // Misc
+  star: '⭐',
+  heart: '❤️',
+  fire: '🔥',
+  sparkles: '✨',
+  trophy: '🏆',
+  medal: '🎖️',
+  gift: '🎁',
+  party: '🎉',
+};
+```
+
+---
+
+## 🧩 Component Patterns
+
+### 1. Gradient Header
+
+```jsx
+const GradientHeader = ({ title, subtitle, emoji, gradient = 'dashboard' }) => {
+  const gradients = {
+    dashboard: 'from-indigo-500 via-purple-500 to-purple-600',
+    employees: 'from-blue-500 via-cyan-500 to-teal-500',
+    appointments: 'from-orange-500 via-amber-500 to-yellow-500',
+    services: 'from-purple-500 via-fuchsia-500 to-pink-500',
+    schedules: 'from-emerald-500 via-teal-500 to-cyan-500',
+    cages: 'from-indigo-500 via-purple-500 to-violet-500',
+    invoices: 'from-green-500 via-emerald-500 to-teal-500',
+    pets: 'from-rose-500 via-pink-500 to-fuchsia-500',
+    reports: 'from-violet-500 via-purple-500 to-fuchsia-500',
+    settings: 'from-slate-500 via-gray-500 to-zinc-600',
+  };
+
+  return (
+    <div className={`bg-gradient-to-r ${gradients[gradient]} text-white p-8 pb-24 shadow-lg`}>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+          <span className="text-4xl">{emoji}</span>
+          {title}
+        </h1>
+        <p className="text-white/90">{subtitle}</p>
+      </div>
+    </div>
+  );
+};
+```
+
+### 2. Stats Card
+
+```jsx
+const StatsCard = ({ emoji, title, value, trend, trendUp = true }) => (
+  <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+    <div className="flex items-center justify-between mb-4">
+      <span className="text-3xl">{emoji}</span>
+      {trend && (
+        <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+          trendUp ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+        }`}>
+          {trendUp ? '↑' : '↓'} {trend}
+        </span>
+      )}
+    </div>
+    <p className="text-gray-500 text-sm">{title}</p>
+    <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+  </div>
+);
+
+// Usage
+<StatsCard 
+  emoji="💰" 
+  title="Doanh thu hôm nay" 
+  value="15,000,000đ" 
+  trend="+12%" 
+  trendUp={true} 
+/>
+```
+
+### 3. Status Badge
+
+```jsx
+const StatusBadge = ({ status }) => {
+  const statusConfig = {
+    PENDING: { 
+      emoji: '🟡', 
+      label: 'Chờ xử lý', 
+      bg: 'bg-amber-100', 
+      text: 'text-amber-700' 
+    },
+    CONFIRMED: { 
+      emoji: '🟢', 
+      label: 'Đã xác nhận', 
+      bg: 'bg-green-100', 
+      text: 'text-green-700' 
+    },
+    IN_PROGRESS: { 
+      emoji: '🔵', 
+      label: 'Đang thực hiện', 
+      bg: 'bg-blue-100', 
+      text: 'text-blue-700' 
+    },
+    COMPLETED: { 
+      emoji: '✅', 
+      label: 'Hoàn thành', 
+      bg: 'bg-emerald-100', 
+      text: 'text-emerald-700' 
+    },
+    CANCELLED: { 
+      emoji: '🔴', 
+      label: 'Đã hủy', 
+      bg: 'bg-red-100', 
+      text: 'text-red-700' 
+    },
+    PAID: { 
+      emoji: '💵', 
+      label: 'Đã thanh toán', 
+      bg: 'bg-green-100', 
+      text: 'text-green-700' 
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.PENDING;
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
+      <span>{config.emoji}</span>
+      {config.label}
+    </span>
+  );
+};
+```
+
+### 4. Action Button Group
+
+```jsx
+const ActionButtons = ({ onView, onEdit, onDelete }) => (
+  <div className="flex items-center gap-2">
+    {onView && (
+      <button 
+        onClick={onView}
+        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+        title="Xem chi tiết"
+      >
+        👁️
+      </button>
+    )}
+    {onEdit && (
+      <button 
+        onClick={onEdit}
+        className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+        title="Chỉnh sửa"
+      >
+        ✏️
+      </button>
+    )}
+    {onDelete && (
+      <button 
+        onClick={onDelete}
+        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        title="Xóa"
+      >
+        🗑️
+      </button>
+    )}
+  </div>
+);
+```
+
+### 5. Empty State
+
+```jsx
+const EmptyState = ({ emoji = '📭', title, description, action }) => (
+  <div className="flex flex-col items-center justify-center py-16 px-4">
+    <span className="text-8xl mb-6">{emoji}</span>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
+    <p className="text-gray-500 text-center max-w-md mb-6">{description}</p>
+    {action}
+  </div>
+);
+
+// Usage
+<EmptyState 
+  emoji="🐾"
+  title="Chưa có thú cưng nào"
+  description="Hãy thêm thú cưng đầu tiên để bắt đầu quản lý"
+  action={<Button>➕ Thêm thú cưng</Button>}
+/>
+```
+
+### 6. Search & Filter Bar
+
+```jsx
+const SearchFilterBar = ({ onSearch, filters, onAdd }) => (
+  <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-xl shadow-md">
+    {/* Search */}
+    <div className="flex-1 min-w-[200px] relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2">🔍</span>
+      <input
+        type="text"
+        placeholder="Tìm kiếm..."
+        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+        onChange={(e) => onSearch(e.target.value)}
+      />
+    </div>
+
+    {/* Filters */}
+    {filters?.map((filter, idx) => (
+      <select 
+        key={idx}
+        className="px-4 py-2 border border-gray-200 rounded-lg bg-white"
+      >
+        <option>📂 {filter.label}</option>
+        {filter.options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    ))}
+
+    {/* Add Button */}
+    {onAdd && (
+      <button 
+        onClick={onAdd}
+        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all"
+      >
+        ➕ Thêm mới
+      </button>
+    )}
+  </div>
+);
+```
+
+---
+
+## ✨ Animation Presets
+
+### CSS Animations
+```css
+/* Fade In Up */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulse Glow */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+  }
+}
+
+/* Bounce Subtle */
+@keyframes bounceSubtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounceSubtle 2s infinite ease-in-out;
+}
+
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+```
+
+### Tailwind Utilities
+```css
+/* Thêm vào tailwind.config.js */
+module.exports = {
+  theme: {
+    extend: {
+      animation: {
+        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+        'pulse-glow': 'pulseGlow 2s infinite',
+        'bounce-subtle': 'bounceSubtle 2s infinite ease-in-out',
+      },
+    },
+  },
+};
+```
+
+---
+
+## 🖱️ Hover & Interactive States
+
+### Card Hover Effect
+```css
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
+}
+```
+
+### Button States
+```css
+.btn-primary {
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(168, 85, 247, 0.5);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+```
+
+---
+
+## 📱 Responsive Breakpoints
+
+```css
+:root {
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+```
+
+### Responsive Grid Pattern
+```jsx
+// Stats Cards Grid
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+  {/* Cards */}
+</div>
+
+// Content Grid
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div className="lg:col-span-2">{/* Main content */}</div>
+  <div>{/* Sidebar */}</div>
+</div>
+```
+
+---
+
+## 🎯 Best Practices
+
+### 1. Emoji Accessibility
+```jsx
+// Always use role="img" and aria-hidden for decorative emojis
+<span role="img" aria-hidden="true">🐾</span>
+
+// Or aria-label for meaningful emojis
+<span role="img" aria-label="Thú cưng">🐾</span>
+```
+
+### 2. Consistent Spacing
+```jsx
+// Use design tokens instead of arbitrary values
+<div className="p-4 md:p-6 lg:p-8">  {/* ✅ Good */}
+<div className="p-[17px]">           {/* ❌ Avoid */}
+```
+
+### 3. Loading States
+```jsx
+const LoadingCard = () => (
+  <div className="bg-white rounded-2xl p-6 shadow-lg">
+    <div className="loading-shimmer h-8 w-8 rounded-full mb-4" />
+    <div className="loading-shimmer h-4 w-24 rounded mb-2" />
+    <div className="loading-shimmer h-6 w-32 rounded" />
+  </div>
+);
+```
+
+### 4. Error States
+```jsx
+const ErrorState = ({ message, onRetry }) => (
+  <div className="flex flex-col items-center justify-center py-12 px-4">
+    <span className="text-6xl mb-4">😵</span>
+    <h3 className="text-lg font-semibold text-gray-900 mb-2">Đã xảy ra lỗi</h3>
+    <p className="text-gray-500 mb-4">{message}</p>
+    <button 
+      onClick={onRetry}
+      className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg"
+    >
+      🔄 Thử lại
+    </button>
+  </div>
+);
+```
+
+---
+
+## 📋 Implementation Checklist
+
+- [ ] Setup color CSS variables
+- [ ] Configure Tailwind với design tokens
+- [ ] Tạo shared components (Button, Card, Badge, etc.)
+- [ ] Implement Emoji mapping utility
+- [ ] Add animation utilities
+- [ ] Setup responsive breakpoints
+- [ ] Create loading/error states
+- [ ] Test accessibility
+
+---
+
+## 🔗 Quick Reference
+
+### Common Emoji Pairs
+| Action | Emoji Pair |
+|--------|------------|
+| Success/Error | ✅ / ❌ |
+| Up/Down | ⬆️ / ⬇️ |
+| Add/Remove | ➕ / ➖ |
+| Lock/Unlock | 🔒 / 🔓 |
+| Show/Hide | 👁️ / 👁️‍🗨️ |
+| Play/Pause | ▶️ / ⏸️ |
+| Previous/Next | ◀️ / ▶️ |
+| Open/Close | 📂 / 📁 |

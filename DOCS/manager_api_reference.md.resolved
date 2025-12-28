@@ -1,0 +1,679 @@
+# Backend API Reference - Manager Dashboard
+
+## Tổng quan
+
+Tài liệu này liệt kê toàn bộ API của backend hỗ trợ cho **MANAGER** role, bao gồm các endpoints, request/response fields, và quyền truy cập.
+
+---
+
+## Mục lục
+
+1. [Authentication (Auth)](#1-authentication-auth)
+2. [Employees](#2-employees)
+3. [Pet Owners](#3-pet-owners)
+4. [Pets](#4-pets)
+5. [Appointments](#5-appointments)
+6. [Invoices](#6-invoices)
+7. [Payments](#7-payments)
+8. [Services](#8-services)
+9. [Service Categories](#9-service-categories)
+10. [Schedules](#10-schedules)
+11. [Cages](#11-cages)
+12. [Medical Records](#12-medical-records)
+13. [Reports](#13-reports)
+
+---
+
+## Enums & Types
+
+### UserType
+```typescript
+enum UserType {
+  PET_OWNER = 'PET_OWNER',
+  MANAGER = 'MANAGER',
+  VETERINARIAN = 'VETERINARIAN',
+  CARE_STAFF = 'CARE_STAFF',
+  RECEPTIONIST = 'RECEPTIONIST'
+}
+```
+
+### AppointmentStatus
+```typescript
+enum AppointmentStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED'
+}
+```
+
+### InvoiceStatus
+```typescript
+enum InvoiceStatus {
+  PENDING = 'PENDING',
+  PROCESSING_ONLINE = 'PROCESSING_ONLINE',
+  PAID = 'PAID',
+  FAILED = 'FAILED'
+}
+```
+
+### PaymentMethod
+```typescript
+enum PaymentMethod {
+  CASH = 'CASH',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  VNPAY = 'VNPAY',
+  MOMO = 'MOMO',
+  ZALOPAY = 'ZALOPAY'
+}
+```
+
+### CageSize
+```typescript
+enum CageSize {
+  SMALL = 'SMALL',
+  MEDIUM = 'MEDIUM',
+  LARGE = 'LARGE'
+}
+```
+
+### CageStatus
+```typescript
+enum CageStatus {
+  AVAILABLE = 'AVAILABLE',
+  OCCUPIED = 'OCCUPIED',
+  MAINTENANCE = 'MAINTENANCE',
+  RESERVED = 'RESERVED'
+}
+```
+
+---
+
+## 1. Authentication (Auth)
+
+**Base URL:** `/api/auth`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/login` | Login | ❌ | All |
+| POST | `/logout` | Logout | ✅ | All |
+| GET | `/me` | Get current user | ✅ | All |
+| GET | `/account/:id` | Get account by ID | ✅ | All |
+| GET | `/account/:id/full-profile` | Get account with profile | ✅ | All |
+| PUT | `/account/:id/change-password` | Change password | ✅ | All |
+| PUT | `/account/:id/activate` | Activate account | ✅ | **MANAGER** |
+| PUT | `/account/:id/deactivate` | Deactivate account | ✅ | **MANAGER** |
+
+### Request DTOs
+
+#### LoginDto
+```typescript
+{
+  email: string;      // required
+  password: string;   // required
+}
+```
+
+#### ChangePasswordDto
+```typescript
+{
+  oldPassword: string;  // required
+  newPassword: string;  // required (min 8 chars)
+}
+```
+
+### Response DTOs
+
+#### LoginResponseDto
+```typescript
+{
+  accessToken: string;
+  tokenType: string;
+  user: {
+    accountId: number;
+    email: string;
+    userType: UserType;
+    fullName: string;
+  }
+}
+```
+
+---
+
+## 2. Employees
+
+**Base URL:** `/api/employees`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create employee | ✅ | **MANAGER** |
+| GET | `/` | Get all employees | ✅ | MANAGER, RECEPTIONIST, PET_OWNER |
+| GET | `/veterinarians` | Get all vets | ✅ | All |
+| GET | [/care-staff](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/app/dashboard/care-staff) | Get all care staff | ✅ | All |
+| GET | `/available` | Get available employees | ✅ | MANAGER, RECEPTIONIST |
+| GET | `/by-role/:role` | Get by role | ✅ | MANAGER, RECEPTIONIST |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ✅ | Staff |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update employee | ✅ | **MANAGER** |
+| PUT | `/:id/available` | Mark available | ✅ | **MANAGER** |
+| PUT | `/:id/unavailable` | Mark unavailable | ✅ | **MANAGER** |
+
+### CreateEmployeeDto (MANAGER only)
+```typescript
+{
+  email: string;           // required
+  password: string;        // required, min 8 chars
+  userType: UserType;      // required (VETERINARIAN, CARE_STAFF, RECEPTIONIST, MANAGER)
+  fullName: string;        // required
+  phoneNumber: string;     // required
+  address?: string;        // optional
+  hireDate: Date;          // required
+  salary: number;          // required, min 0
+  
+  // Veterinarian-specific
+  licenseNumber?: string;  // optional
+  expertise?: string;      // optional
+  
+  // CareStaff-specific
+  skills?: string[];       // optional
+}
+```
+
+### UpdateEmployeeDto
+```typescript
+{
+  fullName?: string;
+  phoneNumber?: string;
+  address?: string;
+  salary?: number;
+  licenseNumber?: string;
+  expertise?: string;
+  skills?: string[];
+}
+```
+
+---
+
+## 3. Pet Owners
+
+**Base URL:** `/api/pet-owners`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| GET | `/` | Get all pet owners | ✅ | Staff |
+| GET | `/search` | Search pet owners | ✅ | Staff |
+| POST | `/register` | Register (public) | ❌ | Public |
+| GET | `/:accountId` | Get by account ID | ✅ | PET_OWNER (self), MANAGER, RECEPTIONIST |
+| PUT | `/:accountId/profile` | Update profile | ✅ | PET_OWNER (self), MANAGER |
+| PUT | `/:accountId/preferences` | Update preferences | ✅ | PET_OWNER (self), MANAGER |
+| GET | `/:id/appointments` | Get appointments | ✅ | Staff |
+| GET | `/:id/invoices` | Get invoices | ✅ | Staff |
+
+### RegisterPetOwnerDto (Public)
+```typescript
+{
+  email: string;         // required
+  password: string;      // required, min 8 chars
+  fullName: string;      // required
+  phoneNumber: string;   // required
+  address?: string;      // optional
+}
+```
+
+### UpdatePetOwnerDto
+```typescript
+{
+  fullName?: string;
+  phoneNumber?: string;
+  address?: string;
+  preferredContactMethod?: string;
+  emergencyContact?: string;
+}
+```
+
+---
+
+## 4. Pets
+
+**Base URL:** `/api/pets`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| GET | `/` | Get all pets | ✅ | Staff |
+| GET | `/me` | Get my pets | ✅ | **PET_OWNER** |
+| POST | `/me` | Register pet (owner) | ✅ | **PET_OWNER** |
+| GET | `/search` | Search pets | ✅ | Staff |
+| POST | `/register` | Register pet (staff) | ✅ | **MANAGER**, RECEPTIONIST |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get pet by ID | ✅ | All (with access check) |
+| GET | `/owner/:ownerId` | Get pets by owner | ✅ | Staff |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update pet | ✅ | Owner (self), MANAGER |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete pet | ✅ | **MANAGER** |
+| PUT | `/:id/restore` | Restore pet | ✅ | **MANAGER** |
+| GET | `/deleted/:ownerId` | Get deleted pets | ✅ | **MANAGER** |
+| GET | `/species/:species` | Get by species | ✅ | Staff |
+| PUT | `/:id/transfer` | Transfer ownership | ✅ | **MANAGER** |
+| GET | `/:id/medical-history` | Get medical history | ✅ | Staff |
+| GET | `/:id/appointments` | Get appointments | ✅ | Staff |
+
+### CreatePetDto
+```typescript
+{
+  name: string;                 // required
+  species: string;              // required (Dog, Cat, Bird, etc.)
+  breed?: string;               // optional
+  birthDate?: string;           // optional, ISO 8601 (YYYY-MM-DD)
+  gender?: string;              // optional (Male, Female, Unknown)
+  weight?: number;              // optional, 0-500 kg
+  color?: string;               // optional
+  initialHealthStatus?: string; // optional
+  specialNotes?: string;        // optional
+}
+```
+
+---
+
+## 5. Appointments
+
+**Base URL:** `/api/appointments`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create appointment | ✅ | **MANAGER**, RECEPTIONIST |
+| POST | `/me` | Create my appointment | ✅ | **PET_OWNER** |
+| GET | `/` | Get all appointments | ✅ | All (filtered by role) |
+| GET | `/me` | Get my appointments | ✅ | **PET_OWNER** |
+| GET | `/by-date-range` | Get by date range | ✅ | MANAGER, RECEPTIONIST |
+| GET | `/by-status` | Get by status | ✅ | Staff |
+| GET | `/pet/:petId` | Get by pet | ✅ | All |
+| GET | `/employee/:employeeId` | Get by employee | ✅ | Staff |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ✅ | All |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete | ✅ | **MANAGER** |
+| PUT | `/:id/confirm` | Confirm | ✅ | **MANAGER**, RECEPTIONIST |
+| PUT | `/:id/start` | Start | ✅ | VETERINARIAN, CARE_STAFF |
+| PUT | `/:id/complete` | Complete | ✅ | VETERINARIAN, CARE_STAFF |
+| PUT | `/:id/cancel` | Cancel | ✅ | MANAGER, RECEPTIONIST |
+
+### CreateAppointmentDto
+```typescript
+{
+  petId: number;           // required
+  employeeId: number;      // required
+  serviceId: number;       // required
+  appointmentDate: string; // required, YYYY-MM-DD
+  startTime: string;       // required, HH:MM
+  endTime: string;         // required, HH:MM
+  notes?: string;          // optional
+  estimatedCost?: number;  // optional
+}
+```
+
+---
+
+## 6. Invoices
+
+**Base URL:** `/api/invoices`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/generate` | Generate invoice | ✅ | **MANAGER**, RECEPTIONIST |
+| POST | `/` | Create invoice | ✅ | **MANAGER**, RECEPTIONIST |
+| GET | `/` | Get all invoices | ✅ | All (filtered by role) |
+| GET | `/overdue` | Get overdue | ✅ | **MANAGER** |
+| GET | `/by-status` | Get by status | ✅ | Staff |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ✅ | All |
+| GET | `/number/:invoiceNumber` | Get by number | ✅ | All |
+| GET | `/appointment/:appointmentId` | Get by appointment | ✅ | Staff |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete | ✅ | **MANAGER** |
+| PUT | `/:id/paid` | Mark as paid | ✅ | **MANAGER**, RECEPTIONIST |
+| PUT | `/:id/failed` | Mark as failed | ✅ | **MANAGER** |
+| PUT | `/:id/processing` | Mark as processing | ✅ | **MANAGER**, RECEPTIONIST, PET_OWNER |
+
+### CreateInvoiceDto
+```typescript
+{
+  appointmentId: number;  // required
+  discountCode?: string;  // optional
+  notes?: string;         // optional, max 500 chars
+}
+```
+
+---
+
+## 7. Payments
+
+**Base URL:** `/api/payments`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Process cash payment | ✅ | **MANAGER**, RECEPTIONIST |
+| GET | `/` | Get all payments | ✅ | All |
+| POST | `/online/initiate` | Initiate VNPay payment | ✅ | **MANAGER**, RECEPTIONIST, **PET_OWNER** |
+| POST | `/vnpay/callback` | VNPay callback | ❌ | Public (webhook) |
+| GET | `/history` | Get payment history | ✅ | **MANAGER**, RECEPTIONIST |
+| POST | `/:id/refund` | Process refund | ✅ | **MANAGER** |
+| GET | `/:id/receipt` | Generate receipt | ✅ | **MANAGER**, RECEPTIONIST, **PET_OWNER** |
+| GET | `/:id/verify` | Verify payment | ✅ | **MANAGER**, RECEPTIONIST |
+
+### CreatePaymentDto (Cash/Bank)
+```typescript
+{
+  invoiceId: number;
+  paymentMethod: PaymentMethod;  // CASH, BANK_TRANSFER
+  amount: number;
+  transactionId?: string;
+  notes?: string;
+}
+```
+
+### InitiateOnlinePaymentDto (VNPay)
+```typescript
+{
+  invoiceId: number;          // required
+  paymentMethod: PaymentMethod; // required (VNPAY, MOMO, ZALOPAY)
+  returnUrl?: string;         // optional
+  ipAddress?: string;         // optional
+  locale?: string;            // optional ('vi' or 'en')
+}
+```
+
+---
+
+## 8. Services
+
+**Base URL:** `/api/services`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create service | ✅ | **MANAGER** |
+| GET | `/` | Get all services | ❌ | Public |
+| GET | `/search` | Search services | ❌ | Public |
+| GET | `/category/:categoryId` | Get by category | ❌ | Public |
+| GET | `/price-range` | Get by price range | ❌ | Public |
+| GET | `/boarding` | Get boarding services | ❌ | Public |
+| GET | `/staff-type/:staffType` | Get by staff type | ❌ | Public |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ❌ | Public |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update service | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete service | ✅ | **MANAGER** |
+| PUT | `/:id/availability` | Toggle availability | ✅ | **MANAGER** |
+| GET | `/:id/calculate-price` | Calculate price | ❌ | Public |
+
+### CreateServiceDto (MANAGER only)
+```typescript
+{
+  serviceName: string;        // required
+  categoryId: number;         // required
+  description?: string;       // optional
+  basePrice: number;          // required, min 0
+  estimatedDuration: number;  // required, 15-480 minutes
+  requiredStaffType: string;  // required ('Veterinarian', 'CareStaff', 'Any')
+  isBoardingService?: boolean; // optional, default false
+}
+```
+
+---
+
+## 9. Service Categories
+
+**Base URL:** `/api/service-categories`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create category | ✅ | **MANAGER** |
+| GET | `/` | Get all categories | ❌ | Public |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ❌ | Public |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update category | ✅ | **MANAGER** |
+| PUT | `/:id/toggle-active` | Toggle active | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete category | ✅ | **MANAGER** |
+
+### CreateServiceCategoryDto (MANAGER only)
+```typescript
+{
+  categoryName: string;   // required
+  description?: string;   // optional
+  displayOrder?: number;  // optional
+}
+```
+
+---
+
+## 10. Schedules
+
+**Base URL:** `/api/schedules`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create schedule | ✅ | **MANAGER** |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ✅ | Staff |
+| GET | `/` | Get all schedules | ✅ | Staff |
+| GET | `/employee/:employeeId` | Get by employee | ✅ | Staff (self), MANAGER |
+| GET | `/date/:date` | Get by date | ✅ | Staff |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update schedule | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete schedule | ✅ | **MANAGER** |
+| GET | `/availability/check` | Check availability | ✅ | Staff |
+| GET | `/available-employees` | Get available employees | ✅ | Staff |
+| PUT | `/:id/break` | Assign break time | ✅ | **MANAGER** |
+| PUT | `/:id/unavailable` | Mark unavailable | ✅ | **MANAGER** |
+| PUT | `/:id/available` | Mark available | ✅ | **MANAGER** |
+
+### CreateWorkScheduleDto (MANAGER only)
+```typescript
+{
+  employeeId: number;   // required
+  workDate: string;     // required, YYYY-MM-DD
+  startTime: string;    // required, HH:MM
+  endTime: string;      // required, HH:MM
+  breakStart?: string;  // optional, HH:MM
+  breakEnd?: string;    // optional, HH:MM
+  notes?: string;       // optional
+}
+```
+
+---
+
+## 11. Cages
+
+**Base URL:** `/api/cages`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| POST | `/` | Create cage | ✅ | **MANAGER** |
+| GET | `/` | Get all cages | ✅ | Staff |
+| GET | `/available` | Get available cages | ✅ | Staff |
+| GET | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Get by ID | ✅ | Staff |
+| PUT | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Update cage | ✅ | **MANAGER** |
+| DELETE | [/:id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | Delete cage | ✅ | **MANAGER** |
+| PUT | `/:id/maintenance/start` | Start maintenance | ✅ | **MANAGER**, CARE_STAFF |
+| PUT | `/:id/maintenance/complete` | Complete maintenance | ✅ | **MANAGER**, CARE_STAFF |
+| PUT | `/:id/reserve` | Reserve cage | ✅ | RECEPTIONIST |
+| PUT | `/:id/cancel-reservation` | Cancel reservation | ✅ | RECEPTIONIST |
+| POST | `/:id/check-in` | Check in pet | ✅ | **MANAGER**, RECEPTIONIST, CARE_STAFF |
+| PUT | `/assignment/:assignmentId/check-out` | Check out pet | ✅ | **MANAGER**, RECEPTIONIST, CARE_STAFF |
+| GET | `/:id/assignments` | Get cage assignments | ✅ | Staff |
+| GET | `/:id/active-assignment` | Get active assignment | ✅ | Staff |
+| GET | `/assignments/active` | Get all active assignments | ✅ | Staff |
+
+### CreateCageDto (MANAGER only)
+```typescript
+{
+  cageNumber: string;   // required, max 20 chars
+  size: CageSize;       // required (SMALL, MEDIUM, LARGE)
+  location?: string;    // optional, max 50 chars
+  dailyRate: number;    // required, min 0
+  notes?: string;       // optional
+}
+```
+
+### AssignCageDto (Check-in)
+```typescript
+{
+  petId: number;            // required
+  checkInDate: string;      // required, YYYY-MM-DD
+  expectedCheckOutDate: string; // required, YYYY-MM-DD
+  notes?: string;           // optional
+}
+```
+
+---
+
+## 12. Medical Records
+
+**Base URL:** `/api/medical-records` and `/api/pets/:petId/vaccinations`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| GET | `/medical-records` | Get all records | ✅ | Staff |
+| POST | `/medical-records` | Create record | ✅ | VETERINARIAN |
+| GET | `/medical-records/:id` | Get by ID | ✅ | Staff |
+| GET | `/medical-records/pet/:petId` | Get by pet | ✅ | Staff |
+| PUT | `/medical-records/:id` | Update record | ✅ | VETERINARIAN |
+| GET | `/medical-records/pet/:petId/overdue-followups` | Get overdue | ✅ | Staff |
+| GET | `/vaccine-types` | Get all vaccine types | ✅ | Staff |
+| POST | `/pets/:petId/vaccinations` | Add vaccination | ✅ | VETERINARIAN |
+| GET | `/pets/:petId/vaccinations` | Get vaccinations | ✅ | All |
+| GET | `/pets/:petId/vaccinations/upcoming` | Get upcoming | ✅ | All |
+| GET | `/pets/:petId/vaccinations/overdue` | Get overdue | ✅ | All |
+
+### CreateMedicalRecordDto
+```typescript
+{
+  petId: number;           // required
+  appointmentId?: number;  // optional
+  diagnosis: string;       // required
+  treatment: string;       // required
+  medications?: string;    // optional
+  notes?: string;          // optional
+  followUpDate?: string;   // optional, YYYY-MM-DD
+}
+```
+
+### CreateVaccinationDto
+```typescript
+{
+  vaccineTypeId: number;       // required
+  vaccinationDate: string;     // required, YYYY-MM-DD
+  nextDueDate?: string;        // optional, YYYY-MM-DD
+  batchNumber?: string;        // optional
+  administeredBy: number;      // required (employee ID)
+  notes?: string;              // optional
+}
+```
+
+---
+
+## 13. Reports (MANAGER ONLY)
+
+**Base URL:** `/api/reports`
+
+| Method | Endpoint | Description | Auth | Roles |
+|--------|----------|-------------|------|-------|
+| GET | `/financial` | Financial report | ✅ | **MANAGER** |
+| GET | `/revenue` | Revenue by period | ✅ | **MANAGER** |
+| GET | `/appointments` | Appointment statistics | ✅ | **MANAGER** |
+| GET | `/services/top` | Top services | ✅ | **MANAGER** |
+| GET | `/services/performance` | Service performance | ✅ | **MANAGER** |
+| GET | `/employees/workload` | Employee workload | ✅ | **MANAGER** |
+| GET | `/customers/retention` | Customer retention | ✅ | **MANAGER** |
+| GET | `/dashboard` | Dashboard overview | ✅ | **MANAGER** |
+
+### Query Parameters
+
+#### Financial Report
+```
+GET /api/reports/financial?startDate=2025-01-01&endDate=2025-12-31
+```
+
+#### Revenue by Period
+```
+GET /api/reports/revenue?period=month&year=2025
+// period: 'month' | 'quarter' | 'year'
+```
+
+#### Top Services
+```
+GET /api/reports/services/top?limit=10&startDate=2025-01-01&endDate=2025-12-31&sortBy=revenue
+// sortBy: 'count' | 'revenue'
+```
+
+---
+
+## Response Format
+
+Tất cả responses được wrap trong `ApiResponse`:
+
+```typescript
+{
+  statusCode: number;     // HTTP status code
+  message: string;        // Response message
+  data: any;              // Actual data
+  path: string;           // Request path
+  timestamp: string;      // ISO timestamp
+}
+```
+
+## Error Handling
+
+| Status Code | Meaning |
+|-------------|---------|
+| 400 | Bad Request - Validation failed |
+| 401 | Unauthorized - Invalid/missing token |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found |
+| 409 | Conflict - Duplicate/constraint violation |
+| 500 | Internal Server Error |
+
+---
+
+## Frontend Design Recommendations
+
+### 1. Manager Dashboard Modules
+- **Dashboard**: `/reports/dashboard`
+- **Employees**: CRUD + availability management
+- **Appointments**: Full lifecycle management
+- **Invoices/Payments**: Generate, track, payments
+- **Services/Categories**: Full CRUD
+- **Schedules**: Staff scheduling
+- **Cages**: Boarding management
+- **Reports**: Analytics and charts
+
+### 2. Key Features per Role
+
+| Feature | MANAGER | RECEPTIONIST | VETERINARIAN | CARE_STAFF | PET_OWNER |
+|---------|---------|--------------|--------------|------------|-----------|
+| Create Employee | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manage Services | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manage Schedules | ✅ | ❌ | ❌ | ❌ | ❌ |
+| View Reports | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Process Payment | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Create Appointment | ✅ | ✅ | ❌ | ❌ | ✅ (own) |
+| Medical Records | ❌ | ❌ | ✅ | ❌ | View |
+| Cage Operations | ✅ | ✅ | ❌ | ✅ | ❌ |
+
+### 3. Field Mapping Notes
+
+| Frontend Field | Backend Field | Notes |
+|----------------|---------------|-------|
+| [id](file:///d:/1_Hoc_Tap/1_1_Dai_Hoc/Tai_lieu_ki_1_nam_3/PhuongPhapPhatTrienPhanMemHuo/DoAn/do-an-thu-cung/components/layout/Sidebar.jsx#65-237) | `petId`, `invoiceId`, etc. | Use fallback: `item.petId \|\| item.id` |
+| `type` (pet) | `species` | Backend uses `species` |
+| `dateOfBirth` | `birthDate` | Backend uses `birthDate` |
+| `price` (service) | `basePrice` | Backend uses `basePrice` |
+| `medicalHistory` | `initialHealthStatus` | For pets |
+| `notes` | `specialNotes` | For pets |
+
+### 4. Common Patterns
+
+```javascript
+// ID fallback pattern
+const id = item.petId || item.id;
+
+// Date formatting
+const dateStr = new Date(item.createdAt).toLocaleDateString('vi-VN');
+
+// Status badge mapping
+const statusMap = {
+  PENDING: { color: 'amber', label: 'Chờ xử lý' },
+  COMPLETED: { color: 'green', label: 'Hoàn thành' },
+  // ...
+};
+```

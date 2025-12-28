@@ -1,355 +1,699 @@
+/**
+ * Invoice Management - Premium UI với Emoji Icons
+ * 
+ * Route: /dashboard/manager/invoices
+ * 
+ * Features:
+ * - Gradient header (Rose → Pink)
+ * - Stats cards: Total, Pending, Paid, Revenue
+ * - Status tabs & filters
+ * - Invoice cards với customer info
+ * - Payment status management
+ * - Invoice detail modal
+ * 
+ * APIs:
+ * - GET /invoices
+ * - GET /invoices/:id
+ * - PUT /invoices/:id/status
+ * - GET /invoices/stats
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import {
-  Receipt, Search, Eye, FileDown, CheckCircle2,
-  Hourglass, ClipboardList, DollarSign, RefreshCw
-} from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import StatsCard from "@/components/dashboard/StatsCard";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
-import { cn } from "@/lib/utils";
-import { invoiceApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function ManagerInvoicesPage() {
+export default function InvoicesPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [invoices, setInvoices] = useState([]);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+
   const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState([]);
+  const [filteredInvoices, setFilteredInvoices] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
+
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Completed appointments without invoices
+  const [completedAppointments, setCompletedAppointments] = useState([]);
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    paid: 0,
+    revenue: 0
+  });
 
   useEffect(() => {
-    loadInvoices();
+    loadData();
   }, []);
 
-  const loadInvoices = async () => {
+  useEffect(() => {
+    filterInvoices();
+    calculateStats();
+  }, [invoices, searchTerm, statusFilter, dateFilter]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      const token = getToken();
-
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await invoiceApi.getAll({ includeAppointment: true, includePetOwner: true, includePet: true });
-
-      // TODO: This is very wrong
-      if (response.success && response.data) {
-        const mappedInvoices = response.data.map(inv => {
-          // Get pet icon based on species
-          const petIcon = inv.appointment?.pet?.species === 'Dog' ? '🐕' :
-            inv.appointment?.pet?.species === 'Cat' ? '🐈' : '🐾';
-
-          // Map services from invoice items or appointment
-          const services = inv.invoiceItems?.map(item => ({
-            icon: getServiceIcon(item.serviceName),
-            name: item.serviceName || item.description,
-            quantity: item.quantity || 1,
-            price: parseFloat(item.unitPrice || 0)
-          })) || [];
-
-          return {
-            id: inv.invoiceNumber || `INV-${inv.invoiceID}`,
-            customerName: inv.petOwner?.fullName || inv.petOwner?.fullName || 'N/A',
-            customerPhone: inv.petOwner?.phoneNumber || inv.petOwner?.phoneNumber || 'N/A',
-            customerEmail: inv.petOwner?.account?.email || 'N/A',
-            petName: inv.pet?.name || 'N/A',
-            petIcon: petIcon,
-            petBreed: inv.pet?.breed || 'N/A',
-            petAge: calculateAge(inv.pet?.birthDate),
-            date: inv.invoiceDate || inv.createdAt,
-            services: services,
-            subtotal: parseFloat(inv.subtotal || 0),
-            discount: parseFloat(inv.discountAmount || 0),
-            total: parseFloat(inv.totalAmount || 0),
-            isPaid: inv.isPaid || false,
-            paymentMethod: inv.payment?.paymentMethod || null,
-            paymentDate: inv.payment?.paymentDate || null,
-            notes: inv.notes || '',
-            rawData: inv
-          };
-        });
-
-        setInvoices(mappedInvoices);
-      } else {
-        console.error("Failed to load invoices:", response.error);
-        showToast("Không thể tải danh sách hóa đơn", "error");
-      }
+      
+      const [invoicesRes, appointmentsRes] = await Promise.all([
+        apiClient.get('/invoices?includeAppointment=true&includePet=true&includePetOwner=true'),
+        apiClient.get('/appointments?status=COMPLETED').catch(() => ({ data: [] }))
+      ]);
+      
+      console.log('Invoices response:', invoicesRes.data);
+      
+      const invoicesData = Array.isArray(invoicesRes.data) ? invoicesRes.data : 
+                  (invoicesRes.data?.data || []);
+      const appointmentsData = Array.isArray(appointmentsRes.data) ? appointmentsRes.data : 
+                  (appointmentsRes.data?.data || []);
+      
+      console.log('Parsed invoices:', invoicesData);
+      console.log('Parsed appointments:', appointmentsData);
+      
+      // Filter appointments that don't have invoices yet
+      const invoicedAppointmentIds = new Set(
+        invoicesData.map(inv => inv.appointmentId || inv.appointment?.appointmentId).filter(Boolean)
+      );
+      const pendingAppointments = appointmentsData.filter(
+        apt => !invoicedAppointmentIds.has(apt.appointmentId || apt.id)
+      );
+      
+      setInvoices(invoicesData);
+      setCompletedAppointments(pendingAppointments);
     } catch (error) {
       console.error("Error loading invoices:", error);
-      showToast("Lỗi khi tải danh sách hóa đơn", "error");
+      showToast("Không thể tải danh sách hóa đơn", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const getServiceIcon = (serviceName) => {
-    if (!serviceName) return '✨';
-    const name = serviceName.toLowerCase();
-    if (name.includes('khám') || name.includes('điều trị')) return '🏥';
-    if (name.includes('tiêm') || name.includes('vaccine')) return '💉';
-    if (name.includes('tắm') || name.includes('spa')) return '🛁';
-    if (name.includes('cắt') || name.includes('tỉa')) return '✂️';
-    if (name.includes('lưu trú') || name.includes('khách sạn')) return '🏠';
-    return '✨';
-  };
+  const filterInvoices = () => {
+    let filtered = [...invoices];
 
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 0;
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
+    // Filter by status
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(inv => {
+        const status = inv.paymentStatus || inv.status;
+        return status?.toUpperCase() === statusFilter.toUpperCase();
+      });
     }
-    return age;
+
+    // Filter by date
+    if (dateFilter) {
+      filtered = filtered.filter(inv => {
+        const invoiceDate = (inv.createdAt || inv.invoiceDate)?.split('T')[0];
+        return invoiceDate === dateFilter;
+      });
+    }
+
+    // Filter by search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(inv => 
+        inv.invoiceNumber?.toLowerCase().includes(term) ||
+        inv.customer?.fullName?.toLowerCase().includes(term) ||
+        inv.owner?.fullName?.toLowerCase().includes(term) ||
+        inv.pet?.name?.toLowerCase().includes(term)
+      );
+    }
+
+    setFilteredInvoices(filtered);
   };
 
-  // Removed mock data - now using API
+  const calculateStats = () => {
+    const total = invoices.length;
+    const pending = invoices.filter(inv => {
+      const status = (inv.paymentStatus || inv.status)?.toUpperCase();
+      return status === 'PENDING' || status === 'UNPAID';
+    }).length;
+    const paid = invoices.filter(inv => {
+      const status = (inv.paymentStatus || inv.status)?.toUpperCase();
+      return status === 'PAID' || status === 'COMPLETED';
+    }).length;
+    const revenue = invoices
+      .filter(inv => {
+        const status = (inv.paymentStatus || inv.status)?.toUpperCase();
+        return status === 'PAID' || status === 'COMPLETED';
+      })
+      .reduce((sum, inv) => sum + (inv.totalAmount || inv.total || 0), 0);
 
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchSearch = invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSearch;
-  });
+    setStats({ total, pending, paid, revenue });
+  };
 
+  const handleViewInvoice = async (invoice) => {
+    // Invoice from list already has all relations (petOwner, pet, service)
+    // so we use it directly instead of fetching again
+    console.log('📋 Invoice data:', invoice);
+    setSelectedInvoice(invoice);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedInvoice(null);
+  };
+
+  const handleUpdateStatus = async (invoice, newStatus) => {
+    const id = invoice.invoiceId || invoice.id;
+    
+    try {
+      setSaving(true);
+      // Backend uses different endpoints for different status changes
+      if (newStatus === 'PAID') {
+        await apiClient.put(`/invoices/${id}/mark-paid`);
+      } else if (newStatus === 'FAILED') {
+        await apiClient.put(`/invoices/${id}/mark-failed`);
+      } else if (newStatus === 'PROCESSING') {
+        await apiClient.put(`/invoices/${id}/mark-processing`);
+      } else {
+        throw new Error('Invalid status');
+      }
+      showToast(`Đã cập nhật trạng thái hóa đơn! ✅`, "success");
+      loadData();
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      showToast(error.response?.data?.message || "Không thể cập nhật hóa đơn", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateInvoice = async (appointment) => {
+    const appointmentId = appointment.appointmentId || appointment.id;
+    
+    try {
+      setSaving(true);
+      console.log('Creating invoice for appointmentId:', appointmentId);
+      const response = await apiClient.post('/invoices', { appointmentId });
+      console.log('Create invoice response:', response.data);
+      showToast(`Đã tạo hóa đơn thành công! 🧾`, "success");
+      loadData();
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      console.error("Error response:", error.response?.data);
+      showToast(error.response?.data?.message || "Không thể tạo hóa đơn", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // UI Helpers
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(amount);
+    return new Intl.NumberFormat('vi-VN').format(amount || 0) + 'đ';
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
     });
   };
 
-  const handleViewDetail = (invoice) => {
-    setSelectedInvoice(invoice);
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const handleExportPDF = async (invoice) => {
-    try {
-      const invoiceId = invoice.rawData?.invoiceID || invoice.id;
-      const response = await invoiceApi.generatePdf(invoiceId);
-
-      if (response.success && response.data) {
-        // Create blob and download
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${invoice.id}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        showToast(`Đã xuất hóa đơn ${invoice.id} thành công`, "success");
-      } else {
-        showToast(response.error || "Không thể xuất PDF", "error");
-      }
-    } catch (error) {
-      console.error("Error exporting PDF:", error);
-      showToast("Lỗi khi xuất PDF", "error");
-    }
+  const getStatusConfig = (status) => {
+    const s = status?.toUpperCase() || 'PENDING';
+    const configs = {
+      'PENDING': { label: 'Chờ thanh toán', emoji: '🟡', bg: 'bg-yellow-100 text-yellow-700', color: 'yellow' },
+      'UNPAID': { label: 'Chưa thanh toán', emoji: '🔴', bg: 'bg-red-100 text-red-700', color: 'red' },
+      'PAID': { label: 'Đã thanh toán', emoji: '🟢', bg: 'bg-green-100 text-green-700', color: 'green' },
+      'COMPLETED': { label: 'Hoàn thành', emoji: '✅', bg: 'bg-green-100 text-green-700', color: 'green' },
+      'CANCELLED': { label: 'Đã hủy', emoji: '❌', bg: 'bg-gray-100 text-gray-700', color: 'gray' },
+      'REFUNDED': { label: 'Đã hoàn tiền', emoji: '↩️', bg: 'bg-purple-100 text-purple-700', color: 'purple' }
+    };
+    return configs[s] || configs.PENDING;
   };
 
-  const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + (inv.isPaid ? inv.total : 0), 0);
-  const unpaidAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.isPaid ? 0 : inv.total), 0);
-
-  const stats = {
-    total: filteredInvoices.length,
-    paid: filteredInvoices.filter(i => i.isPaid).length,
-    unpaid: filteredInvoices.filter(i => !i.isPaid).length,
-    revenue: totalRevenue,
-    pending: unpaidAmount
+  const getPaymentMethodLabel = (method) => {
+    const methods = {
+      'CASH': '💵 Tiền mặt',
+      'CARD': '💳 Thẻ',
+      'TRANSFER': '🏦 Chuyển khoản',
+      'MOMO': '📱 MoMo',
+      'VNPAY': '📱 VNPay',
+      'ZALOPAY': '📱 ZaloPay'
+    };
+    return methods[method?.toUpperCase()] || method || 'N/A';
   };
+
+  const tabs = [
+    { id: 'all', label: 'Tất cả', count: invoices.length },
+    { id: 'PENDING', label: '🟡 Chờ TT', count: stats.pending },
+    { id: 'PAID', label: '🟢 Đã TT', count: stats.paid },
+    { id: 'CANCELLED', label: '❌ Đã hủy', count: invoices.filter(i => (i.paymentStatus || i.status)?.toUpperCase() === 'CANCELLED').length }
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-8xl mb-4 animate-bounce">🧾</div>
+          <p className="text-gray-500 text-lg">Đang tải hóa đơn...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Quản lý hóa đơn"
-        subtitle="Theo dõi và quản lý hóa đơn thanh toán"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          icon={Receipt}
-          title="Tổng hóa đơn"
-          value={stats.total}
-          color="primary"
-        />
-        <StatsCard
-          icon={CheckCircle2}
-          title="Đã thanh toán"
-          value={stats.paid}
-          change={formatCurrency(stats.revenue)}
-          color="success"
-        />
-        <StatsCard
-          icon={Hourglass}
-          title="Chưa thanh toán"
-          value={stats.unpaid}
-          change={formatCurrency(stats.pending)}
-          color="warning"
-        />
-        <StatsCard
-          icon={DollarSign}
-          title="Tổng doanh thu"
-          value={formatCurrency(stats.revenue)}
-          color="info"
-        />
-      </div>
-
-      {/* Search */}
-      <div className="flex justify-end">
-        <div className="w-full sm:w-64">
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo tên khách hàng hoặc mã hóa đơn..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            icon={Search}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Danh sách hóa đơn
-          </h2>
-          <Badge variant="outline" className="text-sm">
-            {filteredInvoices.length} hóa đơn
-          </Badge>
-        </div>
-
-        {loading ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-              <p className="text-muted-foreground font-medium">
-                Đang tải dữ liệu...
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* 🌈 Gradient Header */}
+      <div className="bg-gradient-to-r from-rose-500 via-pink-500 to-fuchsia-500 text-white p-8 pb-28 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+                <span className="text-4xl">🧾</span>
+                Quản Lý Hóa Đơn
+              </h1>
+              <p className="text-white/90">
+                Theo dõi thanh toán và doanh thu
               </p>
+            </div>
+            <div className="flex gap-2">
+              {completedAppointments.length > 0 && (
+                <Button 
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30 flex items-center gap-2"
+                >
+                  ➕ Tạo hóa đơn ({completedAppointments.length})
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 -mt-20 pb-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm text-gray-500">🧾 Tổng hóa đơn</p>
             </CardContent>
           </Card>
-        ) : filteredInvoices.length > 0 ? (
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[120px]">Mã hóa đơn</TableHead>
-                  <TableHead className="min-w-[150px]">Khách hàng</TableHead>
-                  <TableHead className="min-w-[120px]">Thú cưng</TableHead>
-                  <TableHead className="min-w-[100px]">Ngày tạo</TableHead>
-                  <TableHead className="min-w-[120px]">Tổng tiền</TableHead>
-                  <TableHead className="min-w-[120px]">Trạng thái</TableHead>
-                  <TableHead className="min-w-[120px] text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {invoice.id}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-semibold text-foreground">{invoice.customerName}</p>
-                        <p className="text-xs text-muted-foreground">{invoice.customerPhone}</p>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+              <p className="text-sm text-gray-500">🟡 Chờ thanh toán</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-green-600">{stats.paid}</p>
+              <p className="text-sm text-gray-500">🟢 Đã thanh toán</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-rose-600">{formatCurrency(stats.revenue)}</p>
+              <p className="text-sm text-gray-500">💰 Tổng doanh thu</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card className="bg-white shadow-xl mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Search */}
+              <div className="flex-1 min-w-[200px] relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🔍</span>
+                <Input
+                  type="text"
+                  placeholder="Tìm kiếm theo mã HĐ, khách hàng..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">📅</span>
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-auto"
+                />
+                {dateFilter && (
+                  <button 
+                    onClick={() => setDateFilter("")}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    ❌
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Status Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                statusFilter === tab.id
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
+        {/* Invoice Count */}
+        <p className="text-sm text-gray-500 mb-4">
+          Hiển thị {filteredInvoices.length} / {invoices.length} hóa đơn
+        </p>
+
+        {/* Invoice List */}
+        {filteredInvoices.length > 0 ? (
+          <div className="space-y-3">
+            {filteredInvoices.map((invoice, idx) => {
+              const invoiceId = invoice.invoiceId || invoice.id;
+              const status = getStatusConfig(invoice.paymentStatus || invoice.status);
+              const customer = invoice.petOwner || invoice.customer || invoice.owner;
+              const pet = invoice.pet;
+              const serviceName = invoice.service?.serviceName;
+              
+              return (
+                <Card 
+                  key={invoiceId || idx} 
+                  className="bg-white shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                  onClick={() => handleViewInvoice(invoice)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      {/* Invoice Icon */}
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                        status.color === 'green' ? 'bg-green-100' :
+                        status.color === 'yellow' ? 'bg-yellow-100' :
+                        status.color === 'red' ? 'bg-red-100' : 'bg-gray-100'
+                      }`}>
+                        🧾
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{invoice.petIcon}</span>
-                        <span className="text-sm font-medium text-foreground">{invoice.petName}</span>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-gray-900">
+                            #{invoice.invoiceNumber || invoiceId}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.bg}`}>
+                            {status.emoji} {status.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          👤 {customer?.fullName || 'Khách vãng lai'}
+                          {pet && <> • 🐾 {pet.name}</>}
+                          {serviceName && <> • 💼 {serviceName}</>}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          📆 {formatDateTime(invoice.createdAt || invoice.issueDate)}
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(invoice.date)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-foreground">
-                        {formatCurrency(invoice.total)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={invoice.isPaid ? "success" : "warning"}>
-                        {invoice.isPaid ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Đã thanh toán
-                          </>
-                        ) : (
-                          <>
-                            <Hourglass className="h-3 w-3 mr-1" />
-                            Chưa thanh toán
-                          </>
+
+                      {/* Amount */}
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-rose-600">
+                          {formatCurrency(invoice.totalAmount || invoice.total)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {invoice.items?.length || invoice.invoiceItems?.length || 0} dịch vụ
+                        </p>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="flex gap-2">
+                        {(status.color === 'yellow' || status.color === 'red') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleUpdateStatus(invoice, 'PAID'); }}
+                            className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm hover:bg-green-100"
+                          >
+                            💰 Thanh toán
+                          </button>
                         )}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          onClick={() => handleViewDetail(invoice)}
-                          variant="ghost"
-                          size="icon"
-                          title="Xem chi tiết"
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleViewInvoice(invoice); }}
+                          className="p-2 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                         >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={() => handleExportPDF(invoice)}
-                          variant="ghost"
-                          size="icon"
-                          title="Xuất PDF"
-                        >
-                          <FileDown className="h-4 w-4" />
-                        </Button>
+                          👁️
+                        </button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Search className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground font-medium">
-                Không tìm thấy hóa đơn nào
-              </p>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="py-16 text-center">
+              <span className="text-8xl block mb-4">🧾</span>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Không tìm thấy hóa đơn</h3>
+              <p className="text-gray-500 mb-4">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Modal */}
-      <InvoiceDetailModal
-        isOpen={!!selectedInvoice}
-        onClose={() => setSelectedInvoice(null)}
-        invoice={selectedInvoice}
-      />
+      {/* Invoice Detail Modal */}
+      {isModalOpen && selectedInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                🧾 Chi tiết hóa đơn #{selectedInvoice.invoiceNumber || selectedInvoice.invoiceId || selectedInvoice.id}
+              </h2>
+              <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
+                ❌
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Status & Date */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusConfig(selectedInvoice.paymentStatus || selectedInvoice.status).bg}`}>
+                    {getStatusConfig(selectedInvoice.paymentStatus || selectedInvoice.status).emoji} {getStatusConfig(selectedInvoice.paymentStatus || selectedInvoice.status).label}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">
+                  📆 {formatDateTime(selectedInvoice.createdAt || selectedInvoice.invoiceDate)}
+                </p>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-700 mb-2">👤 Thông tin khách hàng</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <p>Họ tên: <span className="font-medium">{selectedInvoice.petOwner?.fullName || selectedInvoice.customer?.fullName || 'N/A'}</span></p>
+                  <p>SĐT: <span className="font-medium">{selectedInvoice.petOwner?.phoneNumber || selectedInvoice.customer?.phoneNumber || 'N/A'}</span></p>
+                  <p>Địa chỉ: <span className="font-medium">{selectedInvoice.petOwner?.address || 'N/A'}</span></p>
+                  {selectedInvoice.pet && (
+                    <p>Thú cưng: <span className="font-medium">🐾 {selectedInvoice.pet.name} ({selectedInvoice.pet.species})</span></p>
+                  )}
+                </div>
+              </div>
+
+              {/* Invoice Items */}
+              <div>
+                <h3 className="font-semibold text-gray-700 mb-3">📋 Chi tiết dịch vụ</h3>
+                <div className="border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left p-3">Dịch vụ</th>
+                        <th className="text-center p-3">SL</th>
+                        <th className="text-right p-3">Đơn giá</th>
+                        <th className="text-right p-3">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Display service info if available */}
+                      {selectedInvoice.service && (
+                        <tr className="border-t">
+                          <td className="p-3">{selectedInvoice.service.serviceName}</td>
+                          <td className="text-center p-3">1</td>
+                          <td className="text-right p-3">{formatCurrency(selectedInvoice.service.basePrice)}</td>
+                          <td className="text-right p-3 font-medium">{formatCurrency(selectedInvoice.service.basePrice)}</td>
+                        </tr>
+                      )}
+                      {/* Fallback to items if no service */}
+                      {!selectedInvoice.service && (selectedInvoice.items || selectedInvoice.invoiceItems || []).map((item, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="p-3">{item.serviceName || item.service?.serviceName || item.description}</td>
+                          <td className="text-center p-3">{item.quantity || 1}</td>
+                          <td className="text-right p-3">{formatCurrency(item.unitPrice || item.price)}</td>
+                          <td className="text-right p-3 font-medium">{formatCurrency(item.amount || item.subtotal || (item.unitPrice * (item.quantity || 1)))}</td>
+                        </tr>
+                      ))}
+                      {!selectedInvoice.service && (selectedInvoice.items || selectedInvoice.invoiceItems || []).length === 0 && (
+                        <tr className="border-t">
+                          <td colSpan="4" className="p-3 text-center text-gray-500">Không có chi tiết dịch vụ</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr className="border-t font-bold">
+                        <td colSpan="3" className="p-3 text-right">Tổng cộng:</td>
+                        <td className="p-3 text-right text-rose-600 text-lg">
+                          {formatCurrency(selectedInvoice.totalAmount || selectedInvoice.total)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              {selectedInvoice.paymentMethod && (
+                <div className="bg-green-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-700 mb-2">💳 Thông tin thanh toán</h3>
+                  <p className="text-sm">
+                    Phương thức: <span className="font-medium">{getPaymentMethodLabel(selectedInvoice.paymentMethod)}</span>
+                  </p>
+                  {selectedInvoice.paidAt && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Thanh toán lúc: {formatDateTime(selectedInvoice.paidAt)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedInvoice.notes && (
+                <div className="bg-yellow-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-700 mb-2">📝 Ghi chú</h3>
+                  <p className="text-sm">{selectedInvoice.notes}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button variant="outline" onClick={handleCloseModal}>
+                  Đóng
+                </Button>
+                {((selectedInvoice.paymentStatus || selectedInvoice.status)?.toUpperCase() === 'PENDING' ||
+                  (selectedInvoice.paymentStatus || selectedInvoice.status)?.toUpperCase() === 'UNPAID') && (
+                  <Button 
+                    onClick={() => handleUpdateStatus(selectedInvoice, 'PAID')}
+                    disabled={saving}
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+                  >
+                    {saving ? '⏳ Đang xử lý...' : '💰 Xác nhận thanh toán'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Invoice Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                ➕ Tạo hóa đơn từ lịch hẹn
+              </h2>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                ❌
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-4">
+                {completedAppointments.length} lịch hẹn đã hoàn thành chưa có hóa đơn
+              </p>
+
+              {completedAppointments.length > 0 ? (
+                <div className="space-y-3">
+                  {completedAppointments.map((apt, idx) => {
+                    const aptId = apt.appointmentId || apt.id;
+                    return (
+                      <div 
+                        key={aptId || idx} 
+                        className="bg-gray-50 rounded-xl p-4 flex items-center gap-4"
+                      >
+                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-xl">
+                          ✅
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold">
+                            🐾 {apt.pet?.name || 'N/A'} - {apt.service?.serviceName || apt.serviceName || 'Dịch vụ'}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            👤 {apt.pet?.owner?.fullName || apt.owner?.fullName || 'Chủ thú cưng'}
+                            {' • '}📅 {formatDateTime(apt.appointmentDate || apt.scheduledDate)}
+                          </p>
+                          <p className="text-sm text-rose-600 font-medium">
+                            💰 {formatCurrency(apt.service?.basePrice || apt.totalAmount || 0)}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => handleCreateInvoice(apt)}
+                          disabled={saving}
+                          size="sm"
+                          className="bg-gradient-to-r from-rose-500 to-pink-500 text-white"
+                        >
+                          {saving ? '⏳' : '🧾 Tạo HĐ'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <span className="text-6xl block mb-3">✅</span>
+                  <p className="text-gray-500">Tất cả lịch hẹn đã được tạo hóa đơn</p>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4 mt-4 border-t">
+                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

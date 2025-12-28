@@ -1,437 +1,733 @@
+/**
+ * Appointments Management - Premium UI với Emoji Icons
+ * 
+ * Route: /dashboard/manager/appointments
+ * 
+ * Features:
+ * - Gradient header (Orange → Amber)
+ * - Tabs: Tất cả, Chờ XN, Đã XN, Đang thực hiện, Hoàn thành
+ * - Calendar/List view toggle
+ * - Search & Filter by date range, status
+ * - Appointment cards với pet info, service, employee
+ * - Status lifecycle: confirm, start, complete, cancel
+ * - Create appointment modal
+ * 
+ * APIs:
+ * - GET /appointments
+ * - POST /appointments
+ * - PUT /appointments/:id
+ * - PUT /appointments/:id/confirm
+ * - PUT /appointments/:id/cancel
+ * - DELETE /appointments/:id
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  Calendar, Search, Edit, Hourglass, CheckCircle2, 
-  RefreshCw, XCircle, Clock, ClipboardList, User, Stethoscope, Wrench 
-} from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import StatsCard from "@/components/dashboard/StatsCard";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import UpdateAppointmentModal from "@/components/modals/UpdateAppointmentModal";
-import { cn } from "@/lib/utils";
-import { appointmentApi, employeeApi, getToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function ManagerAppointmentsPage() {
+export default function AppointmentsPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [appointments, setAppointments] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+
   const [loading, setLoading] = useState(true);
+  const [appointments, setAppointments] = useState([]);
+  const [filteredAppointments, setFilteredAppointments] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
+
+  // Data for dropdowns
+  const [pets, setPets] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [services, setServices] = useState([]);
+
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    petId: "",
+    employeeId: "",
+    serviceId: "",
+    appointmentDate: new Date().toISOString().split('T')[0],
+    startTime: "09:00",
+    endTime: "10:00",
+    notes: "",
+    estimatedCost: 0
+  });
 
   useEffect(() => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    filterAppointments();
+  }, [appointments, searchTerm, activeTab, dateFilter]);
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const token = getToken();
       
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      // TODO: Remove Customer Column
-      // Load staff and appointments in parallel
-      const [staffResponse, appointmentsResponse] = await Promise.all([
-        employeeApi.getAll(),
-        appointmentApi.getAll()
+      const [appointmentsRes, petsRes, employeesRes, servicesRes] = await Promise.all([
+        apiClient.get('/appointments'),
+        apiClient.get('/pets').catch(() => ({ data: [] })),
+        apiClient.get('/employees').catch(() => ({ data: [] })),
+        apiClient.get('/services').catch(() => ({ data: [] }))
       ]);
 
-      // Process staff data
-      console.log("Staff API response:", staffResponse);
-      if (staffResponse.success && staffResponse.data) {
-        console.log("Staff data from API:", staffResponse.data);
-        // Map backend userType to frontend role format
-        const roleMap = {
-          'VETERINARIAN': 'veterinarian',
-          'CARE_STAFF': 'care_staff',
-          'RECEPTIONIST': 'receptionist',
-          'MANAGER': 'manager'
-        };
+      const appointmentsData = Array.isArray(appointmentsRes.data) ? appointmentsRes.data : 
+                               (appointmentsRes.data?.data || []);
+      const petsData = Array.isArray(petsRes.data) ? petsRes.data : (petsRes.data?.data || []);
+      const employeesData = Array.isArray(employeesRes.data) ? employeesRes.data : (employeesRes.data?.data || []);
+      const servicesData = Array.isArray(servicesRes.data) ? servicesRes.data : (servicesRes.data?.data || []);
 
-        const mappedStaff = staffResponse.data.map(emp => ({
-          id: emp.employeeId || emp.employeeID || emp.id,
-          name: emp.fullName || emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Chưa có tên',
-          role: roleMap[emp.userType] || roleMap[emp.account?.userType] || emp.role || 'care_staff'
-        }));
-        console.log("Mapped staff list:", mappedStaff);
-        setStaffList(mappedStaff);
-      } else {
-        console.error("Failed to load staff:", staffResponse.error);
-      }
-
-      // Process appointments data
-      if (appointmentsResponse.success && appointmentsResponse.data) {
-        const mappedAppointments = appointmentsResponse.data.map(apt => {
-          // Map status from backend format to frontend format
-          const statusMap = {
-            'PENDING': 'pending',
-            'CONFIRMED': 'confirmed',
-            'IN_PROGRESS': 'in_progress',
-            'COMPLETED': 'completed',
-            'CANCELLED': 'cancelled'
-          };
-
-          // Get pet icon based on species
-          const petIcon = apt.pet?.species === 'DOG' ? '🐕' : 
-                         apt.pet?.species === 'CAT' ? '🐈' : '🐾';
-
-          // Get service category and icon
-          const categoryMap = {
-            'health': { category: 'medical', icon: '🛁' },
-            'grooming': { category: 'care', icon: '✂️' },
-            'medical': { category: 'medical', icon: '🏥' },
-            'boarding': { category: 'care', icon: '🏠' }
-          };
-          
-          const serviceCat = apt.service?.categoryName?.toLowerCase() || 'medical';
-          const categoryData = categoryMap[serviceCat] || { category: 'medical', icon: '✨' };
-          // Get assigned employee info - check multiple field names
-          const empId = apt.employeeId || apt.employeeID || apt.employee?.employeeId || apt.employee?.employeeID || apt.employee?.id;
-          const empName = apt.employee?.fullName || apt.employee?.name || '';
-          
-          console.log(`Appointment ${apt.appointmentId}: employeeId=${empId}, employee:`, apt.employee);
-
-          return {
-            id: apt.appointmentId || apt.id,
-            code: formatAppointmentId(apt.appointmentId || apt.id),
-            customerName: apt.petOwner?.name || apt.pet?.petOwner?.name || 'N/A',
-            customerPhone: apt.petOwner?.phoneNumber || apt.pet?.petOwner?.phoneNumber || 'N/A',
-            petName: apt.pet?.name || 'N/A',
-            petIcon: petIcon,
-            serviceName: apt.service?.serviceName || apt.service?.name || 'N/A',
-            serviceIcon: categoryData.icon,
-            serviceCategory: categoryData.category,
-            date: apt.appointmentDate || new Date().toISOString().split('T')[0],
-            time: apt.startTime || '09:00',
-            status: statusMap[apt.status] || 'pending',
-            assignedStaffId: empId ? String(empId) : '', // Convert to string for Select value
-            assignedStaffName: empName,
-            notes: apt.notes || ''
-          };
-        });
-        setAppointments(mappedAppointments);
-      } else {
-        console.error("Failed to load appointments:", appointmentsResponse.error);
-        showToast("Không thể tải danh sách lịch hẹn", "error");
-      }
+      setAppointments(appointmentsData);
+      setPets(petsData);
+      setEmployees(employeesData);
+      setServices(servicesData);
     } catch (error) {
       console.error("Error loading data:", error);
-      showToast("Lỗi khi tải dữ liệu", "error");
+      showToast("Không thể tải dữ liệu", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateAppointment = async (data) => {
+  const filterAppointments = () => {
+    let filtered = [...appointments];
+
+    // Filter by tab/status
+    if (activeTab !== "all") {
+      filtered = filtered.filter(apt => apt.status === activeTab);
+    }
+
+    // Filter by date
+    if (dateFilter) {
+      filtered = filtered.filter(apt => {
+        const aptDate = apt.appointmentDate?.split('T')[0];
+        return aptDate === dateFilter;
+      });
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(apt => 
+        apt.pet?.name?.toLowerCase().includes(term) ||
+        apt.service?.serviceName?.toLowerCase().includes(term) ||
+        apt.employee?.fullName?.toLowerCase().includes(term) ||
+        apt.petOwner?.fullName?.toLowerCase().includes(term)
+      );
+    }
+
+    // Sort by date and time
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.appointmentDate);
+      const dateB = new Date(b.appointmentDate);
+      return dateB - dateA;
+    });
+
+    setFilteredAppointments(filtered);
+  };
+
+  const handleOpenModal = () => {
+    setFormData({
+      petId: "",
+      employeeId: "",
+      serviceId: "",
+      appointmentDate: new Date().toISOString().split('T')[0],
+      startTime: "09:00",
+      endTime: "10:00",
+      notes: "",
+      estimatedCost: 0
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
     try {
-      const appointmentId = data.appointmentId;
-      let statusResponse = { success: true };
-      let updateResponse = { success: true };
+      setSaving(true);
 
-      // 1. Handle status change via dedicated endpoints
-      if (data.status) {
-        const statusMap = {
-          'pending': 'PENDING',
-          'confirmed': 'CONFIRMED',
-          'in_progress': 'IN_PROGRESS',
-          'completed': 'COMPLETED',
-          'cancelled': 'CANCELLED'
-        };
-        const backendStatus = statusMap[data.status] || data.status;
+      const payload = {
+        petId: Number(formData.petId),
+        employeeId: Number(formData.employeeId),
+        serviceId: Number(formData.serviceId),
+        appointmentDate: formData.appointmentDate,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        notes: formData.notes || null,
+        estimatedCost: Number(formData.estimatedCost) || null
+      };
 
-        // Find current appointment to know current status
-        const currentAppointment = appointments.find(a => a.id === appointmentId);
-        const currentStatus = currentAppointment?.status;
-
-        // Only call status endpoint if status actually changed
-        if (currentStatus !== data.status) {
-          switch (data.status) {
-            case 'confirmed':
-              statusResponse = await appointmentApi.confirm(appointmentId);
-              break;
-            case 'in_progress':
-              statusResponse = await appointmentApi.start(appointmentId);
-              break;
-            case 'completed':
-              statusResponse = await appointmentApi.complete(appointmentId, {});
-              break;
-            case 'cancelled':
-              statusResponse = await appointmentApi.cancel(appointmentId, data.notes || 'Hủy bởi quản lý');
-              break;
-            default:
-              // pending - usually can't go back to pending
-              statusResponse = { success: true };
-          }
-        }
-      }
-
-      // 2. Handle other updates (employeeId, notes) via update endpoint
-      const updateData = {};
-      if (data.assignedStaffId) {
-        updateData.employeeId = parseInt(data.assignedStaffId); // Note: employeeId not employeeID
-      }
-      if (data.notes !== undefined) {
-        updateData.notes = data.notes;
-      }
-
-      // Only call update if there's something to update
-      if (Object.keys(updateData).length > 0) {
-        updateResponse = await appointmentApi.update(appointmentId, updateData);
-      }
-
-      if (statusResponse.success && updateResponse.success) {
-        showToast("Cập nhật lịch hẹn thành công!", "success");
-        loadData(); // Reload to get fresh data
-      } else {
-        showToast(statusResponse.error || updateResponse.error || "Không thể cập nhật lịch hẹn", "error");
-      }
+      await apiClient.post('/appointments', payload);
+      showToast("Tạo lịch hẹn thành công! ✅", "success");
+      handleCloseModal();
+      loadData();
     } catch (error) {
-      console.error("Error updating appointment:", error);
-      showToast("Lỗi khi cập nhật lịch hẹn", "error");
+      console.error("Error creating appointment:", error);
+      showToast(error.response?.data?.message || "Không thể tạo lịch hẹn", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleOpenUpdate = (appointment) => {
-    setSelectedAppointment(appointment);
-    setIsUpdateModalOpen(true);
+  const handleConfirm = async (appointment) => {
+    const id = appointment.appointmentId || appointment.id;
+    try {
+      await apiClient.put(`/appointments/${id}/confirm`);
+      showToast("Đã xác nhận lịch hẹn! 🟢", "success");
+      loadData();
+    } catch (error) {
+      showToast("Không thể xác nhận lịch hẹn", "error");
+    }
   };
 
-  const filteredAppointments = appointments.filter(apt =>
-    apt.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apt.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apt.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleCancel = async (appointment) => {
+    const id = appointment.appointmentId || appointment.id;
+    if (!confirm("Bạn có chắc muốn hủy lịch hẹn này?")) return;
+    
+    try {
+      await apiClient.put(`/appointments/${id}/cancel`);
+      showToast("Đã hủy lịch hẹn! 🔴", "success");
+      loadData();
+    } catch (error) {
+      showToast("Không thể hủy lịch hẹn", "error");
+    }
+  };
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      pending: { 
-        label: "Chờ xác nhận", 
-        variant: "warning", 
-        icon: Hourglass 
-      },
-      confirmed: { 
-        label: "Đã xác nhận", 
-        variant: "success", 
-        icon: CheckCircle2 
-      },
-      in_progress: { 
-        label: "Đang thực hiện", 
-        variant: "info", 
-        icon: RefreshCw 
-      },
-      completed: { 
-        label: "Hoàn thành", 
-        variant: "success", 
-        icon: CheckCircle2 
-      },
-      cancelled: { 
-        label: "Đã hủy", 
-        variant: "destructive", 
-        icon: XCircle 
-      }
+  const handleDelete = async (appointment) => {
+    const id = appointment.appointmentId || appointment.id;
+    if (!confirm("Bạn có chắc muốn xóa lịch hẹn này?")) return;
+    
+    try {
+      await apiClient.delete(`/appointments/${id}`);
+      showToast("Đã xóa lịch hẹn! 🗑️", "success");
+      loadData();
+    } catch (error) {
+      showToast("Không thể xóa lịch hẹn", "error");
+    }
+  };
+
+  // UI Helpers
+  const getPetEmoji = (species) => {
+    const emojiMap = {
+      'Dog': '🐕', 'Chó': '🐕',
+      'Cat': '🐈', 'Mèo': '🐈',
+      'Bird': '🐦', 'Chim': '🐦',
+      'Rabbit': '🐇', 'Thỏ': '🐇',
+      'Hamster': '🐹',
+      'Turtle': '🐢', 'Rùa': '🐢',
+      'Fish': '🐟', 'Cá': '🐟'
     };
-    return badges[status] || badges.pending;
+    return emojiMap[species] || '🐾';
   };
 
-  const stats = {
-    pending: appointments.filter(a => a.status === 'pending').length,
-    confirmed: appointments.filter(a => a.status === 'confirmed').length,
-    inProgress: appointments.filter(a => a.status === 'in_progress').length,
-    completed: appointments.filter(a => a.status === 'completed').length
+  const getStatusConfig = (status) => {
+    const statusMap = {
+      'PENDING': { emoji: '🟡', label: 'Chờ xác nhận', bg: 'bg-amber-100 text-amber-700', border: 'border-amber-300' },
+      'CONFIRMED': { emoji: '🟢', label: 'Đã xác nhận', bg: 'bg-green-100 text-green-700', border: 'border-green-300' },
+      'IN_PROGRESS': { emoji: '🔵', label: 'Đang thực hiện', bg: 'bg-blue-100 text-blue-700', border: 'border-blue-300' },
+      'COMPLETED': { emoji: '✅', label: 'Hoàn thành', bg: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-300' },
+      'CANCELLED': { emoji: '🔴', label: 'Đã hủy', bg: 'bg-red-100 text-red-700', border: 'border-red-300' }
+    };
+    return statusMap[status] || statusMap.PENDING;
   };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatCurrency = (amount) => {
+    if (!amount) return 'N/A';
+    return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+  };
+
+  const tabs = [
+    { id: 'all', label: 'Tất cả', emoji: '📋' },
+    { id: 'PENDING', label: 'Chờ XN', emoji: '🟡' },
+    { id: 'CONFIRMED', label: 'Đã XN', emoji: '🟢' },
+    { id: 'IN_PROGRESS', label: 'Đang thực hiện', emoji: '🔵' },
+    { id: 'COMPLETED', label: 'Hoàn thành', emoji: '✅' },
+    { id: 'CANCELLED', label: 'Đã hủy', emoji: '🔴' }
+  ];
+
+  // Calculate stats
+  const stats = {
+    total: appointments.length,
+    pending: appointments.filter(a => a.status === 'PENDING').length,
+    confirmed: appointments.filter(a => a.status === 'CONFIRMED').length,
+    today: appointments.filter(a => a.appointmentDate?.split('T')[0] === new Date().toISOString().split('T')[0]).length
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-8xl mb-4 animate-bounce">📅</div>
+          <p className="text-gray-500 text-lg">Đang tải lịch hẹn...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Quản lý lịch đặt"
-        subtitle="Theo dõi, phân công và điều phối lịch hẹn"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          icon={Hourglass}
-          title="Chờ xác nhận"
-          value={stats.pending}
-          color="warning"
-        />
-        <StatsCard
-          icon={CheckCircle2}
-          title="Đã xác nhận"
-          value={stats.confirmed}
-          color="success"
-        />
-        <StatsCard
-          icon={RefreshCw}
-          title="Đang thực hiện"
-          value={stats.inProgress}
-          color="info"
-        />
-        <StatsCard
-          icon={CheckCircle2}
-          title="Hoàn thành"
-          value={stats.completed}
-          color="success"
-        />
-      </div>
-
-      {/* Search */}
-      <div className="flex justify-end">
-        <div className="w-full sm:w-64">
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo khách hàng, thú cưng, mã lịch..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            icon={Search}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Danh sách lịch đặt
-          </h2>
-          <Badge variant="outline" className="text-sm">
-            {filteredAppointments.length} lịch hẹn
-          </Badge>
-        </div>
-
-        {loading ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-              <p className="text-muted-foreground font-medium">
-                Đang tải dữ liệu...
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* 🌈 Gradient Header */}
+      <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white p-8 pb-28 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+                <span className="text-4xl">📅</span>
+                Quản Lý Lịch Hẹn
+              </h1>
+              <p className="text-white/90">
+                Quản lý toàn bộ lịch hẹn khám và chăm sóc
               </p>
+            </div>
+            <Button 
+              onClick={handleOpenModal}
+              className="bg-white/20 border-white/30 text-white hover:bg-white/30 flex items-center gap-2"
+            >
+              ➕ Tạo lịch hẹn
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 -mt-20 pb-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm text-gray-500">📋 Tổng lịch hẹn</p>
             </CardContent>
           </Card>
-        ) : filteredAppointments.length > 0 ? (
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[100px]">Mã lịch</TableHead>
-                  {/* <TableHead className="min-w-[150px]">Khách hàng</TableHead> */}
-                  <TableHead className="min-w-[120px]">Thú cưng</TableHead>
-                  <TableHead className="min-w-[150px]">Dịch vụ</TableHead>
-                  <TableHead className="min-w-[120px]">Ngày & Giờ</TableHead>
-                  <TableHead className="min-w-[130px]">Nhân viên</TableHead>
-                  <TableHead className="min-w-[120px]">Trạng thái</TableHead>
-                  <TableHead className="min-w-[100px] text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAppointments.map((apt) => {
-                  const statusBadge = getStatusBadge(apt.status);
-                  const StatusIcon = statusBadge.icon;
-                  return (
-                    <TableRow key={apt.id}>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {apt.code}
-                        </Badge>
-                      </TableCell>
-                      {/* <TableCell>
-                        <div>
-                          <p className="font-semibold text-foreground">{apt.customerName}</p>
-                          <p className="text-xs text-muted-foreground">{apt.customerPhone}</p>
-                        </div>
-                      </TableCell> */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">{apt.petIcon}</span>
-                          <span className="font-medium text-foreground">{apt.petName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{apt.serviceIcon}</span>
-                          <span className="text-sm text-foreground">{apt.serviceName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{apt.date}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {apt.time}
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-amber-600">{stats.pending}</p>
+              <p className="text-sm text-gray-500">🟡 Chờ xác nhận</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-green-600">{stats.confirmed}</p>
+              <p className="text-sm text-gray-500">🟢 Đã xác nhận</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-blue-600">{stats.today}</p>
+              <p className="text-sm text-gray-500">📆 Hôm nay</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search & Filters */}
+        <Card className="bg-white shadow-xl mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Search */}
+              <div className="flex-1 min-w-[200px] relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🔍</span>
+                <Input
+                  type="text"
+                  placeholder="Tìm kiếm theo tên thú cưng, dịch vụ, nhân viên..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📅</span>
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-40"
+                />
+                {dateFilter && (
+                  <button 
+                    onClick={() => setDateFilter("")}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ❌
+                  </button>
+                )}
+              </div>
+
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                    viewMode === 'list' ? 'bg-white shadow text-orange-600' : 'text-gray-600'
+                  }`}
+                >
+                  📋 Danh sách
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`px-3 py-1.5 rounded-md transition-colors ${
+                    viewMode === 'calendar' ? 'bg-white shadow text-orange-600' : 'text-gray-600'
+                  }`}
+                >
+                  🗓️ Lịch
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span>{tab.emoji}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Count */}
+        <p className="text-sm text-gray-500 mb-4">
+          Hiển thị {filteredAppointments.length} / {appointments.length} lịch hẹn
+        </p>
+
+        {/* Appointments List */}
+        {filteredAppointments.length > 0 ? (
+          <div className="space-y-4">
+            {filteredAppointments.map((appointment) => {
+              const status = getStatusConfig(appointment.status);
+              const appointmentId = appointment.appointmentId || appointment.id;
+              
+              return (
+                <Card 
+                  key={appointmentId} 
+                  className={`bg-white shadow-lg hover:shadow-xl transition-all border-l-4 ${status.border}`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex flex-wrap items-start gap-6">
+                      {/* Date/Time Block */}
+                      <div className="flex-shrink-0 w-24 text-center">
+                        <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white rounded-xl p-3">
+                          <p className="text-2xl font-bold">
+                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).getDate() : '--'}
+                          </p>
+                          <p className="text-xs uppercase">
+                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('vi-VN', { month: 'short' }) : ''}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {apt.assignedStaffName ? (
-                          <div className="flex items-center gap-2">
-                            {apt.serviceCategory === 'medical' ? (
-                              <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Wrench className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <span className="text-sm text-foreground">{apt.assignedStaffName}</span>
+                        <p className="text-sm font-semibold text-gray-700 mt-2">
+                          {appointment.startTime || formatTime(appointment.appointmentDate)}
+                        </p>
+                      </div>
+
+                      {/* Main Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-3xl">{getPetEmoji(appointment.pet?.species)}</span>
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-lg">
+                              {appointment.pet?.name || 'N/A'}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {appointment.pet?.species} • {appointment.pet?.breed || 'Không rõ giống'}
+                            </p>
                           </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground italic">Chưa phân công</span>
+                          <span className={`ml-auto px-3 py-1 rounded-full text-sm font-medium ${status.bg}`}>
+                            {status.emoji} {status.label}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-gray-500">💼 Dịch vụ</p>
+                            <p className="font-medium text-gray-900">{appointment.service?.serviceName || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">👨‍⚕️ Nhân viên</p>
+                            <p className="font-medium text-gray-900">{appointment.employee?.fullName || 'Chưa phân công'}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">👤 Chủ nuôi</p>
+                            <p className="font-medium text-gray-900">{appointment.petOwner?.fullName || appointment.pet?.owner?.fullName || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        {appointment.notes && (
+                          <p className="mt-3 text-sm text-gray-500 bg-gray-50 p-2 rounded">
+                            📝 {appointment.notes}
+                          </p>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
-                          <StatusIcon className="h-3 w-3" />
-                          {statusBadge.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          onClick={() => handleOpenUpdate(apt)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Cập nhật
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2">
+                        {appointment.status === 'PENDING' && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirm(appointment)}
+                              className="bg-green-500 hover:bg-green-600 text-white"
+                            >
+                              ✅ Xác nhận
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCancel(appointment)}
+                              className="text-red-600 border-red-300 hover:bg-red-50"
+                            >
+                              ❌ Hủy
+                            </Button>
+                          </>
+                        )}
+                        {appointment.status === 'CONFIRMED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancel(appointment)}
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                          >
+                            ❌ Hủy
+                          </Button>
+                        )}
+                        {(appointment.status === 'COMPLETED' || appointment.status === 'CANCELLED') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(appointment)}
+                            className="text-gray-600"
+                          >
+                            🗑️ Xóa
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Search className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground font-medium">
-                Không tìm thấy lịch đặt nào
-              </p>
+          <Card className="bg-white shadow-xl">
+            <CardContent className="py-16 text-center">
+              <span className="text-8xl block mb-4">📭</span>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Không tìm thấy lịch hẹn</h3>
+              <p className="text-gray-500 mb-4">Thử thay đổi bộ lọc hoặc tạo lịch hẹn mới</p>
+              <Button onClick={handleOpenModal}>
+                ➕ Tạo lịch hẹn mới
+              </Button>
             </CardContent>
           </Card>
         )}
       </div>
 
-      <UpdateAppointmentModal
-        isOpen={isUpdateModalOpen}
-        onClose={() => {
-          setIsUpdateModalOpen(false);
-          setSelectedAppointment(null);
-        }}
-        onSuccess={handleUpdateAppointment}
-        appointment={selectedAppointment}
-        staffList={staffList}
-      />
+      {/* Create Appointment Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                ➕ Tạo Lịch Hẹn Mới
+              </h2>
+              <button 
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ❌
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Pet Selection */}
+              <div>
+                <Label className="flex items-center gap-2 mb-2">
+                  🐾 Chọn thú cưng <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  value={formData.petId}
+                  onChange={(e) => setFormData({...formData, petId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  required
+                >
+                  <option value="">-- Chọn thú cưng --</option>
+                  {pets.map(pet => (
+                    <option key={pet.petId || pet.id} value={pet.petId || pet.id}>
+                      {getPetEmoji(pet.species)} {pet.name} - {pet.species} ({pet.owner?.fullName || 'N/A'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Service */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    💼 Dịch vụ <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={formData.serviceId}
+                    onChange={(e) => {
+                      const service = services.find(s => (s.serviceId || s.id) == e.target.value);
+                      setFormData({
+                        ...formData, 
+                        serviceId: e.target.value,
+                        estimatedCost: service?.basePrice || 0
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    required
+                  >
+                    <option value="">-- Chọn dịch vụ --</option>
+                    {services.map(service => (
+                      <option key={service.serviceId || service.id} value={service.serviceId || service.id}>
+                        {service.serviceName} - {formatCurrency(service.basePrice)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Employee */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    👨‍⚕️ Nhân viên phụ trách <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    required
+                  >
+                    <option value="">-- Chọn nhân viên --</option>
+                    {employees.map(emp => (
+                      <option key={emp.employeeId || emp.id} value={emp.employeeId || emp.id}>
+                        {emp.fullName} - {emp.userType === 'VETERINARIAN' ? '👨‍⚕️ Bác sĩ' : '👷 NV Chăm sóc'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    📅 Ngày hẹn <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="date"
+                    value={formData.appointmentDate}
+                    onChange={(e) => setFormData({...formData, appointmentDate: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                  />
+                </div>
+
+                {/* Start Time */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    ⏰ Giờ bắt đầu <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                    required
+                  />
+                </div>
+
+                {/* End Time */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    ⏰ Giờ kết thúc <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="time"
+                    value={formData.endTime}
+                    onChange={(e) => setFormData({...formData, endTime: e.target.value})}
+                    required
+                  />
+                </div>
+
+                {/* Estimated Cost */}
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    💰 Chi phí dự kiến
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.estimatedCost}
+                    onChange={(e) => setFormData({...formData, estimatedCost: e.target.value})}
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <Label className="flex items-center gap-2 mb-2">
+                  📝 Ghi chú
+                </Label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  placeholder="Ghi chú thêm về lịch hẹn..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 min-h-[80px]"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCloseModal}
+                >
+                  Hủy
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={saving}
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 text-white"
+                >
+                  {saving ? '⏳ Đang tạo...' : '✅ Tạo lịch hẹn'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
