@@ -41,21 +41,7 @@ export default function AppointmentsPage() {
       const response = await appointmentApi.getAll();
       
       if (response.success && response.data) {
-        const formattedAppointments = response.data.map(apt => ({
-          id: formatAppointmentId(apt.appointmentId),
-          appointmentId: formatAppointmentId(apt.appointmentId),
-          customerName: apt.pet?.owner?.fullName || 'N/A',
-          phone: apt.pet?.owner?.phoneNumber || 'N/A',
-          petName: apt.pet?.name || 'N/A',
-          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
-          service: apt.service?.serviceName || 'N/A',
-          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
-          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
-          time: apt.startTime || 'N/A',
-          status: apt.status ? apt.status.toLowerCase() : 'pending',
-          rawData: apt
-        }));
-        setAppointments(formattedAppointments);
+        setAppointments(response.data);
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
@@ -92,14 +78,19 @@ export default function AppointmentsPage() {
   };
 
   const filteredAppointments = appointments.filter(apt => {
-    const matchFilter = filter === "all" || apt.status === filter;
-    const matchSearch = apt.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       apt.phone.includes(searchTerm) ||
-                       apt.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const status = apt.status ? apt.status.toLowerCase() : 'pending';
+    const matchFilter = filter === "all" || status === filter;
+    const customerName = apt.pet?.owner?.fullName || '';
+    const phone = apt.pet?.owner?.phoneNumber || '';
+    const aptId = formatAppointmentId(apt.appointmentId);
+    const matchSearch = customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       phone.includes(searchTerm) ||
+                       aptId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
 
   const handleConfirm = (appointment) => {
+    console.log('Confirming appointment:', appointment);
     setSelectedAppointment(appointment);
     setShowConfirmModal(true);
   };
@@ -150,9 +141,9 @@ export default function AppointmentsPage() {
 
   const stats = {
     total: appointments.length,
-    pending: appointments.filter(a => a.status === 'pending').length,
-    confirmed: appointments.filter(a => a.status === 'confirmed').length,
-    cancelled: appointments.filter(a => a.status === 'cancelled').length
+    pending: appointments.filter(a => (a.status || '').toLowerCase() === 'pending').length,
+    confirmed: appointments.filter(a => (a.status || '').toLowerCase() === 'confirmed').length,
+    cancelled: appointments.filter(a => (a.status || '').toLowerCase() === 'cancelled').length
   };
 
   return (
@@ -263,37 +254,41 @@ export default function AppointmentsPage() {
                 </TableRow>
               ) : (
                 filteredAppointments.map((apt) => {
-                  const statusBadge = getStatusBadge(apt.status);
-                  const PetIcon = apt.petIcon === '🐕' ? PawPrint : Cat;
-                  const ServiceIcon = getServiceIcon(apt.serviceIcon);
+                  const status = (apt.status || '').toLowerCase();
+                  const statusBadge = getStatusBadge(status);
+                  const petSpecies = apt.pet?.species || '';
+                  const PetIcon = petSpecies === 'DOG' ? PawPrint : petSpecies === 'CAT' ? Cat : PawPrint;
+                  const serviceIcon = getServiceIconFromType(apt.service?.serviceCategory?.categoryName);
+                  const ServiceIcon = getServiceIcon(serviceIcon);
+                  const appointmentDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A';
                   return (
-                    <TableRow key={apt.id}>
-                      <TableCell className="font-mono text-sm">{apt.id}</TableCell>
+                    <TableRow key={apt.appointmentId}>
+                      <TableCell className="font-mono text-sm">{formatAppointmentId(apt.appointmentId)}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{apt.customerName}</p>
+                          <p className="font-medium">{apt.pet?.owner?.fullName || 'N/A'}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {apt.phone}
+                            <Phone className="h-3 w-3" /> {apt.pet?.owner?.phoneNumber || 'N/A'}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <PetIcon className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{apt.petName}</span>
+                          <span className="font-medium">{apt.pet?.name || 'N/A'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-                          <span>{apt.service}</span>
+                          <span>{apt.service?.serviceName || 'N/A'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{apt.date}</p>
+                          <p className="font-medium">{appointmentDate}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {apt.time}
+                            <Clock className="h-3 w-3" /> {apt.startTime || 'N/A'}
                           </p>
                         </div>
                       </TableCell>
@@ -304,12 +299,12 @@ export default function AppointmentsPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-2">
-                          {apt.status === 'pending' && (
+                          {status === 'pending' && (
                             <Button size="sm" onClick={() => handleConfirm(apt)}>
                               <CheckCircle2 className="h-4 w-4 mr-2" /> Xác nhận
                             </Button>
                           )}
-                          {apt.status !== 'cancelled' && (
+                          {status !== 'cancelled' && (
                             <Button variant="destructive" size="sm" onClick={() => handleCancel(apt)}>
                               <XCircle className="h-4 w-4 mr-2" /> Hủy
                             </Button>

@@ -11,8 +11,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, CheckCircle2, XCircle, DollarSign, Search, Calendar, Phone, Mail, MapPin, PawPrint, Eye, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { petOwnerApi, invoiceApi, getToken } from "@/lib/api";
+import { formatCustomerId } from "@/lib/utils";
 
 export default function CustomersPage() {
   const router = useRouter();
@@ -36,67 +36,25 @@ export default function CustomersPage() {
         return;
       }
 
-      const response = await petOwnerApi.getAll();
+      // Fetch customers and statistics in parallel
+      const [ownersResponse, statsResponse] = await Promise.all([
+        petOwnerApi.getAll(),
+        invoiceApi.getCustomerStatistics()
+      ]);
       
-      if (response.success && response.data) {
-        // For each customer, fetch their invoices to calculate statistics
-        const customersWithStats = await Promise.all(
-          response.data.map(async (owner) => {
-            // Fetch invoices for this customer
-            // TODO: 
-            let invoices = [];
-            try {
-              const invoiceRes = await invoiceApi.getByCustomer(owner.ownerId || owner.id);
-              if (invoiceRes.success && invoiceRes.data) {
-                invoices = invoiceRes.data;
-              }
-            } catch (err) {
-              console.log('Error fetching invoices for customer:', err);
-            }
-
-            const totalSpent = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-            const totalVisits = invoices.length;
-            
-            // Find last visit date
-            let lastVisit = 'N/A';
-            if (invoices.length > 0) {
-              const sortedInvoices = [...invoices].sort((a, b) => 
-                new Date(b.createdAt || b.issueDate) - new Date(a.createdAt || a.issueDate)
-              );
-              lastVisit = sortedInvoices[0]?.issueDate 
-                ? new Date(sortedInvoices[0].issueDate).toISOString().split('T')[0]
-                : new Date(sortedInvoices[0]?.createdAt).toISOString().split('T')[0];
-            }
-
-            // Determine if active (visited in last 3 months)
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-            const lastVisitDate = lastVisit !== 'N/A' ? new Date(lastVisit) : new Date(0);
-            const isActive = lastVisitDate > threeMonthsAgo;
-
-            return {
-              id: owner.petOwnerId || owner.id,
-              ownerId: owner.petOwnerId || owner.id,
-              name: owner.fullName || 'N/A',
-              phone: owner.phoneNumber || 'N/A',
-              email: owner.account?.email || 'N/A',
-              address: owner.address || 'N/A',
-              joinDate: owner.createdAt ? new Date(owner.createdAt).toISOString().split('T')[0] : 'N/A',
-              totalVisits,
-              totalSpent,
-              lastVisit,
-              pets: owner.pets?.map(pet => ({
-                name: pet.name || 'N/A',
-                type: pet.species || 'Unknown',
-                icon: pet.species === 'DOG' ? '🐕' : pet.species === 'CAT' ? '🐈' : '🐾'
-              })) || [],
-              status: isActive ? 'active' : 'inactive',
-              rawData: owner
-            };
-          })
-        );
-
+      if (ownersResponse.success && ownersResponse.data) {
+        const customersWithStats = ownersResponse.data.map(owner => {
+          const stats = statsResponse.data.find(stat => stat.petOwnerId === owner.petOwnerId) || {};
+          return {
+            ...owner,
+            totalVisits: stats.totalVisits || 0,
+            totalSpent: stats.totalSpent || 0,
+            lastVisit: stats.lastVisit || null
+          }
+        });
         setCustomers(customersWithStats);
+        
+        console.log("Loaded customers:", ownersResponse.data);
       }
     } catch (error) {
       console.error("Error loading customers:", error);
@@ -105,18 +63,48 @@ export default function CustomersPage() {
     }
   };
 
-  const filteredCustomers = customers.filter(customer => {
-    const matchFilter = filter === "all" || customer.status === filter;
-    const matchSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       customer.phone.includes(searchTerm) ||
-                       customer.email.toLowerCase().includes(searchTerm.toLowerCase());
+  // Helper functions to calculate customer stats
+  const getCustomerId = (owner) => owner.petOwnerId || owner.id;
+  
+  const getCustomerStats = (owner) => {
+    return owner || { totalVisits: 0, totalSpent: 0, lastVisit: null };
+  };
+
+  const getTotalSpent = (owner) => {
+    return getCustomerStats(owner).totalSpent;
+  };
+
+  const getTotalVisits = (owner) => {
+    return getCustomerStats(owner).totalVisits;
+  };
+
+  const getLastVisit = (owner) => {
+    const stats = getCustomerStats(owner);
+    if (!stats.lastVisit) return 'N/A';
+    return new Date(stats.lastVisit).toISOString().split('T')[0];
+  };
+
+  const getCustomerStatus = (owner) => {
+    console.log('Owner account status:', owner.account);
+    return owner.account.isActive ? 'active' : 'inactive';
+  };
+
+  const filteredCustomers = customers.filter(owner => {
+    const status = getCustomerStatus(owner);
+    const matchFilter = filter === "all" || status === filter;
+    const name = owner.fullName || '';
+    const phone = owner.phoneNumber || '';
+    const email = owner.account?.email || '';
+    const matchSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       phone.includes(searchTerm) ||
+                       email.toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
 
   const totalCustomers = customers.length;
-  const activeCustomers = customers.filter(c => c.status === 'active').length;
-  const inactiveCustomers = customers.filter(c => c.status === 'inactive').length;
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+  const activeCustomers = customers.filter(c => getCustomerStatus(c) === 'active').length;
+  const inactiveCustomers = customers.filter(c => getCustomerStatus(c) === 'inactive').length;
+  const totalRevenue = customers.reduce((sum, c) => sum + getTotalSpent(c), 0);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -242,23 +230,23 @@ export default function CustomersPage() {
                 </TableRow>
               ) : (
                 filteredCustomers.map((customer) => {
-                  const statusBadge = customer.status === 'active'
+                  const statusBadge = getCustomerStatus(customer)
                     ? { label: 'Active', variant: 'success', icon: CheckCircle2 }
                     : { label: 'Inactive', variant: 'destructive', icon: XCircle };
                   return (
-                    <TableRow key={customer.id}>
+                    <TableRow key={getCustomerId(customer)}>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono">{customer.id}</Badge>
+                        <Badge variant="secondary" className="font-mono">{formatCustomerId(getCustomerId(customer))}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarFallback className="bg-primary text-primary-foreground">
-                              {customer.name.charAt(0)}
+                              {customer.fullName.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{customer.name}</p>
+                            <p className="font-medium">{customer.fullName}</p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Phone className="h-3 w-3" /> {customer.phone}
                             </p>
@@ -284,7 +272,7 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                          <Calendar className="h-3 w-3" /> {customer.lastVisit}
+                          <Calendar className="h-3 w-3" /> {getLastVisit(customer)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -321,11 +309,11 @@ export default function CustomersPage() {
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
                       <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                        {selectedCustomer.name.charAt(0)}
+                        {selectedCustomer.fullName.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="text-xl font-bold">{selectedCustomer.name}</h3>
+                      <h3 className="text-xl font-bold">{selectedCustomer.fullName}</h3>
                       <p className="text-sm text-muted-foreground font-mono">{selectedCustomer.id}</p>
                     </div>
                   </div>
@@ -340,7 +328,7 @@ export default function CustomersPage() {
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground font-semibold uppercase">Số điện thoại</p>
                     </div>
-                    <p className="text-base font-bold">{selectedCustomer.phone}</p>
+                    <p className="text-base font-bold">{selectedCustomer.phoneNumber}</p>
                   </CardContent>
                 </Card>
 
@@ -350,7 +338,7 @@ export default function CustomersPage() {
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground font-semibold uppercase">Email</p>
                     </div>
-                    <p className="text-base font-bold">{selectedCustomer.email}</p>
+                    <p className="text-base font-bold">{selectedCustomer.account.email}</p>
                   </CardContent>
                 </Card>
 
@@ -373,7 +361,7 @@ export default function CustomersPage() {
                     <div className="flex gap-2 flex-wrap">
                       {selectedCustomer.pets.map((pet, idx) => (
                         <Badge key={idx} variant="outline" className="bg-white border-green-300">
-                          <PawPrint className="h-3 w-3 mr-1" /> {pet.name} ({pet.type})
+                          <PawPrint className="h-3 w-3 mr-1" /> {pet.name} ({pet.species})
                         </Badge>
                       ))}
                     </div>

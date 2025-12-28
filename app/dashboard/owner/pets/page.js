@@ -30,6 +30,7 @@ import AddPetModal from "@/components/modals/AddPetModal";
 import EditPetModal from "@/components/modals/EditPetModal";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import { petApi } from "@/lib/api";
 
 export default function PetsPage() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function PetsPage() {
   const loadPets = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/pets/me'); // Owner-specific pets only
+      const response = await petApi.getOwnedPet(); // Owner-specific pets only
       const petsData = response.data || response || [];
       setPets(petsData);
     } catch (error) {
@@ -102,7 +103,7 @@ export default function PetsPage() {
   const handleAddPet = async (petData) => {
     try {
       // petData is already mapped correctly from AddPetModal
-      const response = await apiClient.post('/pets/me', {
+      const response = await petApi.createByOwner({
         name: petData.name,
         species: petData.species,
         breed: petData.breed,
@@ -137,13 +138,13 @@ export default function PetsPage() {
         return;
       }
       
-      const response = await apiClient.put(`/pets/${petId}`, {
+      const response = await petApi.update(petId, {
         name: updatedPet.name,
         species: updatedPet.type, // Modal uses 'type' for species
         breed: updatedPet.breed,
         birthDate: updatedPet.dateOfBirth, // Modal uses 'dateOfBirth' for birthDate
         gender: updatedPet.gender,
-        weight: parseFloat(String(updatedPet.weight).replace(' kg', '')) || 0,
+        weight: updatedPet.weight,
         color: updatedPet.color,
         initialHealthStatus: updatedPet.medicalHistory,
         specialNotes: updatedPet.notes
@@ -184,7 +185,7 @@ export default function PetsPage() {
       breed: pet.breed,
       age: calculateAge(pet.birthDate),
       gender: pet.gender,
-      weight: pet.weight ? `${pet.weight} kg` : '',
+      weight: pet.weight,
       color: pet.color,
       dateOfBirth: pet.birthDate,
       medicalHistory: pet.initialHealthStatus || '',
@@ -313,7 +314,7 @@ export default function PetsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPets.map((pet) => (
               <Card
-                key={pet.petId}
+                key={pet.id}
                 className="hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-purple-200"
               >
                 <CardContent className="p-6">

@@ -22,6 +22,18 @@ export default function CancelAppointmentModal({ isOpen, onClose, appointment, o
 
   if (!isOpen || !appointment) return null;
 
+  const getServiceIcon = (categoryName) => {
+    if (!categoryName) return '📋';
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('health') || lower.includes('khám')) return '🏥';
+    if (lower.includes('grooming') || lower.includes('spa') || lower.includes('tắm')) return '🛁';
+    if (lower.includes('hair') || lower.includes('cắt')) return '✂️';
+    return '📋';
+  };
+
+  const serviceIcon = getServiceIcon(appointment.service?.serviceCategory?.categoryName);
+  const appointmentDate = appointment.appointmentDate ? new Date(appointment.appointmentDate).toISOString().split('T')[0] : 'N/A';
+
   const handleSubmit = () => {
     if (!reason.trim()) {
       setError("Vui lòng nhập lý do hủy lịch hẹn");
@@ -56,12 +68,12 @@ export default function CancelAppointmentModal({ isOpen, onClose, appointment, o
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <PawPrint className="h-5 w-5 text-red-700" />
-                <strong className="text-red-900">{appointment.customerName}</strong>
+                <strong className="text-red-900">{appointment.pet?.owner?.fullName || 'N/A'}</strong>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xl">{appointment.serviceIcon || "🏥"}</span>
+                <span className="text-xl">{serviceIcon}</span>
                 <span className="text-sm text-red-800">
-                  {appointment.service} - {appointment.date} {appointment.time}
+                  {appointment.service?.serviceName || 'N/A'} - {appointmentDate} {appointment.startTime || 'N/A'}
                 </span>
               </div>
             </div>

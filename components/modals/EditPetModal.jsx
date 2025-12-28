@@ -213,15 +213,25 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
 
           {/* Cân nặng & Màu lông (2 cột) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Cân nặng"
-              name="weight"
-              type="text"
-              value={formData.weight}
-              onChange={handleChange}
-              placeholder="VD: 5 kg"
-              icon={Scale}
-            />
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Scale className="h-4 w-4 text-muted-foreground" />
+                Cân nặng
+              </Label>
+              <div className="flex items-center gap-2">
+                <input
+                  name="weight"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.weight}
+                  onChange={handleChange}
+                  placeholder="VD: 5"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">kg</span>
+              </div>
+            </div>
 
             <Input
               label="Màu lông"

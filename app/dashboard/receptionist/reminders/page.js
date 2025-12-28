@@ -46,24 +46,7 @@ export default function RemindersPage() {
                  (apt.status === 'PENDING' || apt.status === 'CONFIRMED');
         });
 
-        const formattedReminders = upcomingAppointments.map(apt => ({
-          id: formatAppointmentId(apt.appointmentId),
-          appointmentId: formatAppointmentId(apt.appointmentId),
-          customerName: apt.pet?.owner?.fullName || 'N/A',
-          phone: apt.pet?.owner?.phoneNumber || 'N/A',
-          email: apt.pet?.owner?.email || 'N/A',
-          petName: apt.pet?.name || 'N/A',
-          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
-          service: apt.service?.serviceName || 'N/A',
-          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
-          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
-          time: apt.startTime || 'N/A',
-          status: apt.reminderSent ? 'sent' : 'pending',
-          lastReminder: apt.reminderSent ? (apt.lastReminderDate ? new Date(apt.lastReminderDate).toLocaleString('vi-VN') : 'Đã gửi') : 'Chưa gửi',
-          rawData: apt
-        }));
-
-        setReminders(formattedReminders);
+        setReminders(upcomingAppointments);
       }
     } catch (error) {
       console.error("Error loading reminders:", error);
@@ -82,9 +65,9 @@ export default function RemindersPage() {
   };
 
   const filteredReminders = reminders.filter(reminder =>
-    reminder.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reminder.phone.includes(searchTerm) ||
-    reminder.id.toLowerCase().includes(searchTerm.toLowerCase())
+    (reminder.pet?.owner?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (reminder.pet?.owner?.phoneNumber || '').includes(searchTerm) ||
+    formatAppointmentId(reminder.appointmentId).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getServiceIcon = (icon) => {
@@ -96,21 +79,21 @@ export default function RemindersPage() {
     }
   };
 
-  const pendingCount = reminders.filter(r => r.status === 'pending').length;
-  const sentCount = reminders.filter(r => r.status === 'sent').length;
+  const pendingCount = reminders.filter(r => !r.reminderSent).length;
+  const sentCount = reminders.filter(r => r.reminderSent).length;
 
-  const handleSendReminder = async (id) => {
+  const handleSendReminder = async (appointmentId) => {
     try {
-      const reminder = reminders.find(r => r.id === id);
+      const reminder = reminders.find(r => r.appointmentId === appointmentId);
       // In a real implementation, this would send an email/SMS
       // For now, we'll just update the appointment to mark reminder as sent
-      const response = await appointmentApi.update(reminder.appointmentId, {
-        reminderSent: true,
-        lastReminderDate: new Date().toISOString()
+      const response = await appointmentApi.update(appointmentId, {
+        status: 'PENDING',
+        // lastReminderDate: new Date().toISOString()
       });
 
       if (response.success) {
-        alert(`✅ Đã gửi nhắc lịch cho ${reminder.customerName}`);
+        alert(`✅ Đã gửi nhắc lịch cho ${reminder.pet?.owner?.fullName || 'khách hàng'}`);
         await loadReminders();
       } else {
         alert('Lỗi khi gửi nhắc lịch: ' + (response.error || 'Unknown error'));
@@ -124,7 +107,7 @@ export default function RemindersPage() {
   const handleSendAll = async () => {
     if (confirm(`Gửi nhắc lịch cho tất cả ${pendingCount} khách hàng?`)) {
       try {
-        const pendingReminders = reminders.filter(r => r.status === 'pending');
+        const pendingReminders = reminders.filter(r => !r.reminderSent);
         
         // Send reminders for all pending appointments
         await Promise.all(
@@ -247,43 +230,52 @@ export default function RemindersPage() {
                 </TableRow>
               ) : (
                 filteredReminders.map((reminder) => {
-                  const statusBadge = reminder.status === 'pending' 
-                    ? { label: 'Cần gửi', variant: 'warning', icon: Clock }
-                    : { label: 'Đã gửi', variant: 'success', icon: CheckCircle2 };
-                  const PetIcon = reminder.petIcon === '🐕' ? PawPrint : Cat;
-                  const ServiceIcon = getServiceIcon(reminder.serviceIcon);
+                  const statusBadge = reminder.status == 'PENDING'
+                    ? { label: 'Đã gửi', variant: 'success', icon: CheckCircle2 }
+                    : { label: 'Cần gửi', variant: 'warning', icon: Clock };
+                  const PetIcon = reminder.pet?.species === 'DOG' ? PawPrint : Cat;
+                  const serviceIcon = getServiceIconFromType(reminder.service?.serviceCategory?.categoryName);
+                  const ServiceIcon = getServiceIcon(serviceIcon);
+                  const customerName = reminder.pet?.owner?.fullName || 'N/A';
+                  const phone = reminder.pet?.owner?.phoneNumber || 'N/A';
+                  const petName = reminder.pet?.name || 'N/A';
+                  const serviceName = reminder.service?.serviceName || 'N/A';
+                  const date = reminder.appointmentDate ? new Date(reminder.appointmentDate).toISOString().split('T')[0] : 'N/A';
+                  const time = reminder.startTime || 'N/A';
+                  const lastReminder = reminder.status == 'PENDING' ? 'Chưa gửi': (reminder.lastReminderDate ? new Date(reminder.lastReminderDate).toLocaleString('vi-VN') : 'Đã gửi');
+                  
                   return (
-                    <TableRow key={reminder.id}>
+                    <TableRow key={reminder.appointmentId}>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono">{reminder.id}</Badge>
+                        <Badge variant="secondary" className="font-mono">{formatAppointmentId(reminder.appointmentId)}</Badge>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{reminder.customerName}</p>
+                          <p className="font-medium">{customerName}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {reminder.phone}
+                            <Phone className="h-3 w-3" /> {phone}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <PetIcon className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{reminder.petName}</span>
+                          <span className="font-medium">{petName}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-                          <span>{reminder.service}</span>
+                          <span>{serviceName}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium flex items-center gap-1">
-                            <Calendar className="h-4 w-4" /> {reminder.date}
+                            <Calendar className="h-4 w-4" /> {date}
                           </p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {reminder.time}
+                            <Clock className="h-3 w-3" /> {time}
                           </p>
                         </div>
                       </TableCell>
@@ -293,14 +285,14 @@ export default function RemindersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-muted-foreground">{reminder.lastReminder}</span>
+                        <span className="text-sm text-muted-foreground">{lastReminder}</span>
                       </TableCell>
                       <TableCell className="text-center">
                         <Button
                           size="sm"
-                          onClick={() => handleSendReminder(reminder.id)}
-                          disabled={reminder.status === 'sent'}
-                          variant={reminder.status === 'pending' ? 'default' : 'secondary'}
+                          onClick={() => handleSendReminder(reminder.appointmentId)}
+                          disabled={reminder.reminderSent}
+                          variant={!reminder.reminderSent ? 'default' : 'secondary'}
                         >
                           <Send className="h-4 w-4 mr-2" /> Gửi
                         </Button>

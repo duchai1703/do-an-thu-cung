@@ -35,24 +35,9 @@ export default function SlipsPage() {
       // Get confirmed appointments only
       const response = await appointmentApi.getByStatus('CONFIRMED');
       
-      // TODO: Remove phone number
       if (response.success && response.data) {
-        const formattedSlips = response.data.map(apt => ({
-          id: formatAppointmentId(apt.appointmentId),
-          appointmentId: formatAppointmentId(apt.appointmentId),
-          customerName: apt.pet?.owner?.fullName|| 'N/A',
-          phone: apt.pet?.owner?.phoneNumber || 'N/A',
-          email: apt.pet?.owner?.email || apt.pet?.petOwner?.email || 'N/A',
-          petName: apt.pet?.name || 'N/A',
-          petIcon: apt.pet?.species === 'DOG' ? '🐕' : apt.pet?.species === 'CAT' ? '🐈' : '🐾',
-          service: apt.service?.serviceName || 'N/A',
-          serviceIcon: getServiceIconFromType(apt.service?.serviceCategory?.categoryName),
-          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : 'N/A',
-          time: apt.startTime || 'N/A',
-          staff: apt.employee?.fullName || 'N/A',
-          rawData: apt
-        }));
-        setSlips(formattedSlips);
+        console.log("Loaded slips:", response.data);
+        setSlips(response.data);
       }
     } catch (error) {
       console.error("Error loading slips:", error);
@@ -71,9 +56,9 @@ export default function SlipsPage() {
   };
 
   const filteredSlips = slips.filter(slip =>
-    slip.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    slip.phone.includes(searchTerm) ||
-    slip.id.toLowerCase().includes(searchTerm.toLowerCase())
+    (slip.pet?.owner?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (slip.pet?.owner?.phoneNumber || '').includes(searchTerm) ||
+    formatAppointmentId(slip.appointmentId).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getServiceIcon = (icon) => {
@@ -86,11 +71,11 @@ export default function SlipsPage() {
   };
 
   const handlePrint = (slip) => {
-    alert(`In phiếu hẹn ${slip.id}`);
+    alert(`In phiếu hẹn ${formatAppointmentId(slip.appointmentId)}`);
   };
 
   const handleSendEmail = (slip) => {
-    alert(`Gửi email cho ${slip.email}`);
+    alert(`Gửi email cho ${slip.pet?.owner?.account?.email || 'N/A'}`);
   };
 
   return (
@@ -194,50 +179,61 @@ export default function SlipsPage() {
                 </TableRow>
               ) : (
                 filteredSlips.map((slip) => {
-                  const PetIcon = slip.petIcon === '🐕' ? PawPrint : Cat;
-                  const ServiceIcon = getServiceIcon(slip.serviceIcon);
+                  const petSpecies = slip.pet?.species;
+                  const PetIcon = petSpecies === 'DOG' ? PawPrint : Cat;
+                  const serviceIcon = getServiceIconFromType(slip.service?.serviceCategory?.categoryName);
+                  const ServiceIcon = getServiceIcon(serviceIcon);
+                  const customerName = slip.pet?.owner?.fullName || 'N/A';
+                  const phone = slip.pet?.owner?.phoneNumber || 'N/A';
+                  const email = slip.pet?.owner?.account?.email || 'N/A';
+                  const serviceName = slip.service?.serviceName || 'N/A';
+                  const date = slip.appointmentDate ? new Date(slip.appointmentDate).toISOString().split('T')[0] : 'N/A';
+                  const time = slip.startTime || 'N/A';
+                  const staff = slip.employee?.fullName || 'N/A';
+                  const appointmentIdFormatted = formatAppointmentId(slip.appointmentId);
+                  
                   return (
-                    <TableRow key={slip.id}>
+                    <TableRow key={slip.appointmentId}>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono">{slip.id}</Badge>
+                        <Badge variant="secondary" className="font-mono">{appointmentIdFormatted}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarFallback className="bg-primary text-primary-foreground">
-                              {slip.customerName.charAt(0)}
+                              {customerName.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{slip.customerName}</p>
+                            <p className="font-medium">{customerName}</p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Phone className="h-3 w-3" /> {slip.phone}
+                              <Phone className="h-3 w-3" /> {phone}
                             </p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">{slip.email}</Badge>
+                        <Badge variant="outline" className="font-mono text-xs">{email}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{slip.service}</span>
+                          <span className="font-medium">{serviceName}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium flex items-center gap-1">
-                            <Calendar className="h-4 w-4" /> {slip.date}
+                            <Calendar className="h-4 w-4" /> {date}
                           </p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {slip.time}
+                            <Clock className="h-3 w-3" /> {time}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                          <User className="h-3 w-3" /> {slip.staff}
+                          <User className="h-3 w-3" /> {staff}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">

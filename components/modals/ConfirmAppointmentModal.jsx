@@ -13,10 +13,24 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils.js";
+import { cn, formatAppointmentId } from "@/lib/utils.js";
 
 export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, onConfirm }) {
   if (!isOpen || !appointment) return null;
+
+  const petIcon = appointment.pet?.species === 'DOG' ? '🐕' : appointment.pet?.species === 'CAT' ? '🐈' : '🐾';
+  const appointmentDate = appointment.appointmentDate ? new Date(appointment.appointmentDate).toISOString().split('T')[0] : 'N/A';
+  
+  const getServiceIcon = (categoryName) => {
+    if (!categoryName) return '📋';
+    const lower = categoryName.toLowerCase();
+    if (lower.includes('health') || lower.includes('khám')) return '🏥';
+    if (lower.includes('grooming') || lower.includes('spa') || lower.includes('tắm')) return '🛁';
+    if (lower.includes('hair') || lower.includes('cắt')) return '✂️';
+    return '📋';
+  };
+
+  const serviceIcon = getServiceIcon(appointment.service?.serviceCategory?.categoryName);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -38,14 +52,14 @@ export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, 
                 <User className="h-5 w-5 text-green-700" />
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Khách hàng</p>
-                  <p className="text-sm font-bold text-green-900">{appointment.customerName}</p>
+                  <p className="text-sm font-bold text-green-900">{appointment.pet?.owner?.fullName || 'N/A'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="h-5 w-5 text-green-700" />
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Số điện thoại</p>
-                  <p className="text-sm font-bold text-green-900">{appointment.phone}</p>
+                  <p className="text-sm font-bold text-green-900">{appointment.pet?.owner?.phoneNumber || 'N/A'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -53,15 +67,15 @@ export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, 
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Thú cưng</p>
                   <p className="text-sm font-bold text-green-900">
-                    {appointment.petIcon || "🐾"} {appointment.petName}
+                    {petIcon} {appointment.pet?.name || 'N/A'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{appointment.serviceIcon || "🏥"}</span>
+                <span className="text-2xl">{serviceIcon}</span>
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Dịch vụ</p>
-                  <p className="text-sm font-bold text-green-900">{appointment.service}</p>
+                  <p className="text-sm font-bold text-green-900">{appointment.service?.serviceName || 'N/A'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -69,7 +83,7 @@ export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, 
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Ngày & Giờ</p>
                   <p className="text-sm font-bold text-green-900">
-                    {appointment.date} - {appointment.time}
+                    {appointmentDate} - {appointment.startTime || 'N/A'}
                   </p>
                 </div>
               </div>
@@ -77,7 +91,7 @@ export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, 
                 <Hash className="h-5 w-5 text-green-700" />
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Mã lịch</p>
-                  <p className="text-sm font-bold text-green-900 font-mono">{appointment.id}</p>
+                  <p className="text-sm font-bold text-green-900 font-mono">{formatAppointmentId(appointment.appointmentId)}</p>
                 </div>
               </div>
             </div>
