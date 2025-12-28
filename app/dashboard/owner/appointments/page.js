@@ -1,396 +1,542 @@
+/**
+ * Appointments Management Page - Premium UI
+ * 
+ * Features:
+ * - Gradient header
+ * - 3 Stats cards (Upcoming, Completed, Cancelled)
+ * - Filter tabs by status
+ * - Appointment list with status badges
+ * - Book new appointment (modal)
+ * - Cancel appointment
+ * 
+ * APIs:
+ * - GET /appointments
+ * - POST /appointments
+ * - DELETE /appointments/:id
+ * - GET /pets
+ * - GET /services
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { 
-  Calendar, Search, Plus, FileText, X, Hourglass, CheckCircle2, 
-  XCircle, ClipboardList, Clock, Sparkles, PawPrint 
+  Calendar, Plus, X, Eye, Clock, CheckCircle, XCircle,
+  User, Stethoscope, DollarSign
 } from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import StatsCard from "@/components/dashboard/StatsCard";
-import BookAppointmentModal from "@/components/modals/BookAppointmentModal";
-import AppointmentDetailModal from "@/components/modals/AppointmentDetailModal";
-import CancelAppointmentOwnerModal from "@/components/modals/CancelAppointmentOwnerModal";
-import { cn, formatAppointmentId } from "@/lib/utils";
-import { appointmentApi, getToken } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function OwnerAppointmentsPage() {
+export default function AppointmentsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
-  const [appointments, setAppointments] = useState([]);
-  const [filter, setFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  
   const [loading, setLoading] = useState(true);
+  const [appointments, setAppointments] = useState([]);
+  const [filteredAppointments, setFilteredAppointments] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  
+  // For booking form
+  const [pets, setPets] = useState([]);
+  const [services, setServices] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [bookingForm, setBookingForm] = useState({
+    petId: "",
+    serviceId: "",
+    employeeId: "",
+    appointmentDate: "",
+    startTime: "",
+    notes: ""
+  });
+
+  const filterTabs = [
+    { value: "all", label: "Tất cả", icon: Calendar },
+    { value: "upcoming", label: "Sắp tới", icon: Clock },
+    { value: "completed", label: "Hoàn thành", icon: CheckCircle },
+    { value: "cancelled", label: "Đã hủy", icon: XCircle }
+  ];
 
   useEffect(() => {
     loadAppointments();
+    loadPetsAndServices();
+  }, []);
 
-    if (searchParams.get('action') === 'book') {
-      setIsBookModalOpen(true);
-    }
-  }, [searchParams]);
+  useEffect(() => {
+    filterAppointments();
+  }, [appointments, filter]);
 
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const token = getToken();
-      
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await appointmentApi.getMyAppointments();
-      
-      if (response.success && response.data) {
-        // Map backend data to frontend format
-        console.log('Loaded appointments:', response.data);
-        const mappedAppointments = response.data.map(apt => ({
-          id: apt.appointmentId,
-          code: formatAppointmentId(apt.appointmentId),
-          petId: apt.pet?.petId,
-          petName: apt.pet?.name || 'Unknown',
-          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          serviceId: apt.service?.serviceId,
-          serviceName: apt.service?.serviceName || 'Unknown Service',
-          serviceIcon: getServiceIcon(apt.service?.categoryId),
-          date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '',
-          time: apt.startTime || '',
-          status: mapStatus(apt.status),
-          notes: apt.notes || '',
-          createdAt: apt.createdAt || new Date().toISOString(),
-          completedAt: apt.status === 'COMPLETED' ? apt.updatedAt : null,
-          cancelledAt: apt.status === 'CANCELLED' ? apt.updatedAt : null,
-          cancelReason: apt.cancellationReason || ''
-        }));
-        
-        setAppointments(mappedAppointments);
-      } else {
-        console.error("Failed to load appointments:", response.error);
-        showToast("Không thể tải danh sách lịch đặt", "error");
-      }
+      const response = await apiClient.get('/appointments');
+      const data = response.data || response || [];
+      setAppointments(data);
     } catch (error) {
       console.error("Error loading appointments:", error);
-      showToast("Lỗi khi tải danh sách lịch đặt", "error");
+      showToast("Không thể tải danh sách lịch hẹn", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const mapStatus = (backendStatus) => {
-    const statusMap = {
-      'PENDING': 'upcoming',
-      'CONFIRMED': 'upcoming',
-      'IN_PROGRESS': 'upcoming',
-      'COMPLETED': 'completed',
-      'CANCELLED': 'cancelled'
-    };
-    return statusMap[backendStatus] || 'upcoming';
-  };
-
-  const getServiceIcon = (categoryId) => {
-    // Map service categories to icons
-    const iconMap = {
-      1: '🏥', // Medical
-      2: '🛁', // Grooming
-      3: '💉', // Vaccination
-      4: '✂️', // Styling
-    };
-    return iconMap[categoryId] || '🩺';
-  };
-
-  const handleBookAppointment = async (data) => {
-    setIsBookModalOpen(false);
-  };
-
-  const handleViewDetail = (appointment) => {
-    setSelectedAppointment(appointment);
-    setIsDetailModalOpen(true);
-  };
-
-  const handleCancelClick = (appointment) => {
-    setSelectedAppointment(appointment);
-    setIsCancelModalOpen(true);
-  };
-
-  const handleCancelSuccess = async (data) => {
+  const loadPetsAndServices = async () => {
     try {
-      console.log(data);
-      const response = await appointmentApi.cancel(data.appointmentId, data.reason);
+      // Check current user
+      const currentUserRes = await apiClient.get('/auth/me');
+      const currentUser = currentUserRes.data || currentUserRes;
+      console.log('👤 Current logged in user:', currentUser);
+
+      const [petsRes, servicesRes, employeesRes] = await Promise.all([
+        apiClient.get('/pets/me'), // ← Changed from /pets to /pets/me
+        apiClient.get('/services'),
+        apiClient.get('/employees').catch(() => ({ data: [] })) // Fallback if no API
+      ]);
       
-      if (response.success) {
-        showToast("Đã hủy lịch hẹn", "success");
-        loadAppointments(); // Reload the list
-      } else {
-        showToast(response.error || "Không thể hủy lịch hẹn", "error");
+      const petsData = petsRes.data || petsRes || [];
+      console.log('🐾 Raw pets from API:', petsData);
+      console.log('🔍 Pets count:', petsData.length);
+      
+      // Log each pet's owner
+      petsData.forEach(pet => {
+        console.log(`Pet "${pet.name}" (ID: ${pet.petId || pet.id}) belongs to ownerId: ${pet.ownerId}, owner: ${pet.owner?.fullName || 'N/A'}`);
+      });
+
+      setPets(petsData);
+      setServices(servicesRes.data || servicesRes || []);
+      const employeesData = employeesRes.data || employeesRes || [];
+      setEmployees(employeesData);
+      
+      // Auto-select first employee if available
+      if (employeesData.length > 0 && !bookingForm.employeeId) {
+        const firstEmployeeId = employeesData[0].employeeId || employeesData[0].id;
+        setBookingForm(prev => ({ ...prev, employeeId: firstEmployeeId?.toString() || "" }));
       }
     } catch (error) {
-      console.error("Error cancelling appointment:", error);
-      showToast("Lỗi khi hủy lịch hẹn", "error");
+      console.error("Error loading pets/services:", error);
     }
   };
 
-  const filteredAppointments = appointments.filter(apt => {
-    const matchFilter = filter === "all" || apt.status === filter;
-    const matchSearch = apt.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       apt.serviceName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
-  });
+  const filterAppointments = () => {
+    let filtered = appointments;
+
+    if (filter === "upcoming") {
+      filtered = appointments.filter(apt => 
+        apt.status === 'PENDING' || apt.status === 'CONFIRMED'
+      );
+    } else if (filter === "completed") {
+      filtered = appointments.filter(apt => apt.status === 'COMPLETED');
+    } else if (filter === "cancelled") {
+      filtered = appointments.filter(apt => apt.status === 'CANCELLED');
+    }
+
+    // Sort by date
+    filtered.sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
+    
+    setFilteredAppointments(filtered);
+  };
+
+  const getStats = () => {
+    const upcoming = appointments.filter(apt => 
+      apt.status === 'PENDING' || apt.status === 'CONFIRMED'
+    ).length;
+    const completed = appointments.filter(apt => apt.status === 'COMPLETED').length;
+    const cancelled = appointments.filter(apt => apt.status === 'CANCELLED').length;
+
+    return { upcoming, completed, cancelled };
+  };
+
+  const handleBookAppointment = async (e) => {
+    e.preventDefault();
+
+    console.log('📋 Booking Form Data:', bookingForm);
+    console.log('🐾 Available Pets:', pets);
+    console.log('💼 Available Services:', services);
+    console.log('👨‍⚕️ Available Employees:', employees);
+
+    if (!bookingForm.petId || !bookingForm.serviceId || !bookingForm.employeeId || !bookingForm.appointmentDate || !bookingForm.startTime) {
+      showToast("Vui lòng điền đầy đủ thông tin", "error");
+      return;
+    }
+
+    // Validate pet exists in available pets
+    const selectedPet = pets.find(p => (p.petId || p.id)?.toString() === bookingForm.petId);
+    if (!selectedPet) {
+      console.error('❌ Selected pet not found in available pets!');
+      showToast("Thú cưng không hợp lệ. Vui lòng chọn lại!", "error");
+      return;
+    }
+    console.log('✅ Selected pet:', selectedPet);
+
+    try {
+      // Calculate endTime (1 hour after startTime)
+      const [hours, minutes] = bookingForm.startTime.split(':');
+      const endHour = (parseInt(hours) + 1) % 24;
+      const endTime = `${endHour.toString().padStart(2, '0')}:${minutes}`;
+
+      const payload = {
+        petId: parseInt(bookingForm.petId),
+        serviceId: parseInt(bookingForm.serviceId),
+        employeeId: parseInt(bookingForm.employeeId),
+        appointmentDate: bookingForm.appointmentDate,
+        startTime: bookingForm.startTime,
+        endTime: endTime,
+        notes: bookingForm.notes || null
+      };
+
+      console.log('📤 Sending Appointment Payload:', payload);
+
+      await apiClient.post('/appointments', payload);
+
+      showToast("Đã đặt lịch hẹn thành công!", "success");
+      setIsBookModalOpen(false);
+      setBookingForm({
+        petId: "",
+        serviceId: "",
+        employeeId: employees.length > 0 ? (employees[0].employeeId || employees[0].id)?.toString() || "" : "",
+        appointmentDate: "",
+        startTime: "",
+        notes: ""
+      });
+      loadAppointments();
+    } catch (error) {
+      console.error("❌ Error booking appointment:", error);
+      console.error("📋 Error response:", error.response?.data);
+      showToast(error.response?.data?.message || "Không thể đặt lịch", "error");
+    }
+  };
+
+  // Note: handleCancelAppointment removed - PET_OWNER lacks DELETE permission
 
   const getStatusBadge = (status) => {
-    const badges = {
-      upcoming: { 
-        label: "Sắp tới", 
-        variant: "secondary", 
-        icon: Hourglass 
-      },
-      completed: { 
-        label: "Đã hoàn thành", 
-        variant: "success", 
-        icon: CheckCircle2 
-      },
-      cancelled: { 
-        label: "Đã hủy", 
-        variant: "destructive", 
-        icon: XCircle 
-      }
+    const variants = {
+      PENDING: { className: "bg-amber-500", label: "Chờ xác nhận" },
+      CONFIRMED: { className: "bg-blue-500", label: "Đã xác nhận" },
+      COMPLETED: { className: "bg-green-500", label: "Hoàn thành" },
+      CANCELLED: { className: "bg-red-500", label: "Đã hủy" }
     };
-    return badges[status] || badges.upcoming;
+    return variants[status] || variants.PENDING;
   };
 
-  const stats = {
-    total: appointments.length,
-    upcoming: appointments.filter(a => a.status === 'upcoming').length,
-    completed: appointments.filter(a => a.status === 'completed').length,
-    cancelled: appointments.filter(a => a.status === 'cancelled').length
-  };
-
-  const filterOptions = [
-    { value: "all", label: "Tất cả", icon: ClipboardList },
-    { value: "upcoming", label: "Sắp tới", icon: Hourglass },
-    { value: "completed", label: "Đã hoàn thành", icon: CheckCircle2 },
-    { value: "cancelled", label: "Đã hủy", icon: XCircle }
-  ];
+  const stats = getStats();
 
   return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Lịch đặt"
-        subtitle="Quản lý lịch hẹn dịch vụ cho thú cưng"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          icon={Calendar}
-          title="Tổng lịch đặt"
-          value={stats.total}
-          color="primary"
-        />
-        <StatsCard
-          icon={Hourglass}
-          title="Sắp tới"
-          value={stats.upcoming}
-          color="info"
-        />
-        <StatsCard
-          icon={CheckCircle2}
-          title="Đã hoàn thành"
-          value={stats.completed}
-          color="success"
-        />
-        <StatsCard
-          icon={XCircle}
-          title="Đã hủy"
-          value={stats.cancelled}
-          color="warning"
-        />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Gradient Header */}
+      <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 text-white p-8 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+            <Calendar className="h-8 w-8" />
+            Quản Lý Lịch Hẹn
+          </h1>
+          <p className="text-white/90">
+            Đặt lịch khám và theo dõi các cuộc hẹn của bạn
+          </p>
+        </div>
       </div>
 
-      {/* Filter Buttons & Search & Book Button */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-wrap gap-2">
-          {filterOptions.map((option) => {
-            const IconComponent = option.icon;
-            return (
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Sắp đến</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.upcoming}</p>
+                </div>
+                <Clock className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-500 to-emerald-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Hoàn thành</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.completed}</p>
+                </div>
+                <CheckCircle className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-red-500 to-pink-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Đã hủy</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.cancelled}</p>
+                </div>
+                <XCircle className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filter Tabs + Book Button */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-wrap gap-2">
+                {filterTabs.map((tab) => (
+                  <Button
+                    key={tab.value}
+                    onClick={() => setFilter(tab.value)}
+                    variant={filter === tab.value ? "default" : "outline"}
+                    size="sm"
+                    className={filter === tab.value ? "bg-blue-500 hover:bg-blue-600" : ""}
+                  >
+                    <tab.icon className="h-4 w-4 mr-2" />
+                    {tab.label}
+                  </Button>
+                ))}
+              </div>
+
               <Button
-                key={option.value}
-                onClick={() => setFilter(option.value)}
-                variant={filter === option.value ? "default" : "outline"}
-                size="sm"
+                onClick={() => setIsBookModalOpen(true)}
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
               >
-                <IconComponent className="h-4 w-4 mr-2" />
-                {option.label}
+                <Plus className="h-4 w-4 mr-2" />
+                Đặt lịch mới
               </Button>
-            );
-          })}
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="flex gap-2 w-full sm:w-auto">
-          <div className="flex-1 sm:w-64">
-            <Input
-              type="text"
-              placeholder="Tìm kiếm lịch đặt..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={Search}
-            />
+        {/* Appointments List */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">⏳</div>
+            <p className="text-gray-500">Đang tải...</p>
           </div>
-          <Button
-            onClick={() => setIsBookModalOpen(true)}
-            className="whitespace-nowrap"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Đặt lịch mới
-          </Button>
-        </div>
-      </div>
-
-      {/* Appointments List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Lịch đặt của tôi
-          </h2>
-          <Badge variant="outline" className="text-sm">
-            {filteredAppointments.length} lịch hẹn
-          </Badge>
-        </div>
-
-        {filteredAppointments.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredAppointments.map((apt) => {
-              const statusBadge = getStatusBadge(apt.status);
-              const StatusIcon = statusBadge.icon;
-              return (
-                <Card key={apt.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between mb-2">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {apt.code}
-                      </Badge>
-                      <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                        <StatusIcon className="h-3 w-3" />
-                        {statusBadge.label}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {apt.date}
+        ) : filteredAppointments.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredAppointments.map((apt) => (
+              <Card 
+                key={apt.appointmentId}
+                className="hover:shadow-xl transition-shadow border-l-4 border-l-blue-500"
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge {...getStatusBadge(apt.status)}>
+                          {getStatusBadge(apt.status).label}
+                        </Badge>
+                        <span className="text-gray-600">
+                          {new Date(apt.appointmentDate).toLocaleDateString('vi-VN')}
+                        </span>
+                        <span className="text-gray-600">•</span>
+                        <span className="text-gray-600">{apt.startTime}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {apt.time}
+
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        {apt.service?.serviceName || 'Dịch vụ'}
+                      </h3>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <User className="h-4 w-4" />
+                          <span>{apt.pet?.name || `Pet ID: ${apt.petId}`}</span>
+                        </div>
+
+                        {apt.employee && (
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <Stethoscope className="h-4 w-4" />
+                            <span>{apt.employee.fullName}</span>
+                          </div>
+                        )}
+
+                        {apt.notes && (
+                          <div className="bg-gray-50 p-3 rounded text-sm text-gray-700 mt-2">
+                            📝 {apt.notes}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{apt.petIcon}</div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-foreground">{apt.petName}</p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          {apt.serviceIcon && <span>{apt.serviceIcon}</span>}
-                          {apt.serviceName}
+
+                    <div className="flex flex-col items-end justify-between">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">Tổng chi phí</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {apt.estimatedCost?.toLocaleString('vi-VN') || '0'} đ
                         </p>
                       </div>
+                      {/* Note: Cancel button removed - PET_OWNER cannot cancel appointments via API */}
                     </div>
-
-                    {apt.notes && (
-                      <div className="p-3 bg-muted/50 rounded-lg border border-border">
-                        <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          Ghi chú:
-                        </p>
-                        <p className="text-sm text-foreground">{apt.notes}</p>
-                      </div>
-                    )}
-
-                    {apt.cancelReason && (
-                      <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                        <p className="text-xs font-medium text-red-900 mb-1 flex items-center gap-1">
-                          <XCircle className="h-3 w-3" />
-                          Lý do hủy:
-                        </p>
-                        <p className="text-sm text-red-900">{apt.cancelReason}</p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        onClick={() => handleViewDetail(apt)}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Chi tiết
-                      </Button>
-                      {apt.status === 'upcoming' && (
-                        <Button
-                          onClick={() => handleCancelClick(apt)}
-                          variant="destructive"
-                          size="sm"
-                          className="flex-1"
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Hủy lịch
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         ) : (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground font-medium">
-                Không tìm thấy lịch đặt nào
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="text-8xl mb-4">📅</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {filter === "all" ? "Chưa có lịch hẹn" : "Không có lịch hẹn"}
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {filter === "all" 
+                  ? "Đặt lịch hẹn đầu tiên của bạn"
+                  : "Không tìm thấy lịch hẹn phù hợp với bộ lọc"}
               </p>
+              {filter === "all" && (
+                <Button
+                  onClick={() => setIsBookModalOpen(true)}
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Đặt lịch ngay
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Modals */}
-      <BookAppointmentModal
-        isOpen={isBookModalOpen}
-        onClose={() => setIsBookModalOpen(false)}
-        onSuccess={handleBookAppointment}
-      />
+      {/* Book Appointment Modal */}
+      {isBookModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Đặt Lịch Hẹn Mới</h2>
+                <Button
+                  onClick={() => setIsBookModalOpen(false)}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
 
-      <AppointmentDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setSelectedAppointment(null);
-        }}
-        appointment={selectedAppointment}
-      />
+              <form onSubmit={handleBookAppointment} className="space-y-4">
+                {/* Pet Selection */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Chọn thú cưng *</label>
+                  <select
+                    value={bookingForm.petId}
+                    onChange={(e) => setBookingForm({...bookingForm, petId: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                    required
+                  >
+                    <option value="">-- Chọn thú cưng --</option>
+                    {pets.map((pet) => {
+                      const id = pet.petId || pet.id;
+                      return (
+                        <option key={id} value={id}>
+                          {pet.name} - {pet.species}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
 
-      <CancelAppointmentOwnerModal
-        isOpen={isCancelModalOpen}
-        onClose={() => {
-          setIsCancelModalOpen(false);
-          setSelectedAppointment(null);
-        }}
-        onSuccess={handleCancelSuccess}
-        appointment={selectedAppointment}
-      />
+                {/* Service Selection */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Chọn dịch vụ *</label>
+                  <select
+                    value={bookingForm.serviceId}
+                    onChange={(e) => setBookingForm({...bookingForm, serviceId: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                    required
+                  >
+                    <option value="">-- Chọn dịch vụ --</option>
+                    {services.map((service) => {
+                      const id = service.serviceId || service.id;
+                      return (
+                        <option key={id} value={id}>
+                          {service.serviceName || service.name} - {(service.basePrice || service.price || 0).toLocaleString('vi-VN')} đ
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Doctor Selection */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Chọn bác sĩ *</label>
+                  <select
+                    value={bookingForm.employeeId}
+                    onChange={(e) => setBookingForm({...bookingForm, employeeId: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                    required
+                  >
+                    <option value="">-- Chọn bác sĩ --</option>
+                    {employees.map((emp) => {
+                      const id = emp.employeeId || emp.id;
+                      return (
+                        <option key={id} value={id}>
+                          {emp.fullName || emp.name || `Bác sĩ #${id}`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Date */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Ngày hẹn *</label>
+                  <Input
+                    type="date"
+                    value={bookingForm.appointmentDate}
+                    onChange={(e) => setBookingForm({...bookingForm, appointmentDate: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                  />
+                </div>
+
+                {/* Time */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Thời gian *</label>
+                  <Input
+                    type="time"
+                    value={bookingForm.startTime}
+                    onChange={(e) => setBookingForm({...bookingForm, startTime: e.target.value})}
+                    required
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Ghi chú</label>
+                  <textarea
+                    value={bookingForm.notes}
+                    onChange={(e) => setBookingForm({...bookingForm, notes: e.target.value})}
+                    placeholder="Nhập ghi chú (tùy chọn)..."
+                    rows={3}
+                    className="w-full p-2 border rounded-md"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsBookModalOpen(false)}
+                    className="flex-1"
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500"
+                  >
+                    Đặt lịch
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

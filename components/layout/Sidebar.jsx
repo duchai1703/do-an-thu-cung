@@ -45,8 +45,9 @@ const menuItems = {
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/owner" },
     { emoji: "🐾", label: "Thú cưng của tôi", path: "/dashboard/owner/pets" },
     { emoji: "📅", label: "Lịch đặt", path: "/dashboard/owner/appointments" },
-    { emoji: "💳", label: "Thanh Toán", path: "/dashboard/owner/payments" },
+    { emoji: "💳", label: "Thanh Toán", path: "/dashboard/owner/invoices" },
     { emoji: "🛍️", label: "Xem dịch vụ", path: "/dashboard/owner/services" },
+    { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/owner/profile" },
   ],
 };
 

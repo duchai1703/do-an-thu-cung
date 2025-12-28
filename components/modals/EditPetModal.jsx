@@ -43,16 +43,16 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
   useEffect(() => {
     if (pet && isOpen) {
       setFormData({
-        id: pet.id,
+        id: pet.petId || pet.id, // Handle both petId and id
         name: pet.name || "",
-        type: pet.type || "",
+        type: pet.species || pet.type || "", // Backend uses species
         breed: pet.breed || "",
         gender: pet.gender || "",
         weight: pet.weight || "",
         color: pet.color || "",
-        dateOfBirth: pet.dateOfBirth || "",
-        medicalHistory: pet.medicalHistory || "",
-        notes: pet.notes || ""
+        dateOfBirth: pet.birthDate || pet.dateOfBirth || "", // Backend uses birthDate
+        medicalHistory: pet.initialHealthStatus || pet.medicalHistory || "",
+        notes: pet.specialNotes || pet.notes || ""
       });
     }
   }, [pet, isOpen]);
@@ -159,8 +159,15 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
                 value={formData.type}
                 onChange={handleChange}
               >
-                <option value="Chó">Chó</option>
-                <option value="Mèo">Mèo</option>
+                <option value="">-- Chọn loại --</option>
+                <option value="Dog">Chó</option>
+                <option value="Cat">Mèo</option>
+                <option value="Bird">Chim</option>
+                <option value="Hamster">Chuột Hamster</option>
+                <option value="Rabbit">Thỏ</option>
+                <option value="Turtle">Rùa</option>
+                <option value="Fish">Cá</option>
+                <option value="Other">Khác</option>
               </Select>
             </div>
 

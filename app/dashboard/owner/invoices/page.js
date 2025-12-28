@@ -1,27 +1,44 @@
+/**
+ * Invoices Page - Premium UI
+ * 
+ * Features:
+ * - Gradient header
+ * - Stats cards (Total, Paid, Pending)
+ * - Invoice list with status badges
+ * - View invoice details
+ * - VNPay Online Payment for PENDING invoices
+ * 
+ * APIs:
+ * - GET /invoices (auto-filtered by owner)
+ * - POST /payments/online/initiate (VNPay payment)
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { 
-  Receipt, CheckCircle2, Hourglass, Eye, CreditCard, 
-  DollarSign, ClipboardList, XCircle 
+  Receipt, Eye, Clock, CheckCircle, 
+  CreditCard, DollarSign, Calendar, Wallet, Loader2
 } from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import StatsCard from "@/components/dashboard/StatsCard";
-import InvoiceDetailModal from "@/components/modals/InvoiceDetailModal";
-import { cn } from "@/lib/utils";
-import { invoiceApi, paymentApi, getToken } from "@/lib/api";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function OwnerInvoicesPage() {
-  const router = useRouter();
+export default function InvoicesPage() {
   const { showToast } = useToast();
-  const [invoices, setInvoices] = useState([]);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [filter, setFilter] = useState("all");
+  
   const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(null); // invoiceId being processed
+
+  const filterTabs = [
+    { value: "all", label: "Tất cả", icon: Receipt },
+    { value: "pending", label: "Chờ thanh toán", icon: Clock },
+    { value: "paid", label: "Đã thanh toán", icon: CheckCircle }
+  ];
 
   useEffect(() => {
     loadInvoices();
@@ -30,280 +47,270 @@ export default function OwnerInvoicesPage() {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const token = getToken();
-      
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await invoiceApi.getAll({ includeAppointment: true, includePet: true, includePetOwner: true });
-      
-      if (response.success && response.data) {
-        console.log("Fetched invoices:", response.data);
-        // Map backend data to frontend format
-        const mappedInvoices = response.data.map(inv => ({
-          id: inv.invoiceId,
-          customerName: inv.petOwner?.name || "Bạn",
-          customerPhone: inv.petOwner?.phoneNumber || "",
-          customerEmail: inv.petOwner?.email || "",
-          petName: inv.pet?.name || "Unknown",
-          petIcon: inv.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          petBreed: inv.pet?.breed || "Unknown",
-          petAge: calculateAge(inv.pet?.birthDate),
-          date: inv.issueDate || inv.createdAt,
-          services: inv.invoiceItems?.map(item => ({
-            icon: getServiceIcon(item.service?.categoryId),
-            name: item.service?.name || item.description || "Service",
-            quantity: item.quantity || 1,
-            price: item.unitPrice || 0
-          })) || [],
-          subtotal: inv.totalAmount || 0,
-          discount: inv.discountAmount || 0,
-          total: inv.totalAmount - (inv.discountAmount || 0) || 0,
-          isPaid: inv.status === 'PAId',
-          paymentMethod: inv.payment?.paymentMethod || null,
-          paymentDate: inv.payment?.paymentDate || null,
-          notes: inv.notes || ""
-        }));
-        
-        setInvoices(mappedInvoices);
-      } else {
-        console.error("Failed to load invoices:", response.error);
-        showToast("Không thể tải danh sách hóa đơn", "error");
-      }
+      const response = await apiClient.get('/invoices');
+      const data = response.data || response || [];
+      setInvoices(data);
     } catch (error) {
       console.error("Error loading invoices:", error);
-      showToast("Lỗi khi tải danh sách hóa đơn", "error");
+      showToast("Không thể tải danh sách hóa đơn", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 0;
-    const birth = new Date(birthDate);
-    const today = new Date();
-    return today.getFullYear() - birth.getFullYear();
+  const getFilteredInvoices = () => {
+    if (filter === "pending") {
+      return invoices.filter(inv => inv.status === 'PENDING' || inv.status === 'UNPAID');
+    } else if (filter === "paid") {
+      return invoices.filter(inv => inv.status === 'PAID');
+    }
+    return invoices;
   };
 
-  const getServiceIcon = (categoryId) => {
-    const iconMap = {
-      1: '🏥', // Medical examination
-      2: '💉', // Vaccination
-      3: '🛁', // Bathing
-      4: '✂️', // Grooming
-      5: '💆', // Spa
-    };
-    return iconMap[categoryId] || '🐾';
+  const getStats = () => {
+    const total = invoices.length;
+    const paid = invoices.filter(inv => inv.status === 'PAID').length;
+    const pending = invoices.filter(inv => inv.status === 'PENDING' || inv.status === 'UNPAID').length;
+    const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+
+    return { total, paid, pending, totalAmount };
   };
 
-  const handleViewDetail = (invoice) => {
-    setSelectedInvoice(invoice);
-  };
+  // Initiate VNPay online payment
+  const handlePayment = async (invoiceId) => {
+    try {
+      setProcessingPayment(invoiceId);
+      
+      const response = await apiClient.post('/payments/online/initiate', {
+        invoiceId: invoiceId,
+        paymentMethod: 'VNPAY',
+        returnUrl: window.location.href, // Return to this page after payment
+        locale: 'vi'
+      });
 
-  const handlePayInvoice = async (invoice) => {
-    if (confirm("Xác nhận thanh toán hóa đơn này?")) {
-      try {
-        // Create payment for the invoice
-        const paymentData = {
-          invoiceId: invoice.id,
-          paymentMethod: 'ONLINE',
-          amount: invoice.total,
-          paymentDate: new Date().toISOString()
-        };
-
-        const response = await paymentApi.create(paymentData);
-        
-        if (response.success) {
-          // Reload invoices to get updated data
-          await loadInvoices();
-          showToast("Thanh toán thành công!", "success");
-        } else {
-          showToast("Không thể thanh toán. Vui lòng thử lại.", "error");
-        }
-      } catch (error) {
-        console.error("Error processing payment:", error);
-        showToast("Lỗi khi thanh toán hóa đơn", "error");
+      const data = response.data || response;
+      
+      if (data.paymentUrl) {
+        // Redirect to VNPay payment page
+        showToast("Đang chuyển đến trang thanh toán VNPay...", "success");
+        window.location.href = data.paymentUrl;
+      } else {
+        showToast("Không thể khởi tạo thanh toán", "error");
       }
+    } catch (error) {
+      console.error("Error initiating payment:", error);
+      showToast(error.response?.data?.message || "Không thể thanh toán", "error");
+    } finally {
+      setProcessingPayment(null);
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => {
-    if (filter === "all") return true;
-    if (filter === "paid") return inv.isPaid;
-    if (filter === "unpaid") return !inv.isPaid;
-    return true;
-  });
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(amount);
+  const getStatusBadge = (status) => {
+    const variants = {
+      PENDING: { className: "bg-amber-500", label: "Chờ thanh toán" },
+      UNPAID: { className: "bg-amber-500", label: "Chưa thanh toán" },
+      PROCESSING_ONLINE: { className: "bg-blue-500", label: "Đang xử lý" },
+      PAID: { className: "bg-green-500", label: "Đã thanh toán" },
+      CANCELLED: { className: "bg-red-500", label: "Đã hủy" },
+      FAILED: { className: "bg-red-500", label: "Thất bại" }
+    };
+    return variants[status] || variants.PENDING;
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  const totalPaid = invoices.filter(i => i.isPaid).reduce((sum, i) => sum + i.total, 0);
-  const totalUnpaid = invoices.filter(i => !i.isPaid).reduce((sum, i) => sum + i.total, 0);
-
-  const filterOptions = [
-    { value: "all", label: "Tất cả", icon: ClipboardList },
-    { value: "paid", label: "Đã thanh toán", icon: CheckCircle2 },
-    { value: "unpaid", label: "Chưa thanh toán", icon: Hourglass }
-  ];
+  const stats = getStats();
+  const filteredInvoices = getFilteredInvoices();
 
   return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Hóa đơn của tôi"
-        subtitle="Xem và quản lý hóa đơn thanh toán"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard
-          icon={Receipt}
-          title="Tổng hóa đơn"
-          value={loading ? "..." : invoices.length}
-          color="primary"
-        />
-        <StatsCard
-          icon={CheckCircle2}
-          title="Đã thanh toán"
-          value={loading ? "..." : invoices.filter(i => i.isPaid).length}
-          change={formatCurrency(totalPaid)}
-          color="success"
-        />
-        <StatsCard
-          icon={Hourglass}
-          title="Chưa thanh toán"
-          value={loading ? "..." : invoices.filter(i => !i.isPaid).length}
-          change={formatCurrency(totalUnpaid)}
-          color="warning"
-        />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Gradient Header */}
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 text-white p-8 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+            <Receipt className="h-8 w-8" />
+            Thanh Toán & Hóa Đơn
+          </h1>
+          <p className="text-white/90">
+            Xem và quản lý các hóa đơn thanh toán
+          </p>
+        </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {filterOptions.map((option) => {
-          const IconComponent = option.icon;
-          return (
-            <Button
-              key={option.value}
-              onClick={() => setFilter(option.value)}
-              variant={filter === option.value ? "default" : "outline"}
-              size="sm"
-            >
-              <IconComponent className="h-4 w-4 mr-2" />
-              {option.label}
-            </Button>
-          );
-        })}
-      </div>
-
-      {/* Invoices List */}
-      <div className="space-y-4">
-        {loading ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-              <p className="text-muted-foreground font-medium">Đang tải hóa đơn...</p>
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Tổng hóa đơn</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.total}</p>
+                </div>
+                <Receipt className="h-12 w-12 text-white/30" />
+              </div>
             </CardContent>
           </Card>
-        ) : filteredInvoices.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredInvoices.map((invoice) => (
-              <Card key={invoice.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <CardTitle className="text-sm font-mono mb-1">{invoice.id}</CardTitle>
-                      <p className="text-xs text-muted-foreground">{formatDate(invoice.date)}</p>
-                    </div>
-                    <Badge variant={invoice.isPaid ? "success" : "warning"}>
-                      {invoice.isPaid ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Đã thanh toán
-                        </>
-                      ) : (
-                        <>
-                          <Hourglass className="h-3 w-3 mr-1" />
-                          Chưa thanh toán
-                        </>
-                      )}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl">{invoice.petIcon}</div>
-                    <div>
-                      <p className="font-semibold text-foreground">{invoice.petName}</p>
-                      <p className="text-xs text-muted-foreground">{invoice.petBreed}</p>
-                    </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Dịch vụ đã sử dụng:</p>
-                    {invoice.services.map((service, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm p-2 bg-muted rounded">
-                        <span className="flex items-center gap-2">
-                          <span>{service.icon}</span>
-                          <span className="text-foreground">{service.name}</span>
-                        </span>
-                        <span className="font-semibold text-foreground">
-                          {formatCurrency(service.price)}
+          <Card className="bg-gradient-to-br from-green-500 to-emerald-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Đã thanh toán</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.paid}</p>
+                </div>
+                <CheckCircle className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-amber-500 to-orange-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Chờ thanh toán</p>
+                  <p className="text-4xl font-bold mt-2">{loading ? "..." : stats.pending}</p>
+                </div>
+                <Clock className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Tổng tiền</p>
+                  <p className="text-2xl font-bold mt-2">
+                    {loading ? "..." : stats.totalAmount.toLocaleString('vi-VN')} đ
+                  </p>
+                </div>
+                <DollarSign className="h-12 w-12 text-white/30" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filter Tabs */}
+        <Card className="shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex flex-wrap gap-2">
+              {filterTabs.map((tab) => (
+                <Button
+                  key={tab.value}
+                  onClick={() => setFilter(tab.value)}
+                  variant={filter === tab.value ? "default" : "outline"}
+                  size="sm"
+                  className={filter === tab.value ? "bg-emerald-500 hover:bg-emerald-600" : ""}
+                >
+                  <tab.icon className="h-4 w-4 mr-2" />
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Invoices List */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">⏳</div>
+            <p className="text-gray-500">Đang tải...</p>
+          </div>
+        ) : filteredInvoices.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredInvoices.map((invoice) => (
+              <Card 
+                key={invoice.invoiceId || invoice.id}
+                className="hover:shadow-xl transition-shadow border-l-4 border-l-emerald-500"
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge className={getStatusBadge(invoice.status).className}>
+                          {getStatusBadge(invoice.status).label}
+                        </Badge>
+                        <span className="text-gray-600 font-mono">
+                          #{invoice.invoiceId || invoice.id}
                         </span>
                       </div>
-                    ))}
-                  </div>
 
-                  {invoice.discount > 0 && (
-                    <div className="flex items-center justify-between text-sm p-2 bg-yellow-50 rounded border border-yellow-200">
-                      <span className="text-muted-foreground">Giảm giá:</span>
-                      <span className="font-semibold text-yellow-700">
-                        -{formatCurrency(invoice.discount)}
-                      </span>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-600">Ngày tạo</p>
+                          <p className="font-medium flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {new Date(invoice.createdAt || invoice.invoiceDate).toLocaleDateString('vi-VN')}
+                          </p>
+                        </div>
+                        
+                        {invoice.appointment && (
+                          <div>
+                            <p className="text-gray-600">Dịch vụ</p>
+                            <p className="font-medium">
+                              {invoice.appointment.service?.serviceName || 'N/A'}
+                            </p>
+                          </div>
+                        )}
+
+                        {invoice.pet && (
+                          <div>
+                            <p className="text-gray-600">Thú cưng</p>
+                            <p className="font-medium">{invoice.pet.name}</p>
+                          </div>
+                        )}
+
+                        {invoice.paymentMethod && (
+                          <div>
+                            <p className="text-gray-600">Phương thức</p>
+                            <p className="font-medium flex items-center gap-1">
+                              <CreditCard className="h-4 w-4" />
+                              {invoice.paymentMethod}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20">
-                    <span className="font-semibold text-foreground">Tổng cộng:</span>
-                    <span className="text-lg font-bold text-primary">
-                      {formatCurrency(invoice.total)}
-                    </span>
-                  </div>
+                    <div className="flex flex-col items-end justify-between">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">Tổng tiền</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {(invoice.totalAmount || 0).toLocaleString('vi-VN')} đ
+                        </p>
+                      </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      onClick={() => handleViewDetail(invoice)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Xem chi tiết
-                    </Button>
-                    {!invoice.isPaid && (
-                      <Button
-                        onClick={() => handlePayInvoice(invoice)}
-                        variant="default"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Thanh toán
-                      </Button>
-                    )}
+                      <div className="flex gap-2 mt-4">
+                        <Button
+                          onClick={() => setSelectedInvoice(invoice)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Chi tiết
+                        </Button>
+                        {/* Show payment button for PENDING invoices */}
+                        {(invoice.status === 'PENDING' || invoice.status === 'UNPAID') && (
+                          <Button
+                            onClick={() => handlePayment(invoice.invoiceId || invoice.id)}
+                            disabled={processingPayment === (invoice.invoiceId || invoice.id)}
+                            size="sm"
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500"
+                          >
+                            {processingPayment === (invoice.invoiceId || invoice.id) ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Đang xử lý...
+                              </>
+                            ) : (
+                              <>
+                                <Wallet className="h-4 w-4 mr-2" />
+                                Thanh toán
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -311,10 +318,15 @@ export default function OwnerInvoicesPage() {
           </div>
         ) : (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Receipt className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground font-medium">
-                Chưa có hóa đơn nào
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="text-8xl mb-4">🧾</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Chưa có hóa đơn
+              </h3>
+              <p className="text-gray-500">
+                {filter === "all" 
+                  ? "Bạn chưa có hóa đơn nào"
+                  : "Không tìm thấy hóa đơn phù hợp với bộ lọc"}
               </p>
             </CardContent>
           </Card>
@@ -322,11 +334,98 @@ export default function OwnerInvoicesPage() {
       </div>
 
       {/* Invoice Detail Modal */}
-      <InvoiceDetailModal
-        isOpen={!!selectedInvoice}
-        onClose={() => setSelectedInvoice(null)}
-        invoice={selectedInvoice}
-      />
+      {selectedInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Chi Tiết Hóa Đơn</h2>
+                <Button
+                  onClick={() => setSelectedInvoice(null)}
+                  variant="ghost"
+                  size="sm"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Mã hóa đơn</span>
+                  <span className="font-mono font-bold">
+                    #{selectedInvoice.invoiceId || selectedInvoice.id}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Trạng thái</span>
+                  <Badge className={getStatusBadge(selectedInvoice.status).className}>
+                    {getStatusBadge(selectedInvoice.status).label}
+                  </Badge>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Ngày tạo</span>
+                  <span>{new Date(selectedInvoice.createdAt || selectedInvoice.invoiceDate).toLocaleDateString('vi-VN')}</span>
+                </div>
+
+                {selectedInvoice.pet && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Thú cưng</span>
+                    <span>{selectedInvoice.pet.name}</span>
+                  </div>
+                )}
+
+                {selectedInvoice.appointment?.service && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Dịch vụ</span>
+                    <span>{selectedInvoice.appointment.service.serviceName}</span>
+                  </div>
+                )}
+
+                <hr />
+
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Tổng tiền</span>
+                  <span className="text-emerald-600">
+                    {(selectedInvoice.totalAmount || 0).toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <Button
+                  onClick={() => setSelectedInvoice(null)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Đóng
+                </Button>
+                {/* Show payment button for PENDING invoices */}
+                {(selectedInvoice.status === 'PENDING' || selectedInvoice.status === 'UNPAID') && (
+                  <Button
+                    onClick={() => handlePayment(selectedInvoice.invoiceId || selectedInvoice.id)}
+                    disabled={processingPayment === (selectedInvoice.invoiceId || selectedInvoice.id)}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500"
+                  >
+                    {processingPayment === (selectedInvoice.invoiceId || selectedInvoice.id) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Đang xử lý...
+                      </>
+                    ) : (
+                      <>
+                        <Wallet className="h-4 w-4 mr-2" />
+                        Thanh toán VNPay
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

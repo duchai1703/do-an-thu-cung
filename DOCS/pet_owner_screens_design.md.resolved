@@ -1,0 +1,486 @@
+# 🐾 Pet Owner Dashboard - Screen Design Document
+
+## 📋 Overview
+
+Design comprehensive cho **6 màn hình chính** của Pet Owner dashboard, **CHỈ dùng APIs được backend hỗ trợ**.
+
+**Backend APIs Available:** 27 APIs trên 7 controllers
+**Design Principle:** Premium UI, mobile-first, theo chuẩn PAW LOVERS branding
+
+---
+
+## 🎨 Design System
+
+### Color Palette
+- **Primary:** Blue/Cyan gradient (`#3B82F6` → `#06B6D4`)
+- **Success:** Green (`#10B981`)
+- **Warning:** Amber (`#F59E0B`)
+- **Error:** Red (`#EF4444`)
+- **Neutral:** Gray scale
+
+### Typography
+- **Font:** Inter, system-ui
+- **Headers:** 24-32px, bold
+- **Body:** 14-16px, regular
+- **Labels:** 12-14px, medium
+
+---
+
+## 1. 🏠 Dashboard (Tổng quan) - `/dashboard/owner`
+
+### 📊 Stats Cards (4 cards)
+
+| Stat | API | Icon | Color |
+|------|-----|------|-------|
+| Thú cưng của tôi | `GET /pets` | 🐾 | Purple → Pink |
+| Lịch sắp tới | `GET /appointments?status=PENDING,CONFIRMED` | 📅 | Blue → Cyan |
+| Chờ thanh toán | `GET /invoices?status=PENDING` | 💰 | Amber → Orange |
+| Dịch vụ yêu thích | `GET /services` (count bookmarked) | ⭐ | Green → Emerald |
+
+### 🐶 My Pets Section
+
+**Layout:** Grid 3-4 columns (responsive)
+
+**Pet Card:**
+```
+┌─────────────────────────┐
+│ 🐕 [Avatar]             │
+│ Max - Chó Golden        │  
+│ 3 tuổi • 25kg           │
+│ ──────────────          │
+│ 🏥 Sức khỏe tốt        │
+│ 💉 Tiêm vacxin: 2 days │
+│ ──────────────          │
+│ [Xem chi tiết] [Đặt lịch]│
+└─────────────────────────┘
+```
+
+**Data Sources:**
+- `GET /pets` - Basic info
+- `GET /medical-records/pet/:id` - Health status
+- `GET /medical-records/pet/:id/vaccinations` - Vaccine reminder
+
+**Empty State:**
+```
+┌─────────────────────────┐
+│        🐾                │
+│  Chưa có thú cưng       │
+│  [+ Thêm thú cưng]      │
+└─────────────────────────┘
+```
+
+### 📅 Upcoming Appointments Timeline
+
+**Max items:** 5 latest
+
+```
+┌─────────────────────────────┐
+│ 📅 28/12/2025 - 14:00      │
+│ ─────────────────────       │
+│ 🐕 Max - Khám định kỳ     │
+│ 👨‍⚕️ BS. Nguyễn Văn A      │
+│ 📍 Phòng khám số 1         │
+└─────────────────────────────┘
+```
+
+**API:** `GET /appointments?limit=5&sort=appointmentDate:ASC`
+
+### 🎯 Quick Actions (4 buttons)
+
+- 🐾 Quản lý thú cưng → `/dashboard/owner/pets`
+- 📅 Đặt lịch khám → `/dashboard/owner/appointments/new`
+- 💳 Lịch sử thanh toán → `/dashboard/owner/invoices`
+- ⭐ Xem dịch vụ → `/dashboard/owner/services`
+
+---
+
+## 2. 🐾 Quản lý Thú Cưng - `/dashboard/owner/pets`
+
+### 📊 Stats
+- Tổng số pet
+
+### 🔍 Search & Filter
+- Search by: Name, breed
+- Filter by: Species (Chó, Mèo, etc.)
+
+### 🗂️ Pet Gallery (Grid view)
+
+**Pet Card (Extended):**
+```
+┌──────────────────────────────┐
+│ 🐕                           │
+│ Max                 [Edit ✏️]│
+│ ─────────────────────        │
+│ 🏷️ Chó Golden Retriever     │
+│ 🎂 3 tuổi • ♂ • 25kg        │
+│ 🎨 Vàng nhạt                │
+│ ─────────────────────        │
+│ 📝 Ghi chú: Rất thích tắm   │
+│ ─────────────────────        │
+│ [Xem chi tiết] [Đặt lịch]   │
+└──────────────────────────────┘
+```
+
+**APIs:**
+- `GET /pets` - List all pets
+- `POST /pets` - Add new pet
+- `PUT /pets/:id` - Update pet
+- `DELETE /pets/:id` - Remove pet
+
+### ➕ Add Pet Modal
+
+**Form fields:**
+- Tên thú cưng *
+- Loại (species) * - Dropdown: Chó, Mèo, Thỏ, Chim, Hamster
+- Giống (breed) *
+- Ngày sinh *
+- Giới tính * - Radio: Nam, Nữ
+- Cân nặng (kg)
+- Màu sắc
+- Tình trạng sức khỏe ban đầu
+- Ghi chú
+
+**API:** `POST /pets`
+
+---
+
+## 3. 🏥 Chi tiết Thú Cưng - `/dashboard/owner/pets/:id`
+
+### 📋 Tabs Navigation
+
+#### Tab 1: Thông tin cơ bản
+- Avatar + basic info
+- Edit button
+- **API:** `GET /pets/:id`
+
+#### Tab 2: Hồ sơ y tế (READ-ONLY) 🔒
+```
+┌─────────────────────────────┐
+│ 📅 28/12/2025               │
+│ ─────────────────────       │
+│ 👨‍⚕️ BS. Nguyễn Văn A       │
+│ 🏥 Chẩn đoán: Viêm da       │
+│ 💊 Thuốc: Antibiotics x7    │
+│ 📝 Ghi chú: Theo dõi 2 tuần│
+│ ─────────────────────       │
+│ [Download PDF]              │
+└─────────────────────────────┘
+```
+
+**APIs:**
+- `GET /medical-records/pet/:id` - List records
+- `GET /medical-records/:id` - View details
+- `GET /medical-records/:id/pdf` - Download PDF
+
+#### Tab 3: Lịch sử tiêm chủng 💉
+```
+┌─────────────────────────────┐
+│ ✅ Rabies - 15/11/2025     │
+│ 👨‍⚕️ BS. Trần B              │
+│ 🔔 Nhắc nhở: 15/11/2026    │
+└─────────────────────────────┘
+```
+
+**API:** `GET /medical-records/pet/:id/vaccinations`
+
+#### Tab 4: Lịch hẹn
+- List appointments của pet này
+- **API:** `GET /appointments?petId=X`
+
+---
+
+## 4. 📅 Đặt Lịch & Quản Lý Lịch Hẹn - `/dashboard/owner/appointments`
+
+### 📊 Stats (3 cards)
+- Sắp đến: PENDING/CONFIRMED
+- Đã hoàn thành: COMPLETED  
+- Đã hủy: CANCELLED
+
+### 🗂️ Filter Tabs
+- **Tất cả**
+- **Sắp tới** (PENDING, CONFIRMED)
+- **Đã hoàn thành** (COMPLETED)
+- **Đã hủy** (CANCELLED)
+
+### 📋 Appointment List
+
+**Card design:**
+```
+┌──────────────────────────────┐
+│ [PENDING] 📅 28/12/2025 14:00│
+│ ──────────────────────       │
+│ 🐕 Max                       │
+│ 🏥 Khám định kỳ             │
+│ 👨‍⚕️ BS. Nguyễn Văn A         │
+│ ──────────────────────       │
+│ 💰 500,000 VNĐ (ước tính)   │
+│ ──────────────────────       │
+│ [Chi tiết] [Hủy lịch] ❌    │
+└──────────────────────────────┘
+```
+
+**APIs:**
+- `GET /appointments` - List (auto-filtered by owner)
+- `GET /appointments/:id` - View details
+- `DELETE /appointments/:id` - Cancel (only PENDING)
+
+### ➕ Đặt Lịch Mới - Button → Modal
+
+**Form fields:**
+1. **Chọn thú cưng** * - Dropdown from `GET /pets`
+2. **Chọn dịch vụ** * - Dropdown from `GET /services`
+3. **Ngày hẹn** * - Date picker
+4. **Thời gian** * - Time picker (09:00-17:00)
+5. **Chọn bác sĩ** * - Dropdown (from staff list - if available)
+6. **Ghi chú** - Textarea
+
+**API:** `POST /appointments`
+
+**Validation:**
+- Ngày phải >= hôm nay
+- Time slots available check
+- Pet must be owned by user
+
+---
+
+## 5. 💳 Thanh Toán & Hóa Đơn - `/dashboard/owner/invoices`
+
+### 📊 Stats (4 cards)
+- Tổng hóa đơn
+- Chờ thanh toán (PENDING)
+- Đã thanh toán (PAID)  
+- Tổng chi tiêu (this month)
+
+### 🗂️ Filter Tabs
+- **Tất cả**
+- **Chờ thanh toán** (PENDING)
+- **Đã thanh toán** (PAID)
+- **Quá hạn** (OVERDUE)
+- **Đã hủy** (CANCELLED)
+
+### 📋 Invoice List
+
+**Card design:**
+```
+┌──────────────────────────────┐
+│ #INV-12345 [PENDING] 💰      │
+│ 📅 28/12/2025                │
+│ ──────────────────────       │
+│ 🐕 Max - Khám định kỳ       │
+│ 💰 500,000 VNĐ              │
+│ ──────────────────────       │
+│ [Xem chi tiết] [Download PDF]│
+└──────────────────────────────┘
+```
+
+**APIs:**
+- `GET /invoices` - List (auto-filtered by owner)
+- `GET /invoices/:id` - View details
+- `GET /invoices/:id/pdf` - Download PDF
+
+**Invoice Details Modal:**
+```
+┌──────────────────────────────┐
+│ 🧾 Hóa đơn #INV-12345       │
+│ ──────────────────────       │
+│ 📅 Ngày: 28/12/2025         │
+│ 🐕 Thú cưng: Max            │
+│ 👨‍⚕️ Bác sĩ: BS. Nguyễn A    │
+│ ──────────────────────       │
+│ 📋 Chi tiết:                │
+│ • Khám định kỳ:  200,000đ   │
+│ • Vacxin Rabies: 300,000đ   │
+│ ──────────────────────       │
+│ 💰 Tổng: 500,000 VNĐ        │
+│ 📌 Trạng thái: Chờ TT       │
+│ ──────────────────────       │
+│ [Download PDF] [Đóng]       │
+└──────────────────────────────┘
+```
+
+### 💳 Payment History
+
+**API:** `GET /payments` (auto-filtered)
+
+```
+┌──────────────────────────────┐
+│ ✅ Thanh toán #PAY-123      │
+│ 📅 28/12/2025 15:30         │
+│ 💰 500,000 VNĐ - Tiền mặt   │
+│ 🧾 Hóa đơn: #INV-12345      │
+└──────────────────────────────┘
+```
+
+---
+
+## 6. ⭐ Dịch Vụ - `/dashboard/owner/services`
+
+### 🔍 Search & Category Filter
+
+**Categories:**
+- Tất cả
+- Khám bệnh
+- Phẫu thuật
+- Tắm & Grooming
+- Spa & Spa thú y
+- Lưu trú
+- Tiêm ngừa
+- Xét nghiệm
+
+### 📋 Service Grid
+
+**Service Card:**
+```
+┌──────────────────────────────┐
+│ 🏥                           │
+│ Khám định kỳ                 │
+│ ──────────────────────       │
+│ ⏱️ 30-45 phút               │
+│ 💰 200,000 - 500,000 VNĐ    │
+│ ──────────────────────       │
+│ 📝 Kiểm tra sức khỏe tổng   │
+│    quát, cân đo, nghe tim...│
+│ ──────────────────────       │
+│ [Đặt lịch ngay]             │
+└──────────────────────────────┘
+```
+
+**APIs:**
+- `GET /services` - List all services
+- `GET /services/:id` - View details
+
+**Click "Đặt lịch ngay"** → Navigate to appointments page with service pre-selected
+
+---
+
+## 7. 👤 Profile & Settings - `/dashboard/owner/profile`
+
+### 📋 Profile Information
+
+**Sections:**
+1. **Thông tin cá nhân**
+   - Họ tên
+   - Email (read-only)
+   - Số điện thoại
+   - Địa chỉ
+
+2. **Thống kê tài khoản**
+   - Thành viên từ: [date]
+   - Tổng thú cưng: X
+   - Tổng lịch hẹn: Y
+   - Tổng chi tiêu: Z VNĐ
+
+**APIs:**
+- `GET /pet-owners/:id` - Get profile
+- `PUT /pet-owners/:id` - Update profile
+
+---
+
+## 📱 Responsive Design
+
+### Desktop (>1024px)
+- Sidebar navigation visible
+- Grid: 3-4 columns
+- Wide stats display
+
+### Tablet (768-1024px)
+- Collapsible sidebar
+- Grid: 2-3 columns
+- Compact stats
+
+### Mobile (<768px)
+- Bottom navigation bar
+- Grid: 1-2 columns
+- Stacked stats
+- Full-width cards
+
+---
+
+## 🎯 Implementation Priority
+
+### Phase 1: Core Features (MUST HAVE)
+1. ✅ Dashboard với stats
+2. ✅ Pet management (CRUD)
+3. ✅ Appointments (View, Create, Cancel)
+4. ✅ Invoices (View, Download PDF)
+
+### Phase 2: Enhanced Features
+5. 📋 Pet details với medical records (Read-only)
+6. 💳 Payment history
+7. ⭐ Services catalog
+8. 📊 Enhanced stats & charts
+
+### Phase 3: Premium UX
+9. 🔔 Vaccine reminders
+10. 📈 Health timeline visualization
+11. 🎨 Dark mode
+12. 📱 Push notifications (if PWA)
+
+---
+
+## 🚫 Features NOT Implemented (No Backend API)
+
+❌ **Pet health tracking** (user-input) - No API to save custom health logs
+❌ **Appointment notes** (owner-side) - Only staff can add notes
+❌ **Invoice payment** (online) - No payment gateway API
+❌ **Service booking wizard** - Basic form only
+❌ **Cage booking** - Only staff can manage cages
+❌ **Direct messaging with vet** - No chat API
+❌ **Upload pet photos** - No file upload API
+❌ **Custom vaccine reminders** - Only view existing from medical records
+
+---
+
+## 📊 API Usage Summary
+
+| Screen | APIs Used | Total Calls |
+|--------|-----------|-------------|
+| Dashboard | 4 | 4 (on load) |
+| Pets | 5 | 1 (list) → 1-4 (CRUD) |
+| Pet Details | 5 | 3 (tabs) |
+| Appointments | 3 | 1 (list) → 1-2 (CRUD) |
+| Invoices | 3 | 1 (list) → 1 (PDF) |
+| Services | 2 | 1 (list) |
+| Profile | 2 | 1 (get) → 1 (update) |
+
+**Total:** 24 API endpoints used (từ 27 available)
+
+---
+
+## ✅ Design Principles
+
+1. **Mobile-First:** All screens responsive
+2. **Premium UI:** Gradients, shadows, smooth animations
+3. **Clear Hierarchy:** Headers → Stats → Content → Actions
+4. **Consistent Icons:** Emoji + Lucide icons
+5. **Loading States:** Skeletons for all async operations
+6. **Error Handling:** Toast notifications + inline errors
+7. **Empty States:** Friendly messages + CTA buttons
+8. **Accessibility:** ARIA labels, keyboard navigation
+
+---
+
+## 🎨 Sample Color Mapping
+
+| Element | Gradient/Color |
+|---------|---------------|
+| Dashboard Header | Blue → Cyan |
+| Pet Card | White + Purple accent |
+| Appointment (PENDING) | Amber |
+| Appointment (CONFIRMED) | Blue |
+| Appointment (COMPLETED) | Green |
+| Appointment (CANCELLED) | Red |
+| Invoice (PAID) | Green |
+| Invoice (PENDING) | Amber |
+| Service Card | Gradient per category |
+
+---
+
+## 📝 Next Steps
+
+1. **Create wireframes** for each screen
+2. **Implement Dashboard** first (highest priority)
+3. **Build reusable components:** PetCard, AppointmentCard, InvoiceCard
+4. **Setup API integration layer** with proper error handling
+5. **Test with real data** from backend
+6. **Iterate based on user feedback**
