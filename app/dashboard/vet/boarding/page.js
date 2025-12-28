@@ -26,11 +26,11 @@ export default function VeterinarianBoardingPage() {
   const [cageFilter, setCageFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  
+
   // Modals
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedCage, setSelectedCage] = useState(null);
-  
+
   // Form state
   const [pets, setPets] = useState([]);
   const [formData, setFormData] = useState({
@@ -51,7 +51,7 @@ export default function VeterinarianBoardingPage() {
     try {
       setLoading(true);
       const token = getToken();
-      
+
       if (!token) {
         router.push('/login');
         return;
@@ -80,7 +80,7 @@ export default function VeterinarianBoardingPage() {
           const checkIn = new Date(asn.checkInDate || asn.createdAt);
           const today = new Date();
           const daysStayed = Math.floor((today - checkIn) / (1000 * 60 * 60 * 24));
-          
+
           return {
             id: asn.assignmentId || asn.id,
             cageId: asn.cage?.cageId || asn.cageId,
@@ -98,7 +98,7 @@ export default function VeterinarianBoardingPage() {
           };
         });
         setActiveAssignments(mappedAssignments);
-        
+
         // Update cages with current pet info
         setCages(mappedCages.map(cage => {
           const assignment = mappedAssignments.find(a => a.cageId === cage.id);
@@ -168,7 +168,7 @@ export default function VeterinarianBoardingPage() {
 
   const handleAssignPet = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.petId || !formData.cageId) {
       showToast("Vui lòng chọn thú cưng và chuồng", "error");
       return;
@@ -182,7 +182,7 @@ export default function VeterinarianBoardingPage() {
         expectedCheckOutDate: formData.expectedCheckOutDate || null,
         notes: formData.notes || null
       });
-      
+
       if (response.success) {
         showToast("Đã phân bổ chuồng thành công!");
         setIsAssignModalOpen(false);
@@ -200,7 +200,7 @@ export default function VeterinarianBoardingPage() {
 
   const handleCheckOut = async (assignmentId) => {
     if (!confirm("Xác nhận trả chuồng cho thú cưng này?")) return;
-    
+
     try {
       const response = await cageApi.checkOutPet(assignmentId);
       if (response.success) {
@@ -218,7 +218,7 @@ export default function VeterinarianBoardingPage() {
   const filteredCages = cages.filter(cage => {
     const matchFilter = cageFilter === "all" || cage.status === cageFilter;
     const matchSearch = cage.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       (cage.currentPet?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (cage.currentPet?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
 
@@ -324,7 +324,7 @@ export default function VeterinarianBoardingPage() {
             </button>
           </div>
         </div>
-        
+
         <Button onClick={() => handleOpenAssignModal()} className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-400 hover:from-green-600 hover:to-emerald-500 text-white font-bold px-6 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all">
           <span className="text-xl">➕</span> Nhập thú cưng mới
         </Button>
@@ -348,79 +348,81 @@ export default function VeterinarianBoardingPage() {
               <span className="text-sm opacity-90">thú cưng</span>
             </div>
           </div>
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-2">⏳</div>
-                <p className="text-muted-foreground">Đang tải...</p>
-              </div>
-            ) : activeAssignments.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-5xl mb-2">🏠</div>
-                <p className="text-muted-foreground">Chưa có thú cưng nào đang lưu trú</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Thú cưng</TableHead>
-                    <TableHead>Chủ nuôi</TableHead>
-                    <TableHead>Chuồng</TableHead>
-                    <TableHead>Ngày nhập</TableHead>
-                    <TableHead>Số ngày</TableHead>
-                    <TableHead>Ngày trả</TableHead>
-                    <TableHead className="text-right">Thao tác</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeAssignments.map(asn => (
-                    <TableRow key={asn.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">{asn.petIcon}</span>
-                          <div>
-                            <p className="font-semibold">{asn.petName}</p>
-                            <p className="text-xs text-muted-foreground">{asn.petBreed}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-2">⏳</div>
+              <p className="text-muted-foreground">Đang tải...</p>
+            </div>
+          ) : activeAssignments.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-2">🏠</div>
+              <p className="text-muted-foreground">Chưa có thú cưng nào đang lưu trú</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Thú cưng</TableHead>
+                  <TableHead>Chủ nuôi</TableHead>
+                  <TableHead>Chuồng</TableHead>
+                  <TableHead>Ngày nhập</TableHead>
+                  <TableHead>Số ngày</TableHead>
+                  <TableHead>Ngày trả</TableHead>
+                  <TableHead className="text-center">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeAssignments.map(asn => (
+                  <TableRow key={asn.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{asn.petIcon}</span>
                         <div>
-                          <p className="text-sm">{asn.ownerName}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <span>📞</span> {asn.ownerPhone}
-                          </p>
+                          <p className="font-semibold">{asn.petName}</p>
+                          <p className="text-xs text-muted-foreground">{asn.petBreed}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{asn.cageNumber}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(asn.checkInDate).toLocaleDateString('vi-VN')}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-semibold">{asn.daysStayed}</span> ngày
-                      </TableCell>
-                      <TableCell>
-                        {asn.expectedCheckOutDate 
-                          ? new Date(asn.expectedCheckOutDate).toLocaleDateString('vi-VN')
-                          : <span className="text-muted-foreground">-</span>
-                        }
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          size="sm" 
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm">{asn.ownerName}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span>📞</span> {asn.ownerPhone}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{asn.cageNumber}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(asn.checkInDate).toLocaleDateString('vi-VN')}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold">{asn.daysStayed}</span> ngày
+                    </TableCell>
+                    <TableCell>
+                      {asn.expectedCheckOutDate
+                        ? new Date(asn.expectedCheckOutDate).toLocaleDateString('vi-VN')
+                        : <span className="text-muted-foreground">-</span>
+                      }
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => handleCheckOut(asn.id)}
-                          className="flex items-center gap-1"
+                          className="inline-flex items-center gap-1"
                         >
                           <span className="text-base">🚪</span> Trả
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       )}
 
@@ -450,7 +452,7 @@ export default function VeterinarianBoardingPage() {
                 </button>
               ))}
             </div>
-            
+
             <div className="relative flex-1 max-w-sm">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🔍</span>
               <Input
@@ -479,10 +481,10 @@ export default function VeterinarianBoardingPage() {
               filteredCages.map(cage => {
                 const statusBadge = getStatusBadge(cage.status);
                 const sizeBadge = getSizeBadge(cage.size);
-                
+
                 return (
-                  <Card 
-                    key={cage.id} 
+                  <Card
+                    key={cage.id}
                     className={cn(
                       "relative overflow-hidden",
                       cage.status === 'occupied' && "border-warning",
@@ -504,7 +506,7 @@ export default function VeterinarianBoardingPage() {
                         <span className="text-xs text-muted-foreground">{cage.location}</span>
                       </div>
                     </CardHeader>
-                    
+
                     <CardContent className="pt-2">
                       {cage.currentPet ? (
                         <div className="space-y-3">
@@ -519,11 +521,11 @@ export default function VeterinarianBoardingPage() {
                           </div>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <span>📅</span>
-                            {new Date(cage.currentPet.checkInDate).toLocaleDateString('vi-VN')} 
+                            {new Date(cage.currentPet.checkInDate).toLocaleDateString('vi-VN')}
                             ({cage.currentPet.daysStayed} ngày)
                           </div>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             className="w-full flex items-center gap-1"
                             onClick={() => handleCheckOut(cage.currentPet.assignmentId)}
@@ -532,8 +534,8 @@ export default function VeterinarianBoardingPage() {
                           </Button>
                         </div>
                       ) : cage.status === 'available' ? (
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           className="w-full flex items-center gap-1"
                           onClick={() => handleOpenAssignModal(cage)}
                         >
@@ -562,7 +564,7 @@ export default function VeterinarianBoardingPage() {
               Nhập thú cưng lưu trú
             </DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleAssignPet} className="space-y-4">
             <div className="space-y-2">
               <Label>Chọn thú cưng *</Label>
@@ -593,8 +595,8 @@ export default function VeterinarianBoardingPage() {
                           onClick={() => setFormData(prev => ({ ...prev, cageId: cage.id }))}
                           className={cn(
                             "p-3 border rounded-lg text-left transition-all",
-                            formData.cageId === cage.id 
-                              ? "border-primary bg-primary/5 ring-2 ring-primary" 
+                            formData.cageId === cage.id
+                              ? "border-primary bg-primary/5 ring-2 ring-primary"
                               : "hover:border-primary/50"
                           )}
                         >
