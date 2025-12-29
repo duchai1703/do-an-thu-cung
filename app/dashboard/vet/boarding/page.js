@@ -573,11 +573,13 @@ export default function VeterinarianBoardingPage() {
                 onChange={(e) => handlePetSelect(e.target.value)}
               >
                 <option value="">-- Chọn thú cưng --</option>
-                {pets.map(pet => (
-                  <option key={pet.id} value={pet.id}>
-                    {pet.icon} {pet.name} ({pet.breed || pet.species}) - {pet.ownerName}
-                  </option>
-                ))}
+                {pets
+                  .filter(pet => !activeAssignments.some(asn => asn.petId === pet.id))
+                  .map(pet => (
+                    <option key={pet.id} value={pet.id}>
+                      {pet.icon} {pet.name} ({pet.breed || pet.species}) - {pet.ownerName}
+                    </option>
+                  ))}
               </Select>
             </div>
 
