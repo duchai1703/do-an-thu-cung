@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import { invoiceApi } from "@/lib/api";
 
 export default function InvoicesPage() {
   const { showToast } = useToast();
@@ -47,7 +48,7 @@ export default function InvoicesPage() {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/invoices');
+      const response = await invoiceApi.getMyInvoices();
       const data = response.data || response || [];
       setInvoices(data);
     } catch (error) {

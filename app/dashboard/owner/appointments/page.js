@@ -19,7 +19,7 @@
 
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Calendar, Plus, X, Eye, Clock, CheckCircle, XCircle,
   User, Stethoscope, DollarSign
@@ -30,9 +30,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import { appointmentApi } from "@/lib/api";
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   
   const [loading, setLoading] = useState(true);
@@ -70,10 +72,31 @@ export default function AppointmentsPage() {
     filterAppointments();
   }, [appointments, filter]);
 
+  // Handle URL parameters from services page
+  useEffect(() => {
+    if (services.length === 0) return; // Wait for services to load
+
+    const serviceId = searchParams.get('serviceId');
+    const openDialog = searchParams.get('openDialog');
+
+    if (serviceId) {
+      setBookingForm(prev => ({
+        ...prev,
+        serviceId: serviceId
+      }));
+    }
+
+    if (openDialog === 'true') {
+      setIsBookModalOpen(true);
+      // Clear URL parameters after reading
+      router.replace('/dashboard/owner/appointments', { scroll: false });
+    }
+  }, [services, searchParams]);
+
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/appointments');
+      const response = await appointmentApi.getMyAppointments();
       const data = response.data || response || [];
       setAppointments(data);
     } catch (error) {
@@ -86,11 +109,6 @@ export default function AppointmentsPage() {
 
   const loadPetsAndServices = async () => {
     try {
-      // Check current user
-      const currentUserRes = await apiClient.get('/auth/me');
-      const currentUser = currentUserRes.data || currentUserRes;
-      console.log('👤 Current logged in user:', currentUser);
-
       const [petsRes, servicesRes, employeesRes] = await Promise.all([
         apiClient.get('/pets/me'), // ← Changed from /pets to /pets/me
         apiClient.get('/services'),

@@ -149,16 +149,19 @@ export default function PetsPage() {
         initialHealthStatus: updatedPet.medicalHistory,
         specialNotes: updatedPet.notes
       });
+      console.log('✅ Update response:', response);
 
-      if (response.data || response) {
+      if (response.success) {
         showToast("Đã cập nhật thông tin thú cưng!", "success");
         setIsEditModalOpen(false);
         setEditingPet(null);
         loadPets();
       }
+      else {
+        throw new Error(response.error || "Cập nhật thất bại");
+      }
     } catch (error) {
-      console.error("Error updating pet:", error);
-      showToast(error.response?.data?.message || "Không thể cập nhật thú cưng", "error");
+      showToast(error.message, "error");
     }
   };
 

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { medicalRecordApi, getToken } from "@/lib/api";
+import { medicalRecordApi, getToken, authApi, invoiceApi } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function VeterinarianRecordsPage() {
@@ -47,29 +47,12 @@ export default function VeterinarianRecordsPage() {
         return;
       }
 
-      // Lấy employeeId của bác sĩ đang đăng nhập
-      const { authApi } = await import("@/lib/api");
-      const userRes = await authApi.getCurrentUser();
-      const employeeId = userRes.data?.employee?.employeeId;
-
-      if (!employeeId) {
-        console.log('[Records] No employeeId found');
-        setRecords([]);
-        setLoading(false);
-        return;
-      }
-
       // Lấy tất cả medical records
-      const response = await medicalRecordApi.getAll();
+      const response = await medicalRecordApi.getMyRecords();
       
       if (response.success && response.data) {
-        // Chỉ lấy records do bác sĩ này tạo
-        const myRecords = response.data.filter(record => {
-          const vetId = record.veterinarian?.employeeId || record.veterinarianId;
-          return vetId === employeeId;
-        });
 
-        const mappedRecords = myRecords.map(record => ({
+        const mappedRecords = response.data.map(record => ({
           id: record.recordId || record.id,
           code: `REC${String(record.recordId || record.id).padStart(3, '0')}`,
           petId: record.pet?.petId || record.petId,
@@ -156,8 +139,6 @@ export default function VeterinarianRecordsPage() {
     }
     
     try {
-      const { invoiceApi } = await import('@/lib/api');
-      
       const response = await invoiceApi.create({
         appointmentId: Number(record.appointmentId),
         notes: `Hóa đơn từ hồ sơ bệnh án ${record.code}`

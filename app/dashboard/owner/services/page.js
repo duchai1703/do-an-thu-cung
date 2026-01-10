@@ -13,6 +13,7 @@
 
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   Stethoscope, Search, Syringe, Scissors, Hotel,
   Heart, Star, Clock, DollarSign
@@ -26,6 +27,7 @@ import { useToast } from "@/lib/contexts/ToastContext";
 
 export default function ServicesPage() {
   const { showToast } = useToast();
+  const router = useRouter();
   
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState([]);
@@ -87,6 +89,12 @@ export default function ServicesPage() {
 
   const categories = getCategories();
   const filteredServices = getFilteredServices();
+
+  const handleBookService = (service) => {
+    // Navigate to appointments page with service info
+    const serviceId = service.serviceId || service.id;
+    router.push(`/dashboard/owner/appointments?serviceId=${serviceId}&openDialog=true`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -227,7 +235,7 @@ export default function ServicesPage() {
                       <Button 
                         size="sm"
                         className="bg-gradient-to-r from-pink-500 to-rose-500"
-                        onClick={() => window.location.href = '/dashboard/owner/appointments'}
+                        onClick={() => handleBookService(service)}
                       >
                         Đặt ngay
                       </Button>

@@ -8,8 +8,8 @@
  * 
  * APIs:
  * - GET /auth/me
- * - GET /pet-owners/:accountId
- * - PUT /pet-owners/:accountId/profile
+ * - GET /pet-owners/me
+ * - PUT /pet-owners/me
  */
 
 "use client";
@@ -51,26 +51,24 @@ export default function ProfilePage() {
       const userData = userRes.data || userRes;
       setUser(userData);
 
-      // Get pet owner profile using accountId
-      if (userData.accountId) {
-        try {
-          const ownerRes = await apiClient.get(`/pet-owners/${userData.accountId}`);
-          const ownerData = ownerRes.data || ownerRes;
-          setOwnerProfile(ownerData);
-          
-          setEditForm({
-            fullName: ownerData.fullName || userData.fullName || "",
-            phoneNumber: ownerData.phoneNumber || userData.phoneNumber || "",
-            address: ownerData.address || ""
-          });
-        } catch (err) {
-          console.log("Pet owner profile not found, using user data");
-          setEditForm({
-            fullName: userData.fullName || "",
-            phoneNumber: userData.phoneNumber || "",
-            address: ""
-          });
-        }
+      // Get pet owner profile using /me endpoint
+      try {
+        const ownerRes = await apiClient.get('/pet-owners/me');
+        const ownerData = ownerRes.data || ownerRes;
+        setOwnerProfile(ownerData);
+        
+        setEditForm({
+          fullName: ownerData.fullName || userData.fullName || "",
+          phoneNumber: ownerData.phoneNumber || userData.phoneNumber || "",
+          address: ownerData.address || ""
+        });
+      } catch (err) {
+        console.log("Pet owner profile not found, using user data");
+        setEditForm({
+          fullName: userData.fullName || "",
+          phoneNumber: userData.phoneNumber || "",
+          address: ""
+        });
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -82,12 +80,7 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     try {
-      if (!user?.accountId) {
-        showToast("Không tìm thấy thông tin tài khoản", "error");
-        return;
-      }
-
-      await apiClient.put(`/pet-owners/${user.accountId}/profile`, {
+      await apiClient.put('/pet-owners/me', {
         fullName: editForm.fullName,
         phoneNumber: editForm.phoneNumber,
         address: editForm.address

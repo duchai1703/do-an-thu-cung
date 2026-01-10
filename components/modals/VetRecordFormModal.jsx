@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils.js";
-import { medicalRecordApi, authApi, petApi } from "@/lib/api";
+import { medicalRecordApi, authApi, petApi, cageApi } from "@/lib/api";
 
 export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record, appointment }) {
   const [formData, setFormData] = useState({
@@ -80,7 +80,6 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record,
   const loadPets = async () => {
     try {
       setLoadingPets(true);
-      const { petApi } = await import('@/lib/api');
       const response = await petApi.getAll();
       
       if (response.success && response.data) {
@@ -118,7 +117,6 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record,
   const loadAvailableCages = async () => {
     try {
       setLoadingCages(true);
-      const { cageApi } = await import('@/lib/api');
       const response = await cageApi.getAvailable();
       
       if (response.success && response.data) {
@@ -139,7 +137,6 @@ export default function VetRecordFormModal({ isOpen, onClose, onSuccess, record,
     }
     
     try {
-      const { cageApi } = await import('@/lib/api');
       const response = await cageApi.getActiveAssignments();
       
       if (response.success && response.data) {

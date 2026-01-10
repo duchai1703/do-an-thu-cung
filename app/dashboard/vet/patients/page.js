@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, petApi, getToken } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, petApi, getToken, authApi } from "@/lib/api";
 import { formatPetId } from "@/lib/utils/id-formatter";
 
 export default function VeterinarianPatientsPage() {
@@ -38,20 +38,8 @@ export default function VeterinarianPatientsPage() {
         return;
       }
 
-      // Lấy employeeId của bác sĩ đang đăng nhập
-      const { authApi } = await import("@/lib/api");
-      const userRes = await authApi.getCurrentUser();
-      const employeeId = userRes.data?.employee?.employeeId;
-
-      if (!employeeId) {
-        console.log('[Patients] No employeeId found');
-        setPatients([]);
-        setLoading(false);
-        return;
-      }
-
       // Chỉ lấy appointments của bác sĩ này
-      const appointmentsRes = await appointmentApi.getByEmployee(employeeId);
+      const appointmentsRes = await appointmentApi.getMyAppointments();
       
       if (appointmentsRes.success && appointmentsRes.data) {
         // Get unique pets from appointments của bác sĩ này
@@ -150,12 +138,31 @@ export default function VeterinarianPatientsPage() {
   const calculateAge = (birthDate) => {
     const birth = new Date(birthDate);
     const today = new Date();
-    const age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-      return `${age - 1} tuổi`;
+    const yearDiff = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    const dayDiff = today.getDate() - birth.getDate();
+    
+    // Calculate total months
+    let totalMonths = yearDiff * 12 + monthDiff;
+    if (dayDiff < 0) {
+      totalMonths--;
     }
-    return `${age} tuổi`;
+    
+    // If less than 1 month, show in days
+    if (totalMonths < 1) {
+      const diffTime = Math.abs(today - birth);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays === 0 ? 'Hôm nay' : diffDays === 1 ? '1 ngày' : `${diffDays} ngày`;
+    }
+    
+    // If less than 12 months, show in months
+    if (totalMonths < 12) {
+      return totalMonths === 1 ? '1 tháng' : `${totalMonths} tháng`;
+    }
+    
+    // Otherwise show in years
+    const age = Math.floor(totalMonths / 12);
+    return age === 1 ? '1 tuổi' : `${age} tuổi`;
   };
 
   const handleViewDetail = (patient) => {

@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.js";
+import { petApi, cageApi, medicalRecordApi } from "@/lib/api";
 
 export default function VetRecordDetailModal({ isOpen, onClose, record }) {
   const [vaccination, setVaccination] = useState(null);
@@ -42,7 +43,6 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
     
     setLoading(true);
     try {
-      const { petApi, cageApi, medicalRecordApi } = await import('@/lib/api');
       
       // Fetch vaccination history for this pet
       const vacResponse = await petApi.getVaccinations(Number(record.petId));

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { appointmentApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 import { formatAppointmentId } from "@/lib/utils/id-formatter";
+import { authApi } from "@/lib/api";
 
 export default function VeterinarianSchedulePage() {
   const router = useRouter();
@@ -43,20 +44,9 @@ export default function VeterinarianSchedulePage() {
         return;
       }
 
-      // Lấy employeeId của bác sĩ đang đăng nhập
-      const { authApi } = await import("@/lib/api");
-      const userRes = await authApi.getCurrentUser();
-      const employeeId = userRes.data?.employee?.employeeId;
-
-      if (!employeeId) {
-        console.log('[Schedule] No employeeId found - cannot fetch appointments');
-        setAppointments([]);
-        setLoading(false);
-        return;
-      }
-
       // Chỉ lấy appointments của bác sĩ này
-      const response = await appointmentApi.getByEmployee(employeeId);
+      const response = await appointmentApi.getMyAppointments();
+      console.log('📅 Loaded appointments:', response);
       
       if (response.success && response.data) {
         // Filter theo ngày đã chọn
@@ -91,8 +81,11 @@ export default function VeterinarianSchedulePage() {
         
         setAppointments(mappedAppointments);
       }
+      else {
+        throw new Error(response.error || 'Không thể tải lịch khám');
+      }
     } catch (error) {
-      console.error('Error loading appointments:', error);
+      showToast(error.message, "error");
     } finally {
       setLoading(false);
     }
