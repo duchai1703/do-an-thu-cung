@@ -18,23 +18,52 @@ import {
   Hourglass,
   Hash,
   Home,
-  Loader2
+  Loader2,
+  Edit,
+  Save,
+  AlertTriangle
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils.js";
 import { petApi, cageApi, medicalRecordApi } from "@/lib/api";
 
-export default function VetRecordDetailModal({ isOpen, onClose, record }) {
+export default function VetRecordDetailModal({ isOpen, onClose, record, onUpdate }) {
   const [vaccination, setVaccination] = useState(null);
   const [cageAssignment, setCageAssignment] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    diagnosis: '',
+    treatment: '',
+    prescription: '',
+    notes: '',
+    followUpDate: ''
+  });
+
+  // Initialize edit form when record changes
+  useEffect(() => {
+    if (record) {
+      setEditForm({
+        diagnosis: record.diagnosis || '',
+        treatment: record.treatment || '',
+        prescription: record.prescription || '',
+        notes: record.notes || '',
+        followUpDate: record.followUpDate ? record.followUpDate.split('T')[0] : ''
+      });
+    }
+  }, [record]);
 
   // Fetch related vaccination and cage data when modal opens
   useEffect(() => {
     if (isOpen && record?.id) {
       fetchRelatedData();
+      setIsEditing(false);
     }
   }, [isOpen, record?.id]);
 
@@ -87,6 +116,38 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
       console.error('Error fetching related data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle save edited record
+  const handleSave = async () => {
+    if (!record?.id && !record?.recordId) return;
+    
+    setSaving(true);
+    try {
+      const recordId = record.recordId || record.id;
+      const response = await medicalRecordApi.update(recordId, {
+        diagnosis: editForm.diagnosis,
+        treatment: editForm.treatment,
+        medicalSummary: {
+          symptoms: record.symptoms,
+          prescription: editForm.prescription,
+          notes: editForm.notes
+        },
+        followUpDate: editForm.followUpDate || null
+      });
+      
+      if (response.success) {
+        setIsEditing(false);
+        if (onUpdate) onUpdate(response.data);
+      } else {
+        throw new Error(response.error || 'Lỗi khi cập nhật hồ sơ');
+      }
+    } catch (error) {
+      console.error('Error updating record:', error);
+      alert(error.message || 'Có lỗi xảy ra khi cập nhật');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -166,9 +227,17 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
                 <Microscope className="h-4 w-4" />
                 Chẩn đoán
               </h3>
-              <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                <p className="text-sm font-semibold text-blue-900 leading-relaxed">{record.diagnosis}</p>
-              </div>
+              {isEditing ? (
+                <Textarea
+                  value={editForm.diagnosis}
+                  onChange={(e) => setEditForm({ ...editForm, diagnosis: e.target.value })}
+                  className="min-h-[80px]"
+                />
+              ) : (
+                <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <p className="text-sm font-semibold text-blue-900 leading-relaxed">{record.diagnosis}</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -176,9 +245,17 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
                 <Pill className="h-4 w-4" />
                 Đơn thuốc
               </h3>
-              <div className="p-4 bg-muted rounded-lg border border-border">
-                <p className="text-sm text-foreground leading-relaxed">{record.prescription}</p>
-              </div>
+              {isEditing ? (
+                <Textarea
+                  value={editForm.prescription}
+                  onChange={(e) => setEditForm({ ...editForm, prescription: e.target.value })}
+                  className="min-h-[80px]"
+                />
+              ) : (
+                <div className="p-4 bg-muted rounded-lg border border-border">
+                  <p className="text-sm text-foreground leading-relaxed">{record.prescription}</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -186,9 +263,17 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
                 <Syringe className="h-4 w-4" />
                 Điều trị
               </h3>
-              <div className="p-4 bg-muted rounded-lg border border-border">
-                <p className="text-sm text-foreground leading-relaxed">{record.treatment}</p>
-              </div>
+              {isEditing ? (
+                <Textarea
+                  value={editForm.treatment}
+                  onChange={(e) => setEditForm({ ...editForm, treatment: e.target.value })}
+                  className="min-h-[80px]"
+                />
+              ) : (
+                <div className="p-4 bg-muted rounded-lg border border-border">
+                  <p className="text-sm text-foreground leading-relaxed">{record.treatment}</p>
+                </div>
+              )}
             </div>
 
             {record.notes && (
@@ -208,13 +293,78 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
                 <RefreshCw className="h-4 w-4" />
                 Lịch tái khám
               </h3>
-              <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                <p className="text-sm font-semibold text-green-900 flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  {record.followUpDate ? record.followUpDate.split('T')[0] : 'Chưa có lịch tái khám'}
-                </p>
+              <div className={cn(
+                "p-4 rounded-lg border-2",
+                record.isFollowUpOverdue 
+                  ? "bg-red-50 border-red-300" 
+                  : record.needsFollowUp 
+                    ? "bg-yellow-50 border-yellow-300"
+                    : "bg-green-50 border-green-200"
+              )}>
+                <div className="flex items-center justify-between">
+                  <p className={cn(
+                    "text-sm font-semibold flex items-center gap-2",
+                    record.isFollowUpOverdue ? "text-red-900" : 
+                    record.needsFollowUp ? "text-yellow-900" : "text-green-900"
+                  )}>
+                    <Calendar className="h-4 w-4" />
+                    {record.followUpDate ? new Date(record.followUpDate).toLocaleDateString('vi-VN') : 'Chưa có lịch tái khám'}
+                  </p>
+                  {record.isFollowUpOverdue && (
+                    <Badge variant="destructive" className="animate-pulse">
+                      ⚠️ Quá hạn tái khám
+                    </Badge>
+                  )}
+                  {!record.isFollowUpOverdue && record.needsFollowUp && (
+                    <Badge variant="warning">
+                      📅 Cần tái khám
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Medical Summary Section - JSONB display */}
+            {record.medicalSummary && Object.keys(record.medicalSummary).length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Tổng kết y tế (Chi tiết)
+                </h3>
+                <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-200 space-y-3">
+                  {record.medicalSummary.symptoms && (
+                    <div>
+                      <span className="text-xs font-bold text-purple-700 uppercase">Triệu chứng:</span>
+                      <p className="text-sm text-purple-900 mt-1">{record.medicalSummary.symptoms}</p>
+                    </div>
+                  )}
+                  {record.medicalSummary.prescription && (
+                    <div>
+                      <span className="text-xs font-bold text-purple-700 uppercase">Đơn thuốc:</span>
+                      <p className="text-sm text-purple-900 mt-1">{record.medicalSummary.prescription}</p>
+                    </div>
+                  )}
+                  {record.medicalSummary.notes && (
+                    <div>
+                      <span className="text-xs font-bold text-purple-700 uppercase">Ghi chú bác sĩ:</span>
+                      <p className="text-sm text-purple-900 mt-1">{record.medicalSummary.notes}</p>
+                    </div>
+                  )}
+                  {/* Display any other fields in medicalSummary */}
+                  {Object.entries(record.medicalSummary)
+                    .filter(([key]) => !['symptoms', 'prescription', 'notes'].includes(key))
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <span className="text-xs font-bold text-purple-700 uppercase">{key}:</span>
+                        <p className="text-sm text-purple-900 mt-1">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </p>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Vaccination Section - if vaccination was included */}
@@ -345,15 +495,46 @@ export default function VetRecordDetailModal({ isOpen, onClose, record }) {
         </div>
 
         {/* Footer */}
-        <DialogFooter>
-          <Button
-            onClick={onClose}
-            variant="outline"
-            className="w-full"
-          >
-            <X className="h-4 w-4" />
-            Đóng
-          </Button>
+        <DialogFooter className="flex gap-2">
+          {isEditing ? (
+            <>
+              <Button
+                onClick={() => setIsEditing(false)}
+                variant="outline"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Hủy
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                Lưu thay đổi
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => setIsEditing(true)}
+                variant="outline"
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                Sửa hồ sơ
+              </Button>
+              <Button
+                onClick={onClose}
+                variant="outline"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Đóng
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

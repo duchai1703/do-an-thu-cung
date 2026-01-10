@@ -15,7 +15,8 @@ import {
   Pill, 
   Syringe, 
   FileText, 
-  RefreshCw
+  RefreshCw,
+  DollarSign
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +33,8 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
     prescription: "",
     treatment: "",
     notes: "",
-    followUpDate: ""
+    followUpDate: "",
+    actualCost: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -117,7 +119,10 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
       
       // Complete appointment if there's one
       if (appointment.id) {
-        await appointmentApi.complete(appointment.id);
+        const completeData = formData.actualCost 
+          ? { actualCost: Number(formData.actualCost) } 
+          : {};
+        await appointmentApi.complete(appointment.id, completeData);
       }
       
       // Success
@@ -134,7 +139,8 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
         prescription: "",
         treatment: "",
         notes: "",
-        followUpDate: ""
+        followUpDate: "",
+        actualCost: ""
       });
       setErrors({});
       onClose();
@@ -153,7 +159,8 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
       prescription: "",
       treatment: "",
       notes: "",
-      followUpDate: ""
+      followUpDate: "",
+      actualCost: ""
     });
     setErrors({});
     onClose();
@@ -298,6 +305,28 @@ export default function VetRecordModal({ isOpen, onClose, onSuccess, appointment
               onChange={handleChange}
               min={new Date().toISOString().split('T')[0]}
             />
+          </div>
+
+          {/* Actual Cost */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+              Chi phí thực tế (VNĐ)
+            </Label>
+            <Input
+              type="number"
+              name="actualCost"
+              value={formData.actualCost}
+              onChange={handleChange}
+              placeholder={`VD: ${appointment.servicePrice ? Number(appointment.servicePrice).toLocaleString() : '200000'}`}
+              min="0"
+              step="1000"
+            />
+            {appointment.servicePrice && (
+              <p className="text-xs text-muted-foreground">
+                💰 Giá dịch vụ: {Number(appointment.servicePrice).toLocaleString()}đ
+              </p>
+            )}
           </div>
 
           {/* Submit Error Display */}

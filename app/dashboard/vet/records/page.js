@@ -69,6 +69,11 @@ export default function VeterinarianRecordsPage() {
           treatment: record.treatment || 'N/A',
           notes: record.medicalSummary?.notes || '',
           followUpDate: record.followUpDate || null,
+          // --- New fields from API ---
+          isFollowUpOverdue: record.isFollowUpOverdue || false,
+          needsFollowUp: record.needsFollowUp || !!record.followUpDate,
+          medicalSummary: record.medicalSummary || null,
+          // ---
           veterinarianId: record.veterinarian?.employeeId || record.veterinarianId,
           veterinarianName: record.veterinarian?.fullName || record.veterinarian?.account?.email?.split('@')[0] || 'Veterinarian',
           appointmentId: record.appointmentId || null,
@@ -174,13 +179,82 @@ export default function VeterinarianRecordsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Hồ sơ bệnh án"
-        subtitle="Quản lý và tra cứu hồ sơ khám bệnh"
-      />
+    <div className="flex-1 space-y-6">
+      {/* 🎨 Stunning Gradient Header Banner - Records Theme */}
+      <div className="relative overflow-hidden rounded-b-3xl">
+        {/* Animated Background - Emerald/Green */}
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-green-500 to-teal-600">
+          <div className="absolute inset-0 opacity-20" 
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='52' height='26' viewBox='0 0 52 26' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M10 10c0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6h2c0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4v2c-3.314 0-6-2.686-6-6 0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6zm25.464-1.95l8.486 8.486-1.414 1.414-8.486-8.486 1.414-1.414z' /%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+               }}
+          />
+        </div>
+        
+        {/* Floating decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {['📋', '💊', '💉', '🏥', '📝', '✅'].map((icon, i) => (
+            <span 
+              key={i}
+              className="absolute text-white/10 text-4xl"
+              style={{
+                left: `${10 + i * 15}%`,
+                top: `${20 + (i % 3) * 25}%`,
+                animation: `float ${3 + i % 2}s ease-in-out infinite`,
+                animationDelay: `${i * 0.4}s`
+              }}
+            >
+              {icon}
+            </span>
+          ))}
+        </div>
 
-      {/* Stats - Premium Gradient Cards */}
+        <div className="relative text-white p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Left side - Title & Info */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-xl">
+                  📋
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
+                    Hồ sơ bệnh án
+                    <span className="text-yellow-300">✨</span>
+                  </h1>
+                  <p className="text-white/80 mt-1">
+                    Quản lý và tra cứu hồ sơ khám bệnh
+                  </p>
+                </div>
+              </div>
+
+              {/* Right side - Stats summary */}
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-4">
+                  <div className="flex items-center gap-6 text-center">
+                    <div>
+                      <p className="text-3xl font-bold">{stats.total}</p>
+                      <p className="text-xs text-white/80">tổng hồ sơ</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-emerald-200">{stats.withInvoice}</p>
+                      <p className="text-xs text-white/80">có hóa đơn</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-yellow-300">{stats.noInvoice}</p>
+                      <p className="text-xs text-white/80">chờ thanh toán</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
         <div className="vet-stat-card vet-gradient-primary">
           <div className="flex items-start justify-between mb-4">
@@ -348,9 +422,29 @@ export default function VeterinarianRecordsPage() {
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <span className="text-base">🔄</span>
-                          <span className="text-sm">{record.followUpDate}</span>
+                        <div className="flex flex-col gap-1">
+                          {record.followUpDate ? (
+                            <>
+                              <div className="flex items-center gap-1">
+                                <span className="text-base">🔄</span>
+                                <span className="text-sm">
+                                  {new Date(record.followUpDate).toLocaleDateString('vi-VN')}
+                                </span>
+                              </div>
+                              {/* Follow-up status badges */}
+                              {record.isFollowUpOverdue ? (
+                                <Badge variant="destructive" className="text-xs w-fit animate-pulse">
+                                  ⚠️ Quá hạn
+                                </Badge>
+                              ) : record.needsFollowUp ? (
+                                <Badge variant="warning" className="text-xs w-fit">
+                                  📅 Cần tái khám
+                                </Badge>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Không có</span>
+                          )}
                         </div>
                       </TableCell>
                       
@@ -404,6 +498,7 @@ export default function VeterinarianRecordsPage() {
         onSuccess={handleSaveRecord}
         record={editingRecord}
       />
+      </div>  {/* Close max-w-7xl container */}
     </div>
   );
 }

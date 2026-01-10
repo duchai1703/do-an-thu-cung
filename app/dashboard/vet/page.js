@@ -63,6 +63,7 @@ export default function VeterinarianDashboard() {
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [vaccinationAlerts, setVaccinationAlerts] = useState({ upcoming: [], overdue: [] });
+  const [overdueFollowUps, setOverdueFollowUps] = useState([]);
   
   // State for viewing completed appointment's record
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -187,7 +188,11 @@ export default function VeterinarianDashboard() {
               startTime: ws.startTime || '08:00',
               endTime: ws.endTime || '17:00',
               isAvailable: ws.isAvailable !== false,
-              notes: ws.notes || ''
+              notes: ws.notes || '',
+              // New fields from API
+              breakStart: ws.breakStart || null,
+              breakEnd: ws.breakEnd || null,
+              workingHours: ws.workingHours || calculateWorkingHours(ws.startTime, ws.endTime, ws.breakStart, ws.breakEnd)
             }));
             setMyWorkSchedule(mappedWorkSchedule);
           }
@@ -246,6 +251,26 @@ export default function VeterinarianDashboard() {
       } catch (e) {
         console.log('Error loading vaccination alerts:', e);
       }
+
+      // Load overdue follow-ups
+      try {
+        const overdueRes = await medicalRecordApi.getOverdueFollowUps();
+        if (overdueRes.success && overdueRes.data) {
+          setOverdueFollowUps(overdueRes.data.map(record => ({
+            id: record.id || record.recordId,
+            petId: record.petId || record.pet?.petId,
+            petName: record.pet?.name || 'Unknown',
+            petIcon: record.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+            diagnosis: record.diagnosis,
+            followUpDate: record.followUpDate,
+            veterinarianName: record.veterinarian?.fullName || 'N/A',
+            ownerName: record.pet?.owner?.fullName || 'Unknown',
+            ownerPhone: record.pet?.owner?.phoneNumber || 'N/A'
+          })));
+        }
+      } catch (e) {
+        console.log('Error loading overdue follow-ups:', e);
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
     } finally {
@@ -262,6 +287,29 @@ export default function VeterinarianDashboard() {
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Calculate working hours from start/end times minus break
+  const calculateWorkingHours = (startTime, endTime, breakStart, breakEnd) => {
+    if (!startTime || !endTime) return 8;
+    
+    const parseTime = (timeStr) => {
+      if (!timeStr) return null;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours + minutes / 60;
+    };
+    
+    const start = parseTime(startTime) || 8;
+    const end = parseTime(endTime) || 17;
+    const bStart = parseTime(breakStart);
+    const bEnd = parseTime(breakEnd);
+    
+    let totalHours = end - start;
+    if (bStart && bEnd) {
+      totalHours -= (bEnd - bStart);
+    }
+    
+    return Math.round(totalHours * 10) / 10; // Round to 1 decimal
   };
 
   const checkUpcomingAppointments = (schedule) => {
@@ -310,6 +358,37 @@ export default function VeterinarianDashboard() {
     setIsRecordModalOpen(false);
     setSelectedAppointment(null);
     loadDashboardData();
+  };
+
+  // Toggle schedule availability
+  const handleToggleAvailability = async (schedule) => {
+    try {
+      if (schedule.isAvailable) {
+        // Mark as unavailable - ask for reason
+        const reason = prompt("📅 Nhập lý do nghỉ (nếu có):", "");
+        if (reason === null) return; // User cancelled
+        
+        const response = await scheduleApi.markUnavailable(schedule.id, reason);
+        if (response.success) {
+          showToast("✅ Đã đánh dấu nghỉ phép");
+          loadDashboardData();
+        } else {
+          throw new Error(response.error);
+        }
+      } else {
+        // Mark as available
+        const response = await scheduleApi.markAvailable(schedule.id);
+        if (response.success) {
+          showToast("✅ Đã sẵn sàng nhận lịch");
+          loadDashboardData();
+        } else {
+          throw new Error(response.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling availability:', error);
+      showToast(error.message || "Có lỗi xảy ra", "error");
+    }
   };
 
   // Handler to view medical record for completed appointment
@@ -565,6 +644,50 @@ export default function VeterinarianDashboard() {
         </div>
       </div>
 
+      {/* 🔴 Overdue Follow-ups Warning Widget */}
+      {overdueFollowUps.length > 0 && (
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-4 animate-pulse-slow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-red-800">⚠️ Tái khám quá hạn</h3>
+                <p className="text-sm text-red-600">{overdueFollowUps.length} bệnh nhân cần được tái khám</p>
+              </div>
+            </div>
+            <Badge variant="destructive" className="text-lg px-3 py-1">
+              {overdueFollowUps.length}
+            </Badge>
+          </div>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {overdueFollowUps.slice(0, 5).map((record) => (
+              <div key={record.id} className="bg-white p-3 rounded-lg border border-red-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{record.petIcon}</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">{record.petName}</p>
+                    <p className="text-xs text-gray-500 truncate max-w-[200px]">{record.diagnosis}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-red-600 font-semibold">
+                    📅 {record.followUpDate ? new Date(record.followUpDate).toLocaleDateString('vi-VN') : 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500">📞 {record.ownerPhone}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {overdueFollowUps.length > 5 && (
+            <p className="text-xs text-red-600 mt-2 text-center">
+              +{overdueFollowUps.length - 5} khác...
+            </p>
+          )}
+        </div>
+      )}
+
       {/* My Work Schedule This Week */}
       {myWorkSchedule.length > 0 && (
         <Card>
@@ -582,22 +705,55 @@ export default function VeterinarianDashboard() {
                   <div 
                     key={ws.id} 
                     className={cn(
-                      "flex-shrink-0 w-20 p-2 rounded-lg text-center border",
+                      "flex-shrink-0 w-28 p-2 rounded-lg text-center border transition-all group",
                       isToday && "border-primary border-2 bg-primary/5",
-                      !ws.isAvailable && "opacity-50 bg-muted"
+                      !ws.isAvailable && "opacity-60 bg-muted"
                     )}
+                    title={ws.notes ? `📝 ${ws.notes}` : ''}
                   >
                     <p className={cn("text-sm font-bold", isToday && "text-primary")}>{ws.dayOfWeek}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(ws.date)}</p>
                     <div className="mt-1">
                       {ws.isAvailable ? (
-                        <Badge variant="outline" className="text-xs px-1">
-                          {ws.startTime?.slice(0,5)}
-                        </Badge>
+                        <>
+                          <Badge variant="outline" className="text-xs px-1">
+                            {ws.startTime?.slice(0,5)} - {ws.endTime?.slice(0,5)}
+                          </Badge>
+                          {/* Working Hours */}
+                          <p className="text-xs text-emerald-600 font-semibold mt-1">
+                            ⏱️ {ws.workingHours || 8}h
+                          </p>
+                          {/* Break Time - show on hover */}
+                          {ws.breakStart && ws.breakEnd && (
+                            <p className="text-xs text-orange-500 mt-0.5 hidden group-hover:block">
+                              ☕ {ws.breakStart?.slice(0,5)}-{ws.breakEnd?.slice(0,5)}
+                            </p>
+                          )}
+                          {/* Notes indicator */}
+                          {ws.notes && (
+                            <span className="text-xs" title={ws.notes}>📝</span>
+                          )}
+                        </>
                       ) : (
                         <Badge variant="secondary" className="text-xs">Nghỉ</Badge>
                       )}
                     </div>
+                    {/* Toggle Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleAvailability(ws);
+                      }}
+                      className={cn(
+                        "mt-2 w-full py-1 px-2 rounded text-xs font-medium transition-all",
+                        ws.isAvailable 
+                          ? "bg-red-100 text-red-700 hover:bg-red-200" 
+                          : "bg-green-100 text-green-700 hover:bg-green-200"
+                      )}
+                      title={ws.isAvailable ? "Xin nghỉ" : "Huỷ nghỉ"}
+                    >
+                      {ws.isAvailable ? "🚫 Xin nghỉ" : "✅ Làm việc"}
+                    </button>
                   </div>
                 );
               })}

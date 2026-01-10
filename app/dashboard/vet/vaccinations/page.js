@@ -23,6 +23,7 @@ export default function VeterinarianVaccinationsPage() {
   const { showToast } = useToast();
   const [vaccinations, setVaccinations] = useState([]);
   const [pets, setPets] = useState([]);
+  const [vaccineTypes, setVaccineTypes] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -31,12 +32,15 @@ export default function VeterinarianVaccinationsPage() {
   // Form state for new vaccination
   const [formData, setFormData] = useState({
     petId: "",
+    vaccineTypeId: "",
     vaccineName: "",
     vaccinationType: "",
     batchNumber: "",
     manufacturer: "",
     nextDueDate: "",
-    notes: ""
+    notes: "",
+    site: "",
+    reactions: ""
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -66,6 +70,16 @@ export default function VeterinarianVaccinationsPage() {
           ownerPhone: pet.owner?.phoneNumber || 'N/A'
         }));
         setPets(mappedPets);
+
+        // Load vaccine types from API
+        try {
+          const vaccineTypesRes = await medicalRecordApi.getVaccineTypes();
+          if (vaccineTypesRes.success && vaccineTypesRes.data) {
+            setVaccineTypes(vaccineTypesRes.data);
+          }
+        } catch (e) {
+          console.log('Error loading vaccine types:', e);
+        }
         
         // Load vaccination history for each pet using petApi
         const allVaccinations = [];
@@ -85,6 +99,7 @@ export default function VeterinarianVaccinationsPage() {
                   nextDueDate: vac.nextDueDate,
                   batchNumber: vac.batchNumber || 'N/A',
                   site: vac.site || '',
+                  reactions: vac.reactions || '',
                   isDue: vac.isDue,
                   daysUntilDue: vac.daysUntilDue,
                   notes: vac.notes || ''
@@ -122,9 +137,11 @@ export default function VeterinarianVaccinationsPage() {
   const handleOpenModal = () => {
     setFormData({
       petId: "",
+      vaccineTypeId: "",
       batchNumber: "",
       site: "",
-      notes: ""
+      notes: "",
+      reactions: ""
     });
     setIsModalOpen(true);
   };
@@ -132,8 +149,8 @@ export default function VeterinarianVaccinationsPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.petId || !formData.vaccineName) {
-      showToast("Vui lòng điền đầy đủ thông tin bắt buộc", "error");
+    if (!formData.petId || !formData.vaccineTypeId) {
+      showToast("Vui lòng chọn thú cưng và loại vaccine", "error");
       return;
     }
 
@@ -149,11 +166,12 @@ export default function VeterinarianVaccinationsPage() {
       
       // Create vaccination record using petApi
       const response = await petApi.addVaccination(Number(formData.petId), {
-        vaccineTypeId: 1, // Default vaccine type
+        vaccineTypeId: Number(formData.vaccineTypeId),
         administeredBy: veterinarianId,
         administrationDate: new Date().toISOString(),
         batchNumber: formData.batchNumber || `BATCH-${Date.now()}`,
         site: formData.site || undefined,
+        reactions: formData.reactions || undefined,
         notes: formData.notes || undefined
       });
       
@@ -279,19 +297,20 @@ export default function VeterinarianVaccinationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[15%]">Thú cưng</TableHead>
-              <TableHead className="w-[15%]">Chủ nuôi</TableHead>
-              <TableHead className="w-[15%]">Ngày tiêm</TableHead>
-              <TableHead className="w-[15%]">Hạn tiếp theo</TableHead>
-              <TableHead className="w-[12%]">Mã lô</TableHead>
-              <TableHead className="w-[12%]">Vị trí tiêm</TableHead>
-              <TableHead className="w-[16%]">Trạng thái</TableHead>
+              <TableHead className="w-[13%]">Thú cưng</TableHead>
+              <TableHead className="w-[12%]">Chủ nuôi</TableHead>
+              <TableHead className="w-[12%]">Ngày tiêm</TableHead>
+              <TableHead className="w-[12%]">Hạn tiếp theo</TableHead>
+              <TableHead className="w-[10%]">Mã lô</TableHead>
+              <TableHead className="w-[10%]">Vị trí tiêm</TableHead>
+              <TableHead className="w-[14%]">Phản ứng</TableHead>
+              <TableHead className="w-[17%]">Trạng thái</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredVaccinations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   <Syringe className="mx-auto h-8 w-8 mb-2" />
                   {loading ? "Đang tải..." : "Không có dữ liệu tiêm phòng"}
                 </TableCell>
@@ -345,9 +364,36 @@ export default function VeterinarianVaccinationsPage() {
                     </TableCell>
                     
                     <TableCell>
-                      <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
-                        <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                      </Badge>
+                      {vac.reactions ? (
+                        <Badge variant="warning" className="text-xs">
+                          ⚠️ {vac.reactions.length > 20 ? vac.reactions.slice(0, 20) + '...' : vac.reactions}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Không có</span>
+                      )}
+                    </TableCell>
+                    
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
+                          <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
+                        </Badge>
+                        {/* daysUntilDue countdown */}
+                        {vac.daysUntilDue !== null && vac.daysUntilDue !== undefined && (
+                          <span className={cn(
+                            "text-xs font-medium",
+                            vac.daysUntilDue < 0 ? "text-red-600" :
+                            vac.daysUntilDue <= 7 ? "text-orange-600" :
+                            vac.daysUntilDue <= 14 ? "text-yellow-600" : "text-green-600"
+                          )}>
+                            {vac.daysUntilDue < 0 
+                              ? `⚠️ Quá hạn ${Math.abs(vac.daysUntilDue)} ngày` 
+                              : vac.daysUntilDue === 0 
+                                ? "📅 Hôm nay"
+                                : `⏰ Còn ${vac.daysUntilDue} ngày`}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -390,6 +436,26 @@ export default function VeterinarianVaccinationsPage() {
             </div>
 
             <div className="space-y-2">
+              <Label>💉 Loại Vaccine *</Label>
+              <Select
+                value={formData.vaccineTypeId}
+                onChange={(e) => setFormData({ ...formData, vaccineTypeId: e.target.value })}
+              >
+                <option value="">-- Chọn loại vaccine --</option>
+                {vaccineTypes.map(vt => (
+                  <option key={vt.vaccineTypeId || vt.id} value={vt.vaccineTypeId || vt.id}>
+                    {vt.name || vt.vaccineName} {vt.category ? `(${vt.category})` : ''}
+                  </option>
+                ))}
+              </Select>
+              {formData.vaccineTypeId && (
+                <p className="text-xs text-muted-foreground">
+                  ℹ️ {vaccineTypes.find(vt => (vt.vaccineTypeId || vt.id) == formData.vaccineTypeId)?.description || ''}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>Mã lô vaccine (batch)</Label>
               <Input
                 value={formData.batchNumber}
@@ -413,7 +479,21 @@ export default function VeterinarianVaccinationsPage() {
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Ghi chú thêm về tiêm phòng..."
-                rows={3}
+                rows={2}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                Phản ứng sau tiêm (nếu có)
+              </Label>
+              <Textarea
+                value={formData.reactions}
+                onChange={(e) => setFormData({ ...formData, reactions: e.target.value })}
+                placeholder="Mô tả các phản ứng bất thường như: sốt, sưng, dị ứng..."
+                rows={2}
+                className="border-yellow-200 focus:border-yellow-400"
               />
             </div>
 

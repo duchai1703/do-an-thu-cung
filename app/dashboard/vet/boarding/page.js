@@ -94,7 +94,11 @@ export default function VeterinarianBoardingPage() {
             checkInDate: asn.checkInDate || asn.createdAt,
             expectedCheckOutDate: asn.expectedCheckOutDate,
             daysStayed,
-            notes: asn.notes || ''
+            notes: asn.notes || '',
+            // New fields
+            dailyRate: asn.dailyRate || asn.cage?.dailyRate || 0,
+            assignedById: asn.assignedById || null,
+            assignedByName: asn.assignedBy?.fullName || asn.assignedBy?.account?.email?.split('@')[0] || null
           };
         });
         setActiveAssignments(mappedAssignments);
@@ -160,7 +164,8 @@ export default function VeterinarianBoardingPage() {
       cageId: cage ? cage.id : "",
       checkInDate: new Date().toISOString().split('T')[0],
       expectedCheckOutDate: "",
-      notes: ""
+      notes: "",
+      dailyRate: cage?.dailyRate || ""
     });
     setAvailableCagesForPet(cage ? [cage] : cages.filter(c => c.status === 'available'));
     setIsAssignModalOpen(true);
@@ -180,6 +185,7 @@ export default function VeterinarianBoardingPage() {
         petId: Number(formData.petId),
         checkInDate: formData.checkInDate,
         expectedCheckOutDate: formData.expectedCheckOutDate || null,
+        dailyRate: formData.dailyRate ? Number(formData.dailyRate) : undefined,
         notes: formData.notes || null
       });
 
@@ -249,50 +255,156 @@ export default function VeterinarianBoardingPage() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-8">
-      <DashboardHeader
-        title="Quản lý nội trú"
-        subtitle="Theo dõi và quản lý thú cưng lưu trú tại trung tâm"
-      />
-
-      {/* Stats - Premium Gradient Cards */}
-      <div className="grid gap-6 md:grid-cols-4">
-        <div className="vet-stat-card vet-gradient-primary">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🏠</div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
-          </div>
-          <div className="value">{stats.total}</div>
-          <div className="label mt-1">Tổng chuồng</div>
+    <div className="flex-1 space-y-6">
+      {/* 🎨 Stunning Gradient Header Banner */}
+      <div className="relative overflow-hidden rounded-b-3xl">
+        {/* Animated Background */}
+        <div className="absolute inset-0 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500">
+          {/* Animated overlay pattern */}
+          <div className="absolute inset-0 opacity-20" 
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M40 40c0-5.5-4.5-10-10-10s-10 4.5-10 10 4.5 10 10 10 10-4.5 10-10zm10 0c0 11-9 20-20 20s-20-9-20-20 9-20 20-20 20 9 20 20z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+               }}
+          />
+        </div>
+        
+        {/* Floating decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {['🏠', '🐕', '🐈', '🛏️', '🍖', '💤'].map((icon, i) => (
+            <span 
+              key={i}
+              className="absolute text-white/10 text-4xl"
+              style={{
+                left: `${10 + i * 15}%`,
+                top: `${20 + (i % 3) * 25}%`,
+                animation: `float ${3 + i % 2}s ease-in-out infinite`,
+                animationDelay: `${i * 0.4}s`
+              }}
+            >
+              {icon}
+            </span>
+          ))}
         </div>
 
-        <div className="vet-stat-card vet-gradient-success">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">✅</div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Trống</span>
-          </div>
-          <div className="value">{stats.available}</div>
-          <div className="label mt-1">Chuồng trống</div>
-        </div>
+        <div className="relative text-white p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Left side - Title & Info */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-xl">
+                  🏠
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
+                    Quản lý nội trú
+                    <span className="text-yellow-300">✨</span>
+                  </h1>
+                  <p className="text-white/80 mt-1">
+                    Theo dõi và quản lý thú cưng lưu trú tại trung tâm
+                  </p>
+                </div>
+              </div>
 
-        <div className="vet-stat-card vet-gradient-warning">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🐾</div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Đang ở</span>
-          </div>
-          <div className="value">{stats.occupied}</div>
-          <div className="label mt-1">Đang lưu trú</div>
-        </div>
+              {/* Right side - Occupancy indicator */}
+              <div className="flex items-center gap-4">
+                {/* Occupancy Progress */}
+                <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-4">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <p className="text-3xl font-bold">{stats.occupied}</p>
+                      <p className="text-xs text-white/80">đang ở</p>
+                    </div>
+                    <div className="text-2xl text-white/50">/</div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold">{stats.total}</p>
+                      <p className="text-xs text-white/80">tổng chuồng</p>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-3 w-full h-2 bg-white/30 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full transition-all duration-500"
+                      style={{ width: `${stats.total > 0 ? (stats.occupied / stats.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-white/70 mt-1 text-center">
+                    {stats.total > 0 ? Math.round((stats.occupied / stats.total) * 100) : 0}% sử dụng
+                  </p>
+                </div>
 
-        <div className="vet-stat-card vet-gradient-info">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🔧</div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Bảo trì</span>
+                <Button 
+                  onClick={() => handleOpenAssignModal()} 
+                  className="bg-white text-teal-600 hover:bg-white/90 shadow-xl hover:scale-105 transition-transform font-bold px-6 py-6"
+                  size="lg"
+                >
+                  <span className="text-xl mr-2">➕</span>
+                  Nhập thú cưng
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="value">{stats.maintenance}</div>
-          <div className="label mt-1">Đang bảo trì</div>
         </div>
       </div>
+
+      <div className="max-w-7xl mx-auto px-6 space-y-6">
+        {/* Stats - Premium Gradient Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          {/* Total Cages */}
+          <div className="group relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 cursor-pointer">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Tổng chuồng</p>
+                <p className="text-4xl font-bold mt-1">{stats.total}</p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                🏠
+              </div>
+            </div>
+          </div>
+
+          {/* Available */}
+          <div className="group relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 cursor-pointer">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Chuồng trống</p>
+                <p className="text-4xl font-bold mt-1">{stats.available}</p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                ✅
+              </div>
+            </div>
+          </div>
+
+          {/* Occupied */}
+          <div className="group relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 cursor-pointer">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Đang lưu trú</p>
+                <p className="text-4xl font-bold mt-1">{stats.occupied}</p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform animate-pulse">
+                🐾
+              </div>
+            </div>
+          </div>
+
+          {/* Maintenance */}
+          <div className="group relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-slate-500 to-gray-600 text-white shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 cursor-pointer">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/80 text-sm font-medium">Bảo trì</p>
+                <p className="text-4xl font-bold mt-1">{stats.maintenance}</p>
+              </div>
+              <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                🔧
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* Tabs and Actions - Premium Style */}
       <div className="flex items-center justify-between">
@@ -332,96 +444,162 @@ export default function VeterinarianBoardingPage() {
 
       {/* Tab Content */}
       {mainTab === "monitoring" && (
-        <div className="vet-glass-card rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="space-y-6">
+          {/* Section Header */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-3xl shadow-lg">
                 🐾
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Danh sách thú cưng đang lưu trú</h2>
-                <p className="text-sm text-gray-500">Theo dõi và quản lý</p>
+                <h2 className="text-2xl font-bold text-gray-800">Thú cưng đang lưu trú</h2>
+                <p className="text-gray-500">Theo dõi và quản lý hàng ngày</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
-              <span className="text-2xl">{activeAssignments.length}</span>
+            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-xl">
+              <span className="text-3xl font-bold">{activeAssignments.length}</span>
               <span className="text-sm opacity-90">thú cưng</span>
             </div>
           </div>
+
           {loading ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-2">⏳</div>
-              <p className="text-muted-foreground">Đang tải...</p>
+            <div className="text-center py-16">
+              <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center text-6xl animate-pulse">
+                ⏳
+              </div>
+              <p className="text-gray-500 mt-4 text-lg">Đang tải dữ liệu...</p>
             </div>
           ) : activeAssignments.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-2">🏠</div>
-              <p className="text-muted-foreground">Chưa có thú cưng nào đang lưu trú</p>
+            <div className="text-center py-16">
+              <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-7xl mb-4">
+                🏠
+              </div>
+              <p className="text-xl font-medium text-gray-600">Chưa có thú cưng nào đang lưu trú</p>
+              <p className="text-gray-400 mt-2">Nhấn "Nhập thú cưng mới" để bắt đầu</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Thú cưng</TableHead>
-                  <TableHead>Chủ nuôi</TableHead>
-                  <TableHead>Chuồng</TableHead>
-                  <TableHead>Ngày nhập</TableHead>
-                  <TableHead>Số ngày</TableHead>
-                  <TableHead>Ngày trả</TableHead>
-                  <TableHead className="text-center">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeAssignments.map(asn => (
-                  <TableRow key={asn.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{asn.petIcon}</span>
-                        <div>
-                          <p className="font-semibold">{asn.petName}</p>
-                          <p className="text-xs text-muted-foreground">{asn.petBreed}</p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {activeAssignments.map(asn => {
+                // Calculate progress percentage (assume max 14 days)
+                const progressPercent = Math.min((asn.daysStayed / 14) * 100, 100);
+                const isLongStay = asn.daysStayed >= 7;
+                
+                return (
+                  <div 
+                    key={asn.id}
+                    className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 hover:-translate-y-1"
+                  >
+                    {/* Gradient top bar */}
+                    <div className={cn(
+                      "h-2 w-full",
+                      isLongStay 
+                        ? "bg-gradient-to-r from-amber-400 to-orange-500" 
+                        : "bg-gradient-to-r from-emerald-400 to-teal-500"
+                    )} />
+                    
+                    <div className="p-5">
+                      {/* Pet Info Header */}
+                      <div className="flex items-start gap-4 mb-4">
+                        {/* Pet Avatar */}
+                        <div className={cn(
+                          "w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg",
+                          isLongStay
+                            ? "bg-gradient-to-br from-amber-400 to-orange-500"
+                            : "bg-gradient-to-br from-emerald-400 to-teal-500"
+                        )}>
+                          {asn.petIcon}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-gray-800 truncate">{asn.petName}</h3>
+                          <p className="text-sm text-gray-500 truncate">{asn.petBreed}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs font-semibold">
+                              🏠 {asn.cageNumber}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm">{asn.ownerName}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <span>📞</span> {asn.ownerPhone}
-                        </p>
+                      
+                      {/* Owner Info */}
+                      <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-400">👤</span>
+                          <span className="font-medium text-gray-700">{asn.ownerName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm mt-1">
+                          <span className="text-gray-400">📞</span>
+                          <span className="text-gray-600">{asn.ownerPhone}</span>
+                        </div>
+                        {/* Daily Rate */}
+                        {asn.dailyRate > 0 && (
+                          <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t border-gray-200">
+                            <span className="text-gray-500">💰 Giá/ngày:</span>
+                            <span className="font-semibold text-emerald-600">
+                              {Number(asn.dailyRate).toLocaleString()}đ
+                            </span>
+                          </div>
+                        )}
+                        {/* Assigned By Staff */}
+                        {asn.assignedByName && (
+                          <div className="flex items-center gap-2 text-sm mt-2 pt-2 border-t border-gray-200">
+                            <span className="text-gray-400">👨‍⚕️</span>
+                            <span className="text-gray-500">Nhân viên:</span>
+                            <span className="font-medium text-blue-600">{asn.assignedByName}</span>
+                          </div>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{asn.cageNumber}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(asn.checkInDate).toLocaleDateString('vi-VN')}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold">{asn.daysStayed}</span> ngày
-                    </TableCell>
-                    <TableCell>
-                      {asn.expectedCheckOutDate
-                        ? new Date(asn.expectedCheckOutDate).toLocaleDateString('vi-VN')
-                        : <span className="text-muted-foreground">-</span>
-                      }
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCheckOut(asn.id)}
-                          className="inline-flex items-center gap-1"
-                        >
-                          <span className="text-base">🚪</span> Trả
-                        </Button>
+                      
+                      {/* Stay Duration */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between text-sm mb-2">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <span>📅</span> Nhập: {new Date(asn.checkInDate).toLocaleDateString('vi-VN')}
+                          </span>
+                          <span className={cn(
+                            "font-bold px-3 py-1 rounded-full text-sm",
+                            isLongStay 
+                              ? "bg-amber-100 text-amber-700" 
+                              : "bg-emerald-100 text-emerald-700"
+                          )}>
+                            {asn.daysStayed} ngày
+                          </span>
+                        </div>
+                        
+                        {/* Progress bar */}
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              isLongStay 
+                                ? "bg-gradient-to-r from-amber-400 to-orange-500" 
+                                : "bg-gradient-to-r from-emerald-400 to-teal-500"
+                            )}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        
+                        {asn.expectedCheckOutDate && (
+                          <div className="text-xs text-gray-400 mt-2 text-right">
+                            🗓️ Dự kiến trả: {new Date(asn.expectedCheckOutDate).toLocaleDateString('vi-VN')}
+                          </div>
+                        )}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      
+                      {/* Action Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCheckOut(asn.id)}
+                        className="w-full flex items-center justify-center gap-2 py-3 border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 font-semibold transition-all group-hover:shadow-md"
+                      >
+                        <span className="text-lg">🚪</span> Trả chuồng
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
@@ -465,89 +643,149 @@ export default function VeterinarianBoardingPage() {
             </div>
           </div>
 
-          {/* Cage Grid */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* Cage Grid - Premium Visual Cards */}
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {loading ? (
-              <div className="col-span-full text-center py-8">
-                <div className="text-5xl mb-2">⏳</div>
-                <p className="text-muted-foreground">Đang tải...</p>
+              <div className="col-span-full text-center py-12">
+                <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center text-5xl animate-pulse">
+                  ⏳
+                </div>
+                <p className="text-gray-500 mt-4">Đang tải dữ liệu chuồng...</p>
               </div>
             ) : filteredCages.length === 0 ? (
-              <div className="col-span-full text-center py-8">
-                <div className="text-5xl mb-2">🏠</div>
-                <p className="mt-2 text-muted-foreground">Không có chuồng nào</p>
+              <div className="col-span-full text-center py-12">
+                <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-6xl">
+                  🏠
+                </div>
+                <p className="mt-4 text-gray-500 font-medium">Không có chuồng nào</p>
               </div>
             ) : (
               filteredCages.map(cage => {
                 const statusBadge = getStatusBadge(cage.status);
                 const sizeBadge = getSizeBadge(cage.size);
+                
+                // Dynamic gradient based on status
+                const statusGradient = {
+                  available: 'from-emerald-400 to-teal-500',
+                  occupied: 'from-amber-400 to-orange-500',
+                  maintenance: 'from-slate-400 to-gray-500',
+                  reserved: 'from-blue-400 to-indigo-500'
+                };
 
                 return (
-                  <Card
+                  <div
                     key={cage.id}
                     className={cn(
-                      "relative overflow-hidden",
-                      cage.status === 'occupied' && "border-warning",
-                      cage.status === 'maintenance' && "border-muted opacity-60"
+                      "group relative rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2",
+                      cage.status === 'maintenance' && "opacity-70"
                     )}
                   >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{cage.number}</CardTitle>
-                        <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                          <span className="text-sm">{statusBadge.emoji}</span>
-                          {statusBadge.label}
-                        </Badge>
+                    {/* Gradient Header */}
+                    <div className={cn(
+                      "relative h-16 bg-gradient-to-r",
+                      statusGradient[cage.status] || statusGradient.available
+                    )}>
+                      {/* Pattern overlay */}
+                      <div className="absolute inset-0 opacity-20"
+                        style={{
+                          backgroundImage: `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.3'%3E%3Ccircle cx='3' cy='3' r='3'/%3E%3C/g%3E%3C/svg%3E")`
+                        }}
+                      />
+                      
+                      {/* Cage Number - Center */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-white text-3xl font-bold drop-shadow-lg">{cage.number}</span>
                       </div>
-                      <div className="flex gap-2 mt-1">
-                        <span className={cn("text-xs px-2 py-0.5 rounded", sizeBadge.color)}>
+                      
+                      {/* Status Icon - Top Right */}
+                      <div className="absolute top-2 right-2 w-10 h-10 rounded-lg bg-white/25 backdrop-blur-sm flex items-center justify-center text-xl shadow-lg group-hover:scale-110 transition-transform">
+                        {statusBadge.emoji}
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4">
+                      {/* Size + Location row */}
+                      <div className="flex items-center justify-between mb-3 text-xs">
+                        <span className={cn(
+                          "font-bold px-2 py-1 rounded-full",
+                          cage.size === 'small' ? 'bg-blue-100 text-blue-700' :
+                          cage.size === 'large' ? 'bg-purple-100 text-purple-700' :
+                          'bg-green-100 text-green-700'
+                        )}>
                           {sizeBadge.label}
                         </span>
-                        <span className="text-xs text-muted-foreground">{cage.location}</span>
+                        <span className="text-gray-500">📍 {cage.location}</span>
                       </div>
-                    </CardHeader>
-
-                    <CardContent className="pt-2">
                       {cage.currentPet ? (
+                        /* Occupied - Show Pet Info */
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">{cage.currentPet.icon}</span>
-                            <div>
-                              <p className="font-semibold text-sm">{cage.currentPet.name}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          {/* Pet Avatar and Info */}
+                          <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-200">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center text-2xl shadow-md">
+                              {cage.currentPet.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-gray-800 truncate">{cage.currentPet.name}</p>
+                              <p className="text-xs text-gray-500 flex items-center gap-1">
                                 <span>👤</span> {cage.currentPet.ownerName}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <span>📅</span>
-                            {new Date(cage.currentPet.checkInDate).toLocaleDateString('vi-VN')}
-                            ({cage.currentPet.daysStayed} ngày)
+                          
+                          {/* Stay Info */}
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <span>📅</span>
+                              <span>{new Date(cage.currentPet.checkInDate).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                            <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200">
+                              <span className="font-bold text-amber-700">{cage.currentPet.daysStayed}</span>
+                              <span className="text-amber-600 text-xs ml-1">ngày</span>
+                            </div>
                           </div>
+                          
+                          {/* Checkout Button */}
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full flex items-center gap-1"
+                            className="w-full flex items-center justify-center gap-2 border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all"
                             onClick={() => handleCheckOut(cage.currentPet.assignmentId)}
                           >
-                            <span className="text-base">🚪</span> Trả chuồng
+                            <span className="text-lg">🚪</span> Trả chuồng
                           </Button>
                         </div>
                       ) : cage.status === 'available' ? (
-                        <Button
-                          size="sm"
-                          className="w-full flex items-center gap-1"
-                          onClick={() => handleOpenAssignModal(cage)}
-                        >
-                          <span className="text-base">➕</span> Phân bổ
-                        </Button>
+                        /* Available - Show Assign Button */
+                        <div className="text-center space-y-3">
+                          <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-3xl">
+                            ✅
+                          </div>
+                          <p className="text-sm text-gray-500">Chuồng trống, sẵn sàng tiếp nhận</p>
+                          <Button
+                            size="sm"
+                            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white shadow-lg hover:shadow-xl transition-all"
+                            onClick={() => handleOpenAssignModal(cage)}
+                          >
+                            <span className="text-lg">➕</span> Phân bổ thú cưng
+                          </Button>
+                        </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground text-center py-2">
-                          {cage.status === 'maintenance' ? '🔧 Bảo trì' : '📅 Đã đặt'}
-                        </p>
+                        /* Maintenance or Reserved */
+                        <div className="text-center py-4">
+                          <div className="w-14 h-14 mx-auto rounded-full bg-gray-100 flex items-center justify-center text-3xl mb-2">
+                            {cage.status === 'maintenance' ? '🔧' : '📅'}
+                          </div>
+                          <p className="text-sm font-medium text-gray-600">
+                            {cage.status === 'maintenance' ? 'Đang bảo trì' : 'Đã đặt trước'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {cage.notes || 'Không khả dụng'}
+                          </p>
+                        </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 );
               })
             )}
@@ -643,6 +881,25 @@ export default function VeterinarianBoardingPage() {
             </div>
 
             <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                💰 Giá theo ngày (VNĐ)
+              </Label>
+              <Input
+                type="number"
+                value={formData.dailyRate}
+                onChange={(e) => setFormData({ ...formData, dailyRate: e.target.value })}
+                placeholder="VD: 150000"
+                min="0"
+                step="1000"
+              />
+              {selectedCage?.dailyRate && (
+                <p className="text-xs text-muted-foreground">
+                  💡 Giá mặc định của chuồng: {Number(selectedCage.dailyRate).toLocaleString()}đ
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>Ghi chú</Label>
               <Textarea
                 value={formData.notes}
@@ -664,6 +921,7 @@ export default function VeterinarianBoardingPage() {
           </form>
         </DialogContent>
       </Dialog>
+      </div>  {/* Close max-w-7xl container */}
     </div>
   );
 }

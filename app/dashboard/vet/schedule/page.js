@@ -182,13 +182,82 @@ export default function VeterinarianSchedulePage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Lịch làm việc"
-        subtitle="Quản lý lịch khám và thực hiện ca khám"
-      />
+    <div className="flex-1 space-y-6">
+      {/* 🎨 Stunning Gradient Header Banner - Schedule Theme */}
+      <div className="relative overflow-hidden rounded-b-3xl">
+        {/* Animated Background - Purple/Violet */}
+        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-600">
+          <div className="absolute inset-0 opacity-20" 
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+               }}
+          />
+        </div>
+        
+        {/* Floating decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {['📅', '⏰', '🗓️', '✨', '📋', '🔔'].map((icon, i) => (
+            <span 
+              key={i}
+              className="absolute text-white/10 text-4xl"
+              style={{
+                left: `${10 + i * 15}%`,
+                top: `${20 + (i % 3) * 25}%`,
+                animation: `float ${3 + i % 2}s ease-in-out infinite`,
+                animationDelay: `${i * 0.4}s`
+              }}
+            >
+              {icon}
+            </span>
+          ))}
+        </div>
 
-      {/* Stats - Premium Gradient Cards */}
+        <div className="relative text-white p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Left side - Title & Info */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-xl">
+                  📅
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
+                    Lịch làm việc
+                    <span className="text-yellow-300">✨</span>
+                  </h1>
+                  <p className="text-white/80 mt-1">
+                    Quản lý lịch khám và thực hiện ca khám
+                  </p>
+                </div>
+              </div>
+
+              {/* Right side - Stats summary */}
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-4">
+                  <div className="flex items-center gap-6 text-center">
+                    <div>
+                      <p className="text-3xl font-bold">{stats.total}</p>
+                      <p className="text-xs text-white/80">tổng ca</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-yellow-300">{stats.waiting}</p>
+                      <p className="text-xs text-white/80">chờ khám</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-emerald-300">{stats.completed}</p>
+                      <p className="text-xs text-white/80">hoàn thành</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 space-y-6">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Total */}
         <div className="vet-stat-card vet-gradient-primary">
@@ -462,6 +531,7 @@ export default function VeterinarianSchedulePage() {
           appointment={selectedAppointment}
         />
       )}
+      </div>  {/* Close max-w-7xl container */}
     </div>
   );
 }
