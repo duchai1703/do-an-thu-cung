@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import PetIdBadge from "@/components/ui/PetIdBadge";
 
 export default function PetsPage() {
   const router = useRouter();
@@ -361,7 +362,8 @@ export default function PetsPage() {
                     <CardContent className="p-4">
                       <div className="text-center mb-3">
                         <h3 className="font-bold text-lg text-gray-900">{pet.name}</h3>
-                        <p className="text-sm text-gray-500">
+                        <PetIdBadge petId={petId} size="sm" className="mt-1" />
+                        <p className="text-sm text-gray-500 mt-1">
                           {getSpeciesLabel(pet.species)} • {pet.breed || 'Chưa rõ giống'}
                         </p>
                       </div>
@@ -410,6 +412,7 @@ export default function PetsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-bold text-gray-900">{pet.name}</span>
+                            <PetIdBadge petId={petId} size="xs" />
                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                               {getSpeciesLabel(pet.species)}
                             </span>
@@ -469,7 +472,10 @@ export default function PetsPage() {
                     {getSpeciesEmoji(selectedPet.species)}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">{selectedPet.name}</h2>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="text-2xl font-bold">{selectedPet.name}</h2>
+                      <PetIdBadge petId={selectedPet.petId || selectedPet.id} size="md" variant="outline" className="bg-white/10 border-white/50 text-white" />
+                    </div>
                     <p className="text-white/90">
                       {getSpeciesLabel(selectedPet.species)} • {selectedPet.breed || 'Chưa rõ giống'}
                     </p>
@@ -515,6 +521,33 @@ export default function PetsPage() {
                     <p>SĐT: <span className="font-medium">{selectedPet.owner.phoneNumber}</span></p>
                     <p>Địa chỉ: <span className="font-medium">{selectedPet.owner.address || 'N/A'}</span></p>
                     <p>Email: <span className="font-medium">{selectedPet.owner.account?.email || 'N/A'}</span></p>
+                  </div>
+                </div>
+              )}
+
+              {/* Health Status Summary */}
+              {(selectedPet.initialHealthStatus || selectedPet.specialNotes) && (
+                <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                  <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                    💚 Tình trạng sức khỏe
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedPet.initialHealthStatus && (
+                      <div>
+                        <p className="text-xs text-green-600 font-medium mb-1">🏥 Tình trạng ban đầu:</p>
+                        <p className="text-sm text-gray-700 bg-white/50 rounded-lg p-2">
+                          {selectedPet.initialHealthStatus}
+                        </p>
+                      </div>
+                    )}
+                    {selectedPet.specialNotes && (
+                      <div>
+                        <p className="text-xs text-green-600 font-medium mb-1">📝 Ghi chú đặc biệt:</p>
+                        <p className="text-sm text-gray-700 bg-white/50 rounded-lg p-2">
+                          {selectedPet.specialNotes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

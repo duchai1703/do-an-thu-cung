@@ -1,19 +1,8 @@
-// components/modals/EditPetModal.jsx
+// components/modals/EditPetModal.jsx - Premium UI v2
 "use client";
 import { useState, useEffect } from "react";
 import { 
-  PawPrint, 
-  FileText, 
-  Tag, 
-  Users, 
-  Cake, 
-  Scale, 
-  Palette, 
-  Hospital, 
-  X, 
-  Save,
-  Loader2,
-  Edit
+  PawPrint, FileText, Tag, Users, Cake, Scale, Palette, Hospital, X, Save, Loader2, Edit, Sparkles, Heart
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -40,17 +29,28 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  const petTypes = [
+    { value: "Dog", label: "Chó", icon: "🐕" },
+    { value: "Cat", label: "Mèo", icon: "🐈" },
+    { value: "Rabbit", label: "Thỏ", icon: "🐰" },
+    { value: "Bird", label: "Chim", icon: "🐦" },
+    { value: "Hamster", label: "Hamster", icon: "🐹" },
+    { value: "Turtle", label: "Rùa", icon: "🐢" },
+    { value: "Fish", label: "Cá", icon: "🐟" },
+    { value: "Other", label: "Khác", icon: "🐾" }
+  ];
+
   useEffect(() => {
     if (pet && isOpen) {
       setFormData({
-        id: pet.petId || pet.id, // Handle both petId and id
+        id: pet.petId || pet.id,
         name: pet.name || "",
-        type: pet.species || pet.type || "", // Backend uses species
+        type: pet.species || pet.type || "",
         breed: pet.breed || "",
         gender: pet.gender || "",
         weight: pet.weight || "",
         color: pet.color || "",
-        dateOfBirth: pet.birthDate || pet.dateOfBirth || "", // Backend uses birthDate
+        dateOfBirth: pet.birthDate || pet.dateOfBirth || "",
         medicalHistory: pet.initialHealthStatus || pet.medicalHistory || "",
         notes: pet.specialNotes || pet.notes || ""
       });
@@ -64,6 +64,10 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: "" }));
     }
+  };
+
+  const selectPetType = (type) => {
+    setFormData(prev => ({ ...prev, type }));
   };
 
   const validateForm = () => {
@@ -112,7 +116,7 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
       setLoading(false);
       onSuccess(updatedPet);
       onClose();
-    }, 1000);
+    }, 500);
   };
 
   const handleClose = () => {
@@ -120,150 +124,198 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
     onClose();
   };
 
+  const getSelectedPetIcon = () => {
+    const pet = petTypes.find(p => p.value === formData.type);
+    return pet?.icon || "🐾";
+  };
+
   if (!isOpen || !pet) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-              <Edit className="h-5 w-5 text-primary" />
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0 border-0 rounded-2xl shadow-2xl">
+        {/* Gradient Header */}
+        <div className="bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 p-6 text-white relative overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute -right-4 -top-4 text-8xl opacity-20 rotate-12">✏️</div>
+          <div className="absolute right-20 bottom-2 text-4xl opacity-30 animate-pulse">💖</div>
+          
+          <div className="relative flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-lg">
+              {getSelectedPetIcon()}
             </div>
-            <DialogTitle>Chỉnh sửa thông tin thú cưng</DialogTitle>
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                Chỉnh Sửa {formData.name || 'Thú Cưng'}
+                <Edit className="w-5 h-5" />
+              </h2>
+              <p className="text-white/80 text-sm">Cập nhật thông tin cho bé</p>
+            </div>
           </div>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tên thú cưng */}
-          <Input
-            label="Tên thú cưng"
-            name="name"
-            type="text"
-            value={formData.name}
-            onChange={handleChange}
-            error={errors.name}
-            icon={FileText}
-            required
-          />
-
-          {/* Loại & Giống (2 cột) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <PawPrint className="h-4 w-4 text-muted-foreground" />
-                Loại thú cưng
-              </Label>
-              <Select
-                name="type"
-                value={formData.type}
-                onChange={handleChange}
-              >
-                <option value="">-- Chọn loại --</option>
-                <option value="Dog">Chó</option>
-                <option value="Cat">Mèo</option>
-                <option value="Bird">Chim</option>
-                <option value="Hamster">Chuột Hamster</option>
-                <option value="Rabbit">Thỏ</option>
-                <option value="Turtle">Rùa</option>
-                <option value="Fish">Cá</option>
-                <option value="Other">Khác</option>
-              </Select>
-            </div>
-
+        {/* Form Content */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto max-h-[60vh] space-y-5">
+          {/* Pet Name */}
+          <div className="space-y-2">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              ✏️ Tên thú cưng
+            </Label>
             <Input
-              label="Giống"
-              name="breed"
+              name="name"
               type="text"
-              value={formData.breed}
+              value={formData.name}
               onChange={handleChange}
-              error={errors.breed}
-              icon={Tag}
-              required
+              placeholder="Nhập tên thú cưng..."
+              className={cn(
+                "text-lg h-12 px-4 rounded-xl border-2 transition-all",
+                errors.name ? "border-red-400" : "border-gray-200 focus:border-blue-500"
+              )}
             />
+            {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
           </div>
 
-          {/* Giới tính & Ngày sinh (2 cột) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Pet Type Selection Grid */}
+          <div className="space-y-2">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              🐾 Loại thú cưng
+            </Label>
+            <div className="grid grid-cols-4 gap-2">
+              {petTypes.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => selectPetType(type.value)}
+                  className={cn(
+                    "p-3 rounded-xl border-2 transition-all duration-200 hover:scale-105",
+                    formData.type === type.value
+                      ? "border-blue-500 bg-blue-50 shadow-lg"
+                      : "border-gray-200 hover:border-blue-300"
+                  )}
+                >
+                  <div className="text-2xl mb-1">{type.icon}</div>
+                  <div className="text-xs font-medium text-gray-700">{type.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Breed & Gender */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                Giới tính
+              <Label className="flex items-center gap-2 font-semibold">
+                🏷️ Giống
               </Label>
-              <Select
-                name="gender"
-                value={formData.gender}
+              <Input
+                name="breed"
+                type="text"
+                value={formData.breed}
                 onChange={handleChange}
-              >
-                <option value="Đực">Đực</option>
-                <option value="Cái">Cái</option>
-              </Select>
+                placeholder="VD: Golden Retriever"
+                className={cn(
+                  "h-12 rounded-xl border-2",
+                  errors.breed ? "border-red-400" : "border-gray-200 focus:border-blue-500"
+                )}
+              />
+              {errors.breed && <p className="text-sm text-red-500">{errors.breed}</p>}
             </div>
 
-            <Input
-              label="Ngày sinh"
-              name="dateOfBirth"
-              type="date"
-              value={formData.dateOfBirth}
-              onChange={handleChange}
-              max={new Date().toISOString().split('T')[0]}
-              icon={Cake}
-            />
-          </div>
-
-          {/* Cân nặng & Màu lông (2 cột) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Scale className="h-4 w-4 text-muted-foreground" />
-                Cân nặng
+              <Label className="flex items-center gap-2 font-semibold">
+                ⚧️ Giới tính
               </Label>
-              <div className="flex items-center gap-2">
-                <input
-                  name="weight"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.weight}
-                  onChange={handleChange}
-                  placeholder="VD: 5"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">kg</span>
+              <div className="flex gap-2">
+                {[
+                  { value: "Đực", label: "♂️ Đực", color: "blue" },
+                  { value: "Cái", label: "♀️ Cái", color: "pink" }
+                ].map((g) => (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, gender: g.value }))}
+                    className={cn(
+                      "flex-1 py-3 rounded-xl border-2 font-semibold transition-all",
+                      formData.gender === g.value
+                        ? g.color === "blue" 
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-pink-500 bg-pink-50 text-pink-700"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300"
+                    )}
+                  >
+                    {g.label}
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
 
+          {/* Birth Date & Weight */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 font-semibold">
+                🎂 Ngày sinh
+              </Label>
+              <Input
+                name="dateOfBirth"
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={handleChange}
+                max={new Date().toISOString().split('T')[0]}
+                className="h-12 rounded-xl border-2 border-gray-200 focus:border-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 font-semibold">
+                ⚖️ Cân nặng (kg)
+              </Label>
+              <Input
+                name="weight"
+                type="number"
+                step="0.1"
+                min="0"
+                value={formData.weight}
+                onChange={handleChange}
+                placeholder="VD: 5.5"
+                className="h-12 rounded-xl border-2 border-gray-200 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Color */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 font-semibold">
+              🎨 Màu lông
+            </Label>
             <Input
-              label="Màu lông"
               name="color"
               type="text"
               value={formData.color}
               onChange={handleChange}
-              placeholder="VD: Vàng, Trắng, Nâu..."
-              icon={Palette}
+              placeholder="VD: Vàng, Trắng đen, Nâu..."
+              className="h-12 rounded-xl border-2 border-gray-200 focus:border-blue-500"
             />
           </div>
 
-          {/* Lịch sử y tế */}
+          {/* Health Status */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Hospital className="h-4 w-4 text-muted-foreground" />
-              Lịch sử y tế
+            <Label className="flex items-center gap-2 font-semibold">
+              💚 Tình trạng sức khỏe
             </Label>
             <Textarea
               name="medicalHistory"
               value={formData.medicalHistory}
               onChange={handleChange}
-              placeholder="Ghi chú về tiêm phòng, bệnh lý, phẫu thuật..."
+              placeholder="Ghi chú về tiêm phòng, bệnh lý, dị ứng..."
               rows={3}
+              className="rounded-xl border-2 border-gray-200 focus:border-blue-500"
             />
           </div>
 
-          {/* Ghi chú */}
+          {/* Notes */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              Ghi chú thêm
+            <Label className="flex items-center gap-2 font-semibold">
+              📝 Ghi chú đặc biệt
             </Label>
             <Textarea
               name="notes"
@@ -271,39 +323,43 @@ export default function EditPetModal({ isOpen, onClose, onSuccess, pet }) {
               onChange={handleChange}
               placeholder="Thói quen, sở thích, điều cần lưu ý..."
               rows={3}
+              className="rounded-xl border-2 border-gray-200 focus:border-blue-500"
             />
           </div>
-
-          {/* Buttons */}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-            >
-              <X className="h-4 w-4" />
-              Hủy
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang lưu...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Lưu thay đổi
-                </>
-              )}
-            </Button>
-          </DialogFooter>
         </form>
+
+        {/* Footer Actions */}
+        <div className="p-6 border-t bg-gray-50 flex justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            className="rounded-xl"
+          >
+            <X className="h-4 w-4 mr-2" />
+            Hủy
+          </Button>
+
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl shadow-lg"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Đang lưu...
+              </>
+            ) : (
+              <>
+                <Heart className="h-4 w-4 mr-2 fill-white" />
+                Lưu Thay Đổi ✨
+              </>
+            )}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
-

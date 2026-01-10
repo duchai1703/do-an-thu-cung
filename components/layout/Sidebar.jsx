@@ -81,6 +81,16 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
   const [hoveredItem, setHoveredItem] = useState(null);
   const menuList = menuItems[role] || menuItems.pet_owner;
 
+  // Role-based gradient colors
+  const roleGradients = {
+    manager: "from-indigo-600 via-purple-600 to-pink-500",
+    veterinarian: "from-teal-500 via-cyan-500 to-blue-500",
+    care_staff: "from-green-500 via-emerald-500 to-teal-500",
+    receptionist: "from-blue-500 via-sky-500 to-cyan-500",
+    pet_owner: "from-amber-500 via-orange-500 to-rose-500"
+  };
+  const sidebarGradient = roleGradients[role] || roleGradients.pet_owner;
+
   // Detect screen size
   useEffect(() => {
     const checkMobile = () => {
@@ -135,7 +145,7 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
       <aside
         className={cn(
           "fixed left-0 top-0 bottom-0 z-[1000] flex flex-col transition-all duration-300",
-          "bg-gradient-to-b from-amber-500 via-orange-500 to-rose-500 text-white shadow-2xl",
+          `bg-gradient-to-b ${sidebarGradient} text-white shadow-2xl`,
           "sidebar-custom-scrollbar",
           isMobile && !mobileOpen && "-translate-x-full"
         )}

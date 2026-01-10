@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import PetIdBadge from "@/components/ui/PetIdBadge";
 
 export default function CagesPage() {
   const router = useRouter();
