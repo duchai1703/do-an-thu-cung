@@ -28,43 +28,63 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-              <PawPrint className="h-5 w-5 text-primary" />
-            </div>
-            <DialogTitle>Hồ sơ bệnh nhân</DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Premium Gradient Header */}
+        <div className={cn(
+          "relative overflow-hidden rounded-t-lg",
+          patient.type === 'dog' 
+            ? "bg-gradient-to-br from-amber-400 via-orange-400 to-rose-500"
+            : "bg-gradient-to-br from-blue-400 via-cyan-400 to-teal-500"
+        )}>
+          {/* Floating decorations */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[patient.icon || "🐾", "💊", "💉", "🏥"].map((icon, i) => (
+              <span 
+                key={i}
+                className="absolute text-white/10 text-3xl"
+                style={{
+                  left: `${10 + i * 25}%`,
+                  top: `${20 + (i % 2) * 40}%`,
+                  animation: `float ${3 + i % 2}s ease-in-out infinite`,
+                  animationDelay: `${i * 0.3}s`
+                }}
+              >
+                {icon}
+              </span>
+            ))}
           </div>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Patient Profile Card */}
-          <div className="p-5 bg-card rounded-lg border-2 border-border">
-            <div className="flex items-center gap-5 mb-5">
-              <div className="text-6xl w-24 h-24 flex items-center justify-center bg-background rounded-full shadow-md shrink-0">
+          
+          <div className="relative p-6 text-white">
+            <div className="flex items-center gap-5">
+              <div className="text-6xl w-24 h-24 flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-2xl shadow-xl shrink-0">
                 {patient.icon || "🐾"}
               </div>
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-foreground mb-2">
+                <h1 className="text-3xl font-bold mb-2 drop-shadow-sm">
                   {patient.name}
                 </h1>
-                <p className="text-base text-muted-foreground mb-3">
+                <p className="text-white/80 text-lg mb-3">
                   {patient.breed}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="text-sm">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-medium">
                     {patient.type === 'dog' ? '🐕 Chó' : '🐈 Mèo'}
-                  </Badge>
-                  <Badge variant="outline" className="text-sm">
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-medium">
                     {patient.gender}
-                  </Badge>
-                  <Badge variant="outline" className="text-sm">
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-medium">
                     {patient.age}
-                  </Badge>
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Patient Profile Card */}
+          <div className="p-5 bg-card rounded-lg border-2 border-border">
 
             {/* Basic Info */}
             <div className="mb-5">
@@ -137,7 +157,7 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
                 <TrendingUp className="h-4 w-4 flex-shrink-0" />
                 Thống kê khám
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background flex-shrink-0">
                     <Calendar className="h-5 w-5 text-primary" />
@@ -156,6 +176,19 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
                     <p className="text-base font-bold text-foreground">{patient.totalVisits} lần</p>
                   </div>
                 </div>
+                {patient.createdAt && (
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 flex-shrink-0">
+                      <span className="text-lg">📝</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Đăng ký từ</p>
+                      <p className="text-sm font-bold text-blue-700">
+                        {new Date(patient.createdAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

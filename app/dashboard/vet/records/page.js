@@ -15,6 +15,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { medicalRecordApi, getToken, authApi, invoiceApi } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import VetFilterBar from "@/components/ui/VetFilterBar";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
 export default function VeterinarianRecordsPage() {
   const router = useRouter();
@@ -27,6 +29,14 @@ export default function VeterinarianRecordsPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Enhanced filter states
+  const [overdueFilter, setOverdueFilter] = useState(false);
+  const [followUpFilter, setFollowUpFilter] = useState(false);
+  const [sortBy, setSortBy] = useState("newest");
+  
+  // Date range filter state
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
 
   // Helper function
   const formatMedicalRecordId = (id) => {
@@ -168,15 +178,43 @@ export default function VeterinarianRecordsPage() {
                        (filter === "no_invoice" && !rec.invoiceCreated);
     const matchSearch = rec.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        rec.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       rec.diagnosis?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        rec.code?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
+    const matchOverdue = !overdueFilter || rec.isFollowUpOverdue;
+    const matchFollowUp = !followUpFilter || rec.needsFollowUp;
+    
+    // Date range filter
+    let matchDateRange = true;
+    if (dateRange.start || dateRange.end) {
+      const recordDate = new Date(rec.date || rec.examinationDate || rec.createdAt);
+      if (dateRange.start && recordDate < dateRange.start) matchDateRange = false;
+      if (dateRange.end && recordDate > dateRange.end) matchDateRange = false;
+    }
+    
+    return matchFilter && matchSearch && matchOverdue && matchFollowUp && matchDateRange;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case "oldest": return new Date(a.date) - new Date(b.date);
+      case "petName": return (a.petName || "").localeCompare(b.petName || "");
+      default: return new Date(b.date) - new Date(a.date);
+    }
   });
 
   const stats = {
     total: records.length,
     withInvoice: records.filter(r => r.invoiceCreated).length,
-    noInvoice: records.filter(r => !r.invoiceCreated).length
+    noInvoice: records.filter(r => !r.invoiceCreated).length,
+    overdue: records.filter(r => r.isFollowUpOverdue).length,
+    needsFollowUp: records.filter(r => r.needsFollowUp).length
   };
+  
+  // Calculate active filter count
+  const activeFilterCount = [
+    filter !== "all",
+    overdueFilter,
+    followUpFilter,
+    sortBy !== "newest"
+  ].filter(Boolean).length;
 
   return (
     <div className="flex-1 space-y-6">
@@ -284,51 +322,99 @@ export default function VeterinarianRecordsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs - Premium Style */}
-      <div className="vet-glass-card-dark rounded-2xl p-2">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { value: 'all', label: 'Tất cả', emoji: '📋', gradient: 'from-pink-500 to-rose-400' },
-            { value: 'with_invoice', label: 'Đã có hóa đơn', emoji: '💰', gradient: 'from-green-500 to-emerald-400' },
-            { value: 'no_invoice', label: 'Chưa có hóa đơn', emoji: '⏰', gradient: 'from-amber-500 to-orange-400' }
-          ].map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setFilter(tab.value)}
-              className={cn(
-                "px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-300",
-                "flex items-center justify-center gap-2",
-                filter === tab.value
-                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
-                  : "bg-white/50 text-gray-600 hover:bg-white/80"
-              )}
-            >
-              <span className="text-xl">{tab.emoji}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Search - Premium Card */}
-      <div className="vet-glass-card rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-2xl shadow-lg">
-            🔍
-          </div>
-          <div className="flex-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">
-              Tìm kiếm
-            </label>
-            <Input
-              type="text"
-              placeholder="Tên thú cưng, chủ nuôi, mã hồ sơ..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="border-0 bg-transparent p-0 h-auto font-medium text-gray-800 placeholder:text-gray-400 focus-visible:ring-0"
-            />
-          </div>
-        </div>
+      {/* Enhanced Filter Bar */}
+      <VetFilterBar
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Tìm theo tên pet, chủ nuôi, chẩn đoán, mã hồ sơ..."
+        toggleFilters={[
+          {
+            key: "invoice",
+            label: "Hóa đơn",
+            value: filter,
+            defaultValue: "all",
+            onChange: setFilter,
+            options: [
+              { value: "all", label: "Tất cả", icon: "📋" },
+              { value: "with_invoice", label: "Đã có", icon: "💰" },
+              { value: "no_invoice", label: "Chưa có", icon: "⏰" }
+            ]
+          }
+        ]}
+        filters={[
+          {
+            key: "sortBy",
+            label: "Sắp xếp",
+            value: sortBy,
+            defaultValue: "newest",
+            onChange: setSortBy,
+            options: [
+              { value: "newest", label: "Mới nhất" },
+              { value: "oldest", label: "Cũ nhất" },
+              { value: "petName", label: "Tên A-Z" }
+            ]
+          }
+        ]}
+        onReset={() => {
+          setFilter("all");
+          setSearchTerm("");
+          setOverdueFilter(false);
+          setFollowUpFilter(false);
+          setSortBy("newest");
+          setDateRange({ start: null, end: null });
+        }}
+        activeFilterCount={activeFilterCount + (dateRange.start || dateRange.end ? 1 : 0)}
+      />
+      
+      {/* Date Range Filter */}
+      <DateRangeFilter
+        onChange={(start, end, preset) => setDateRange({ start, end })}
+        defaultPreset="all"
+        theme="green"
+        size="md"
+        showLabel={true}
+        showCustomRange={true}
+      />
+      
+      {/* Quick Filter Badges */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => setOverdueFilter(!overdueFilter)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
+            overdueFilter 
+              ? "bg-red-500 text-white border-red-500" 
+              : "bg-white text-red-600 border-red-200 hover:border-red-400"
+          )}
+        >
+          <span>⚠️</span>
+          <span className="text-sm font-medium">Quá hạn tái khám</span>
+          <span className={cn(
+            "px-2 py-0.5 rounded-full text-xs font-bold",
+            overdueFilter ? "bg-white/20" : "bg-red-100"
+          )}>
+            {stats.overdue}
+          </span>
+        </button>
+        
+        <button
+          onClick={() => setFollowUpFilter(!followUpFilter)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
+            followUpFilter 
+              ? "bg-amber-500 text-white border-amber-500" 
+              : "bg-white text-amber-600 border-amber-200 hover:border-amber-400"
+          )}
+        >
+          <span>📅</span>
+          <span className="text-sm font-medium">Cần tái khám</span>
+          <span className={cn(
+            "px-2 py-0.5 rounded-full text-xs font-bold",
+            followUpFilter ? "bg-white/20" : "bg-amber-100"
+          )}>
+            {stats.needsFollowUp}
+          </span>
+        </button>
       </div>
 
       {/* Records Table */}

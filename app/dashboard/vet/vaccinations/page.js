@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { petApi, medicalRecordApi, authApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import VetFilterBar from "@/components/ui/VetFilterBar";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
 export default function VeterinarianVaccinationsPage() {
   const router = useRouter();
@@ -28,6 +30,12 @@ export default function VeterinarianVaccinationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [vaccineTypeFilter, setVaccineTypeFilter] = useState("all");
+  const [hasReactionsFilter, setHasReactionsFilter] = useState(false);
+  const [sortBy, setSortBy] = useState("newest");
+  
+  // Date range filter state
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
   
   // Form state for new vaccination
   const [formData, setFormData] = useState({
@@ -192,11 +200,38 @@ export default function VeterinarianVaccinationsPage() {
 
   const filteredVaccinations = vaccinations.filter(vac => {
     const matchFilter = filter === "all" || vac.status === filter;
-    const matchSearch = vac.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       vac.vaccineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       vac.ownerName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
+    const matchSearch = vac.petName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       vac.vaccineName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       vac.batchNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       vac.ownerName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchVaccineType = vaccineTypeFilter === "all" || vac.vaccineTypeId === parseInt(vaccineTypeFilter);
+    const matchReactions = !hasReactionsFilter || (vac.reactions && vac.reactions.trim() !== "");
+    
+    // Date range filter
+    let matchDateRange = true;
+    if (dateRange.start || dateRange.end) {
+      const vacDate = new Date(vac.dateAdministered || vac.administrationDate || vac.createdAt);
+      if (dateRange.start && vacDate < dateRange.start) matchDateRange = false;
+      if (dateRange.end && vacDate > dateRange.end) matchDateRange = false;
+    }
+    
+    return matchFilter && matchSearch && matchVaccineType && matchReactions && matchDateRange;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case "oldest": return new Date(a.dateAdministered) - new Date(b.dateAdministered);
+      case "petName": return (a.petName || "").localeCompare(b.petName || "");
+      case "dueDate": return new Date(a.nextDueDate || "9999-12-31") - new Date(b.nextDueDate || "9999-12-31");
+      default: return new Date(b.dateAdministered) - new Date(a.dateAdministered);
+    }
   });
+  
+  // Calculate active filter count
+  const activeFilterCount = [
+    filter !== "all",
+    vaccineTypeFilter !== "all",
+    hasReactionsFilter,
+    sortBy !== "newest"
+  ].filter(Boolean).length;
 
   const stats = {
     total: vaccinations.length,
@@ -265,31 +300,97 @@ export default function VeterinarianVaccinationsPage() {
         </Card>
       </div>
 
-      {/* Filter */}
-      <Tabs value={filter} onValueChange={setFilter} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">Tất cả</TabsTrigger>
-          <TabsTrigger value="upcoming">Sắp đến hạn</TabsTrigger>
-          <TabsTrigger value="overdue">Quá hạn</TabsTrigger>
-          <TabsTrigger value="completed">Đã hoàn thành</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Enhanced Filter Bar */}
+      <VetFilterBar
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Tìm theo tên pet, vaccine, batch number..."
+        toggleFilters={[
+          {
+            key: "status",
+            label: "Trạng thái",
+            value: filter,
+            defaultValue: "all",
+            onChange: setFilter,
+            options: [
+              { value: "all", label: "Tất cả", icon: "💉" },
+              { value: "upcoming", label: "Sắp hạn", icon: "⏰" },
+              { value: "overdue", label: "Quá hạn", icon: "⚠️" },
+              { value: "completed", label: "Đã tiêm", icon: "✅" }
+            ]
+          }
+        ]}
+        filters={[
+          {
+            key: "vaccineType",
+            label: "Loại vaccine",
+            value: vaccineTypeFilter,
+            defaultValue: "all",
+            onChange: setVaccineTypeFilter,
+            options: [
+              { value: "all", label: "Tất cả loại" },
+              ...vaccineTypes.map(vt => ({ value: String(vt.id), label: vt.name }))
+            ]
+          },
+          {
+            key: "sortBy",
+            label: "Sắp xếp",
+            value: sortBy,
+            defaultValue: "newest",
+            onChange: setSortBy,
+            options: [
+              { value: "newest", label: "Mới nhất" },
+              { value: "oldest", label: "Cũ nhất" },
+              { value: "petName", label: "Tên A-Z" },
+              { value: "dueDate", label: "Theo hạn" }
+            ]
+          }
+        ]}
+        onReset={() => {
+          setFilter("all");
+          setSearchTerm("");
+          setVaccineTypeFilter("all");
+          setHasReactionsFilter(false);
+          setSortBy("newest");
+          setDateRange({ start: null, end: null });
+        }}
+        activeFilterCount={activeFilterCount + (dateRange.start || dateRange.end ? 1 : 0)}
+      />
+      
+      {/* Date Range Filter */}
+      <DateRangeFilter
+        onChange={(start, end, preset) => setDateRange({ start, end })}
+        defaultPreset="all"
+        theme="blue"
+        size="md"
+        showLabel={true}
+        showCustomRange={true}
+      />
 
-      {/* Actions */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <Button onClick={handleOpenModal} className="flex items-center gap-2">
+      {/* Quick Filter Badges + Add Button */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={handleOpenModal} className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600">
           <Plus className="h-4 w-4" /> Ghi nhận tiêm phòng
         </Button>
-        <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo tên thú cưng, vaccine..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        
+        <button
+          onClick={() => setHasReactionsFilter(!hasReactionsFilter)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
+            hasReactionsFilter 
+              ? "bg-orange-500 text-white border-orange-500" 
+              : "bg-white text-orange-600 border-orange-200 hover:border-orange-400"
+          )}
+        >
+          <span>🔬</span>
+          <span className="text-sm font-medium">Có phản ứng</span>
+          <span className={cn(
+            "px-2 py-0.5 rounded-full text-xs font-bold",
+            hasReactionsFilter ? "bg-white/20" : "bg-orange-100"
+          )}>
+            {vaccinations.filter(v => v.reactions && v.reactions.trim() !== "").length}
+          </span>
+        </button>
       </div>
 
       {/* Table */}
@@ -297,20 +398,22 @@ export default function VeterinarianVaccinationsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[13%]">Thú cưng</TableHead>
-              <TableHead className="w-[12%]">Chủ nuôi</TableHead>
-              <TableHead className="w-[12%]">Ngày tiêm</TableHead>
-              <TableHead className="w-[12%]">Hạn tiếp theo</TableHead>
-              <TableHead className="w-[10%]">Mã lô</TableHead>
-              <TableHead className="w-[10%]">Vị trí tiêm</TableHead>
-              <TableHead className="w-[14%]">Phản ứng</TableHead>
-              <TableHead className="w-[17%]">Trạng thái</TableHead>
+              <TableHead className="w-[11%]">Thú cưng</TableHead>
+              <TableHead className="w-[10%]">Chủ nuôi</TableHead>
+              <TableHead className="w-[10%]">Ngày tiêm</TableHead>
+              <TableHead className="w-[10%]">Hạn tiếp</TableHead>
+              <TableHead className="w-[8%]">Mã lô</TableHead>
+              <TableHead className="w-[8%]">Vị trí</TableHead>
+              <TableHead className="w-[9%]">BS tiêm</TableHead>
+              <TableHead className="w-[10%]">Phản ứng</TableHead>
+              <TableHead className="w-[14%]">Trạng thái</TableHead>
+              <TableHead className="w-[10%]">Tạo lúc</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredVaccinations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                   <Syringe className="mx-auto h-8 w-8 mb-2" />
                   {loading ? "Đang tải..." : "Không có dữ liệu tiêm phòng"}
                 </TableCell>
@@ -363,6 +466,13 @@ export default function VeterinarianVaccinationsPage() {
                       <span className="text-sm text-muted-foreground">{vac.site || '-'}</span>
                     </TableCell>
                     
+                    {/* administeredBy - Bác sĩ tiêm */}
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {vac.administeredByName || vac.vetName || '-'}
+                      </span>
+                    </TableCell>
+                    
                     <TableCell>
                       {vac.reactions ? (
                         <Badge variant="warning" className="text-xs">
@@ -394,6 +504,13 @@ export default function VeterinarianVaccinationsPage() {
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    
+                    {/* createdAt */}
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : '-'}
+                      </span>
                     </TableCell>
                   </TableRow>
                 );

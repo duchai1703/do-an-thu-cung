@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { appointmentApi, medicalRecordApi, petApi, getToken, authApi } from "@/lib/api";
 import { formatPetId } from "@/lib/utils/id-formatter";
+import VetFilterBar from "@/components/ui/VetFilterBar";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
 export default function VeterinarianPatientsPage() {
   const router = useRouter();
@@ -23,6 +25,14 @@ export default function VeterinarianPatientsPage() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Enhanced filter states
+  const [genderFilter, setGenderFilter] = useState("all");
+  const [recentVisitFilter, setRecentVisitFilter] = useState(false);
+  const [sortBy, setSortBy] = useState("name");
+  
+  // Date range filter state
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
 
   useEffect(() => {
     loadPatients();
@@ -172,17 +182,53 @@ export default function VeterinarianPatientsPage() {
 
   const filteredPatients = patients.filter(patient => {
     const matchFilter = filter === "all" || patient.type === filter;
-    const matchSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       patient.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       patient.breed.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
+    const matchSearch = patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       patient.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       patient.breed?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchGender = genderFilter === "all" || patient.gender === genderFilter;
+    // Check if visited in last 30 days
+    const isRecentVisit = patient.lastVisit && 
+      (new Date() - new Date(patient.lastVisit)) <= 30 * 24 * 60 * 60 * 1000;
+    const matchRecentVisit = !recentVisitFilter || isRecentVisit;
+    
+    // Date range filter for lastVisit
+    let matchDateRange = true;
+    if (dateRange.start || dateRange.end) {
+      const visitDate = patient.lastVisit ? new Date(patient.lastVisit) : null;
+      if (!visitDate) matchDateRange = false;
+      else {
+        if (dateRange.start && visitDate < dateRange.start) matchDateRange = false;
+        if (dateRange.end && visitDate > dateRange.end) matchDateRange = false;
+      }
+    }
+    
+    return matchFilter && matchSearch && matchGender && matchRecentVisit && matchDateRange;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case "recentVisit": 
+        return new Date(b.lastVisit || "1970-01-01") - new Date(a.lastVisit || "1970-01-01");
+      case "visits": 
+        return (b.totalVisits || 0) - (a.totalVisits || 0);
+      default: 
+        return (a.name || "").localeCompare(b.name || "");
+    }
   });
 
   const stats = {
     total: patients.length,
     dogs: patients.filter(p => p.type === 'dog').length,
-    cats: patients.filter(p => p.type === 'cat').length
+    cats: patients.filter(p => p.type === 'cat').length,
+    recentVisits: patients.filter(p => p.lastVisit && 
+      (new Date() - new Date(p.lastVisit)) <= 30 * 24 * 60 * 60 * 1000).length
   };
+  
+  // Calculate active filter count
+  const activeFilterCount = [
+    filter !== "all",
+    genderFilter !== "all",
+    recentVisitFilter,
+    sortBy !== "name"
+  ].filter(Boolean).length;
 
   return (
     <div className="flex-1 space-y-8 p-8">
@@ -221,50 +267,92 @@ export default function VeterinarianPatientsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs - Premium Style */}
-      <div className="vet-glass-card-dark rounded-xl p-2">
-        <div className="flex gap-2">
-          {[
-            { value: 'all', label: '🐾 Tất cả', gradient: 'from-pink-500 to-rose-400' },
-            { value: 'dog', label: '🐕 Chó', gradient: 'from-amber-500 to-orange-400' },
-            { value: 'cat', label: '🐈 Mèo', gradient: 'from-blue-500 to-cyan-400' }
-          ].map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setFilter(tab.value)}
-              className={cn(
-                "flex-1 px-6 py-3 rounded-lg font-semibold transition-all duration-200",
-                filter === tab.value
-                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
-                  : "bg-white/50 text-gray-700 hover:bg-white/80"
-              )}
-            >
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Search Bar - Premium Style */}
-      <div className="vet-glass-card rounded-2xl p-6 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => document.getElementById('patient-search')?.focus()}>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl shadow-lg hover:scale-110 transition-transform">
-            🔍
-          </div>
-          <div className="flex-1">
-            <label htmlFor="patient-search" className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2 block">
-              Tìm kiếm bệnh nhân
-            </label>
-            <Input
-              id="patient-search"
-              type="text"
-              placeholder="Nhập tên thú cưng, chủ nuôi, giống..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="border-0 bg-transparent p-0 h-auto text-lg font-semibold text-gray-900 placeholder:text-gray-400 focus-visible:ring-0"
-            />
-          </div>
-        </div>
+      {/* Enhanced Filter Bar */}
+      <VetFilterBar
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Tìm theo tên pet, chủ nuôi, giống..."
+        toggleFilters={[
+          {
+            key: "species",
+            label: "Loài",
+            value: filter,
+            defaultValue: "all",
+            onChange: setFilter,
+            options: [
+              { value: "all", label: "Tất cả", icon: "🐾" },
+              { value: "dog", label: "Chó", icon: "🐕" },
+              { value: "cat", label: "Mèo", icon: "🐈" }
+            ]
+          }
+        ]}
+        filters={[
+          {
+            key: "gender",
+            label: "Giới tính",
+            value: genderFilter,
+            defaultValue: "all",
+            onChange: setGenderFilter,
+            options: [
+              { value: "all", label: "Tất cả" },
+              { value: "male", label: "♂ Đực" },
+              { value: "female", label: "♀ Cái" }
+            ]
+          },
+          {
+            key: "sortBy",
+            label: "Sắp xếp",
+            value: sortBy,
+            defaultValue: "name",
+            onChange: setSortBy,
+            options: [
+              { value: "name", label: "Tên A-Z" },
+              { value: "recentVisit", label: "Khám gần nhất" },
+              { value: "visits", label: "Số lần khám" }
+            ]
+          }
+        ]}
+        onReset={() => {
+          setFilter("all");
+          setSearchTerm("");
+          setGenderFilter("all");
+          setRecentVisitFilter(false);
+          setSortBy("name");
+          setDateRange({ start: null, end: null });
+        }}
+        activeFilterCount={activeFilterCount + (dateRange.start || dateRange.end ? 1 : 0)}
+      />
+      
+      {/* Date Range Filter */}
+      <DateRangeFilter
+        onChange={(start, end, preset) => setDateRange({ start, end })}
+        defaultPreset="all"
+        theme="pink"
+        size="md"
+        showLabel={true}
+        showCustomRange={true}
+      />
+      
+      {/* Quick Filter Badge */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => setRecentVisitFilter(!recentVisitFilter)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
+            recentVisitFilter 
+              ? "bg-teal-500 text-white border-teal-500" 
+              : "bg-white text-teal-600 border-teal-200 hover:border-teal-400"
+          )}
+        >
+          <span>📅</span>
+          <span className="text-sm font-medium">Khám gần đây (30 ngày)</span>
+          <span className={cn(
+            "px-2 py-0.5 rounded-full text-xs font-bold",
+            recentVisitFilter ? "bg-white/20" : "bg-teal-100"
+          )}>
+            {stats.recentVisits}
+          </span>
+        </button>
       </div>
 
       {/* Patients Table - Premium Style */}

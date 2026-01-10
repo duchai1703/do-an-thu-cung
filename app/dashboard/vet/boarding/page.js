@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { cageApi, petApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import CageDetailModal from "@/components/modals/CageDetailModal";
+import VetFilterBar from "@/components/ui/VetFilterBar";
 
 export default function VeterinarianBoardingPage() {
   const router = useRouter();
@@ -25,10 +27,12 @@ export default function VeterinarianBoardingPage() {
   const [mainTab, setMainTab] = useState("monitoring");
   const [cageFilter, setCageFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
   // Modals
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedCage, setSelectedCage] = useState(null);
 
   // Form state
@@ -676,9 +680,13 @@ export default function VeterinarianBoardingPage() {
                   <div
                     key={cage.id}
                     className={cn(
-                      "group relative rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2",
+                      "group relative rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer",
                       cage.status === 'maintenance' && "opacity-70"
                     )}
+                    onClick={() => {
+                      setSelectedCage(cage);
+                      setIsDetailModalOpen(true);
+                    }}
                   >
                     {/* Gradient Header */}
                     <div className={cn(
@@ -750,7 +758,7 @@ export default function VeterinarianBoardingPage() {
                             size="sm"
                             variant="outline"
                             className="w-full flex items-center justify-center gap-2 border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 transition-all"
-                            onClick={() => handleCheckOut(cage.currentPet.assignmentId)}
+                            onClick={(e) => { e.stopPropagation(); handleCheckOut(cage.currentPet.assignmentId); }}
                           >
                             <span className="text-lg">🚪</span> Trả chuồng
                           </Button>
@@ -765,7 +773,7 @@ export default function VeterinarianBoardingPage() {
                           <Button
                             size="sm"
                             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white shadow-lg hover:shadow-xl transition-all"
-                            onClick={() => handleOpenAssignModal(cage)}
+                            onClick={(e) => { e.stopPropagation(); handleOpenAssignModal(cage); }}
                           >
                             <span className="text-lg">➕</span> Phân bổ thú cưng
                           </Button>
@@ -921,6 +929,16 @@ export default function VeterinarianBoardingPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Cage Detail Modal */}
+      <CageDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedCage(null);
+        }}
+        cage={selectedCage}
+      />
       </div>  {/* Close max-w-7xl container */}
     </div>
   );

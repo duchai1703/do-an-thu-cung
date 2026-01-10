@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { appointmentApi, medicalRecordApi, authApi, scheduleApi, petApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import VetStatsCard from "@/components/ui/VetStatsCard";
 
 export default function VeterinarianDashboard() {
   const router = useRouter();
@@ -501,55 +502,43 @@ export default function VeterinarianDashboard() {
         </Card>
       )}
 
-      {/* Stats - Tổng quan công việc với Premium Gradient Cards */}
+      {/* Stats - Tổng quan công việc với VetStatsCard Components */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Appointments */}
-        <div className="vet-stat-card vet-gradient-primary">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">
-              📅
-            </div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Hôm nay</span>
-          </div>
-          <div className="value">{stats.todayAppointments}</div>
-          <div className="label mt-1">Tổng lịch khám</div>
-        </div>
-
-        {/* Waiting */}
-        <div className="vet-stat-card vet-gradient-warning">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">
-              ⏰
-            </div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Chờ khám</span>
-          </div>
-          <div className="value">{stats.waiting}</div>
-          <div className="label mt-1">Bệnh nhân đang chờ</div>
-        </div>
-
-        {/* In Progress */}
-        <div className="vet-stat-card vet-gradient-info">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl vet-animate-pulse">
-              🔄
-            </div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Đang khám</span>
-          </div>
-          <div className="value">{stats.inProgress}</div>
-          <div className="label mt-1">Đang thực hiện</div>
-        </div>
-
-        {/* Completed */}
-        <div className="vet-stat-card vet-gradient-success">
-          <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">
-              ✅
-            </div>
-            <span className="text-xs uppercase tracking-wider opacity-80">Hoàn thành</span>
-          </div>
-          <div className="value">{stats.completed}</div>
-          <div className="label mt-1">Đã hoàn thành hôm nay</div>
-        </div>
+        <VetStatsCard
+          title="Hôm nay"
+          value={stats.todayAppointments}
+          subtitle="Tổng lịch khám"
+          icon="📅"
+          color="blue"
+          onClick={() => router.push('/dashboard/vet/today')}
+        />
+        
+        <VetStatsCard
+          title="Chờ khám"
+          value={stats.waiting}
+          subtitle="Bệnh nhân đang chờ"
+          icon="⏰"
+          color="amber"
+          onClick={() => router.push('/dashboard/vet/today?status=pending')}
+        />
+        
+        <VetStatsCard
+          title="Đang khám"
+          value={stats.inProgress}
+          subtitle="Đang thực hiện"
+          icon="🔄"
+          color="teal"
+        />
+        
+        <VetStatsCard
+          title="Hoàn thành"
+          value={stats.completed}
+          subtitle="Đã hoàn thành hôm nay"
+          icon="✅"
+          color="green"
+          trend={stats.completed > 0 ? `${stats.completed}/${stats.todayAppointments}` : undefined}
+          trendDirection={stats.completed === stats.todayAppointments ? "up" : "neutral"}
+        />
       </div>
 
       {/* Vaccination Alerts */}

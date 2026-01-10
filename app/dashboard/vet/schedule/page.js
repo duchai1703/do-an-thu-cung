@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
-import VetRecordModal from "@/components/modals/VetRecordModal";
+import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -253,6 +253,120 @@ export default function VeterinarianSchedulePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📆 Week Navigation - Unique to Schedule Page */}
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-5 border-2 border-indigo-100 shadow-lg">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Week Navigation Buttons */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const prevWeek = new Date(selectedDate);
+                  prevWeek.setDate(prevWeek.getDate() - 7);
+                  setSelectedDate(prevWeek.toISOString().split('T')[0]);
+                }}
+                className="flex items-center gap-2 hover:bg-indigo-100"
+              >
+                <span>←</span> Tuần trước
+              </Button>
+              
+              <Button 
+                variant={selectedDate === new Date().toISOString().split('T')[0] ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                className={cn(
+                  "flex items-center gap-2",
+                  selectedDate === new Date().toISOString().split('T')[0] 
+                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white" 
+                    : "hover:bg-indigo-100"
+                )}
+              >
+                <span>◉</span> Hôm nay
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const nextWeek = new Date(selectedDate);
+                  nextWeek.setDate(nextWeek.getDate() + 7);
+                  setSelectedDate(nextWeek.toISOString().split('T')[0]);
+                }}
+                className="flex items-center gap-2 hover:bg-indigo-100"
+              >
+                Tuần sau <span>→</span>
+              </Button>
+            </div>
+            
+            {/* Selected Date Display */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-indigo-200 shadow-sm">
+                <span className="text-2xl">🗓️</span>
+                <div>
+                  <p className="text-xs text-gray-500">Ngày đang xem</p>
+                  <p className="font-bold text-indigo-700">
+                    {new Date(selectedDate).toLocaleDateString('vi-VN', { 
+                      weekday: 'long', 
+                      day: 'numeric', 
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Date Input */}
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-4 py-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+          
+          {/* Quick Week Days */}
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2">
+            {Array.from({ length: 7 }).map((_, i) => {
+              const day = new Date(selectedDate);
+              const currentDay = day.getDay();
+              const diff = i - currentDay;
+              day.setDate(day.getDate() + diff);
+              const dayStr = day.toISOString().split('T')[0];
+              const isSelected = dayStr === selectedDate;
+              const isToday = dayStr === new Date().toISOString().split('T')[0];
+              
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedDate(dayStr)}
+                  className={cn(
+                    "flex-shrink-0 flex flex-col items-center p-3 rounded-xl transition-all min-w-[70px]",
+                    isSelected 
+                      ? "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg scale-105" 
+                      : isToday
+                        ? "bg-indigo-100 border-2 border-indigo-300 hover:bg-indigo-200"
+                        : "bg-white hover:bg-gray-50 border border-gray-200"
+                  )}
+                >
+                  <span className={cn("text-xs font-medium", isSelected ? "text-white/80" : "text-gray-500")}>
+                    {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][i]}
+                  </span>
+                  <span className={cn("text-lg font-bold", isSelected ? "text-white" : "text-gray-800")}>
+                    {day.getDate()}
+                  </span>
+                  {isToday && !isSelected && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1"></span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -521,7 +635,7 @@ export default function VeterinarianSchedulePage() {
       )}
 
       {isRecordModalOpen && (
-        <VetRecordModal
+        <VetRecordFormModal
           isOpen={isRecordModalOpen}
           onClose={() => {
             setIsRecordModalOpen(false);

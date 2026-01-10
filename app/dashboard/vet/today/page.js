@@ -5,21 +5,27 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import VetScheduleDetailModal from "@/components/modals/VetScheduleDetailModal";
+import VetRecordFormModal from "@/components/modals/VetRecordFormModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, getToken } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, vaccinationApi, getToken } from "@/lib/api";
 
 export default function VetTodayPage() {
   const router = useRouter();
   const [todayTasks, setTodayTasks] = useState([]);
+  const [followUpReminders, setFollowUpReminders] = useState([]);
+  const [vaccinationAlerts, setVaccinationAlerts] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadTodayTasks();
+    loadFollowUpReminders();
+    loadVaccinationAlerts();
   }, []);
 
   const loadTodayTasks = async () => {
@@ -73,6 +79,12 @@ export default function VetTodayPage() {
           status: mapStatus(apt.status),
           priority: apt.status === 'IN_PROGRESS' ? 'high' : 'normal',
           symptoms: apt.notes || 'N/A',
+          estimatedCost: apt.estimatedCost || null,
+          actualCost: apt.actualCost || null,
+          cancellationReason: apt.cancellationReason || null,
+          cancelledAt: apt.cancelledAt || null,
+          createdAt: apt.createdAt || null,
+          cageAssignmentId: apt.cageAssignmentId || null,
           previousRecords: []
         }));
         
@@ -82,6 +94,68 @@ export default function VetTodayPage() {
       console.error('Error loading today tasks:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔔 Load Follow-up Reminders (patients needing follow-up)
+  const loadFollowUpReminders = async () => {
+    try {
+      const response = await medicalRecordApi.getAll();
+      if (response.success && response.data) {
+        // Filter records needing follow-up today or overdue
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const reminders = response.data
+          .filter(rec => rec.needsFollowUp || rec.isFollowUpOverdue)
+          .filter(rec => {
+            if (!rec.followUpDate) return rec.isFollowUpOverdue;
+            const followUpDate = new Date(rec.followUpDate);
+            followUpDate.setHours(0, 0, 0, 0);
+            return followUpDate <= today;
+          })
+          .slice(0, 5) // Limit to 5 items
+          .map(rec => ({
+            id: rec.id,
+            petName: rec.petName || 'Unknown',
+            petIcon: rec.petIcon || '🐾',
+            diagnosis: rec.diagnosis || 'N/A',
+            followUpDate: rec.followUpDate,
+            isOverdue: rec.isFollowUpOverdue,
+            ownerName: rec.ownerName || 'N/A'
+          }));
+        
+        setFollowUpReminders(reminders);
+      }
+    } catch (error) {
+      console.error('Error loading follow-up reminders:', error);
+    }
+  };
+
+  // 💉 Load Vaccination Alerts (due or overdue vaccines)
+  const loadVaccinationAlerts = async () => {
+    try {
+      const response = await vaccinationApi.getAll();
+      if (response.success && response.data) {
+        // Filter vaccinations that are due or overdue
+        const alerts = response.data
+          .filter(vac => vac.isDue || (vac.daysUntilDue !== null && vac.daysUntilDue <= 7))
+          .slice(0, 5) // Limit to 5 items
+          .map(vac => ({
+            id: vac.id,
+            petName: vac.petName || 'Unknown',
+            petIcon: vac.petIcon || '🐾',
+            vaccineName: vac.vaccineName || 'Unknown',
+            nextDueDate: vac.nextDueDate,
+            daysUntilDue: vac.daysUntilDue,
+            isOverdue: vac.daysUntilDue < 0,
+            ownerName: vac.ownerName || 'N/A'
+          }));
+        
+        setVaccinationAlerts(alerts);
+      }
+    } catch (error) {
+      console.error('Error loading vaccination alerts:', error);
     }
   };
 
@@ -107,6 +181,25 @@ export default function VetTodayPage() {
     return titles[serviceName] || serviceName || 'Khám tổng quát';
   };
 
+  // 📝 Handle Complete Exam - Open Record Modal
+  const handleCompleteExam = (task) => {
+    setSelectedAppointment({
+      id: task.id,
+      petId: task.petId,
+      petName: task.petName,
+      petIcon: task.petIcon,
+      ownerName: task.ownerName,
+      serviceName: task.serviceName,
+      symptoms: task.symptoms
+    });
+    setIsRecordModalOpen(true);
+  };
+
+  // ✅ Handle Record Success
+  const handleRecordSuccess = async (data) => {
+    await loadTodayTasks();
+    setIsRecordModalOpen(false);
+  };
 
   const mapStatus = (backendStatus) => {
     const statusMap = {
@@ -292,6 +385,99 @@ export default function VetTodayPage() {
         </div>
       </div>
 
+      {/* 🔔 Alerts Row - Follow-up & Vaccination (Unique to Today Page!) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Follow-up Reminders Card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-50 to-amber-100 border-2 border-orange-200 p-5 shadow-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-200/30 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white text-2xl shadow-lg">
+                  🔔
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Tái khám hôm nay</h3>
+                  <p className="text-xs text-gray-500">Bệnh nhân cần tái khám</p>
+                </div>
+              </div>
+              <Badge variant="warning" className="bg-orange-500 text-white">
+                {followUpReminders.length}
+              </Badge>
+            </div>
+            
+            {followUpReminders.length > 0 ? (
+              <div className="space-y-2">
+                {followUpReminders.map((reminder) => (
+                  <div key={reminder.id} className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-orange-200 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push('/dashboard/vet/records')}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{reminder.petIcon}</span>
+                      <div>
+                        <p className="font-semibold text-gray-800 text-sm">{reminder.petName}</p>
+                        <p className="text-xs text-gray-500">{reminder.diagnosis}</p>
+                      </div>
+                    </div>
+                    {reminder.isOverdue && (
+                      <Badge variant="destructive" className="text-xs">Quá hạn</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <span className="text-3xl">✅</span>
+                <p className="text-sm mt-2">Không có lịch tái khám hôm nay</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Vaccination Alerts Card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 border-2 border-blue-200 p-5 shadow-lg">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/30 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-2xl shadow-lg">
+                  💉
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Tiêm phòng cần làm</h3>
+                  <p className="text-xs text-gray-500">Vaccine sắp hạn hoặc quá hạn</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="bg-blue-500 text-white">
+                {vaccinationAlerts.length}
+              </Badge>
+            </div>
+            
+            {vaccinationAlerts.length > 0 ? (
+              <div className="space-y-2">
+                {vaccinationAlerts.map((alert) => (
+                  <div key={alert.id} className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-blue-200 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push('/dashboard/vet/vaccinations')}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{alert.petIcon}</span>
+                      <div>
+                        <p className="font-semibold text-gray-800 text-sm">{alert.petName}</p>
+                        <p className="text-xs text-gray-500">{alert.vaccineName}</p>
+                      </div>
+                    </div>
+                    <Badge variant={alert.isOverdue ? "destructive" : "warning"} className="text-xs">
+                      {alert.isOverdue ? `Quá ${Math.abs(alert.daysUntilDue)} ngày` : `Còn ${alert.daysUntilDue} ngày`}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                <span className="text-3xl">✅</span>
+                <p className="text-sm mt-2">Không có tiêm phòng cần làm hôm nay</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Today's Tasks */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -362,6 +548,28 @@ export default function VetTodayPage() {
 
                     {/* Badges and Button - Aligned vertically center */}
                     <div className="flex items-center gap-3 flex-shrink-0">
+                      {/* Cost Info */}
+                      {task.type === 'appointment' && (task.estimatedCost || task.actualCost) && (
+                        <div className="flex flex-col gap-1 text-right px-3 border-r border-gray-200">
+                          {task.estimatedCost && (
+                            <div className="text-xs text-gray-500">
+                              <span>Ước tính: </span>
+                              <span className="font-semibold text-gray-700">
+                                {Number(task.estimatedCost).toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                          )}
+                          {task.actualCost && (
+                            <div className="text-xs text-emerald-600">
+                              <span>Thực tế: </span>
+                              <span className="font-bold">
+                                {Number(task.actualCost).toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="flex flex-col gap-2">
                         <Badge variant={priorityBadge.variant} className="flex items-center gap-1 justify-center">
                           <span className="text-sm">{priorityBadge.emoji}</span> {priorityBadge.label}
@@ -371,11 +579,22 @@ export default function VetTodayPage() {
                         </Badge>
                       </div>
                       
-                      <div>
+                      <div className="flex items-center gap-2">
                         {task.type === 'appointment' && (
-                          <Button variant="outline" onClick={() => handleViewDetail(task)} className="h-full">
-                            <span className="text-lg mr-2">👁️</span> Chi tiết
-                          </Button>
+                          <>
+                            <Button variant="outline" onClick={() => handleViewDetail(task)} className="h-full">
+                              <span className="text-lg mr-2">👁️</span> Chi tiết
+                            </Button>
+                            {task.status !== 'completed' && (
+                              <Button 
+                                variant="default" 
+                                onClick={() => handleCompleteExam(task)} 
+                                className="h-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
+                              >
+                                <span className="text-lg mr-2">📝</span> Tạo bệnh án
+                              </Button>
+                            )}
+                          </>
                         )}
                         {task.type === 'reminder' && (
                           <Button variant="outline" onClick={() => router.push("/dashboard/vet/records")}>
@@ -401,6 +620,19 @@ export default function VetTodayPage() {
             setSelectedAppointment(null);
           }}
           appointment={selectedAppointment}
+        />
+      )}
+
+      {/* Medical Record Modal - Unified Form */}
+      {isRecordModalOpen && (
+        <VetRecordFormModal
+          isOpen={isRecordModalOpen}
+          onClose={() => {
+            setIsRecordModalOpen(false);
+            setSelectedAppointment(null);
+          }}
+          appointment={selectedAppointment}
+          onSuccess={handleRecordSuccess}
         />
       )}
       </div>  {/* Close max-w-7xl container */}

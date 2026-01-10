@@ -176,8 +176,13 @@ export default function VetRecordDetailModal({ isOpen, onClose, record, onUpdate
                 </div>
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  {record.date}
+                  Ngày khám: {record.date}
                 </p>
+                {record.createdAt && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    📝 Tạo lúc: {new Date(record.createdAt).toLocaleString('vi-VN')}
+                  </p>
+                )}
               </div>
               <Badge variant="outline" className="text-sm">
                 {record.veterinarianName}
