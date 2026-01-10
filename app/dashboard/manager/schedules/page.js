@@ -323,7 +323,7 @@ export default function SchedulesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* 🌈 Gradient Header */}
-      <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 text-white p-8 pb-28 shadow-lg">
+      <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 text-white p-8 pb-28 shadow-lg rounded-b-3xl">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
             <div>

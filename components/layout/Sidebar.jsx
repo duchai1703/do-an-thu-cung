@@ -52,6 +52,15 @@ const menuItems = {
   ],
 };
 
+// Pet avatars for different roles
+const roleAvatars = {
+  manager: "🦁",
+  veterinarian: "🐕",
+  care_staff: "🐱",
+  receptionist: "🐰",
+  pet_owner: "🐾",
+};
+
 function getRoleLabel(role) {
   const labels = {
     manager: "Quản lý",
@@ -63,12 +72,13 @@ function getRoleLabel(role) {
   return labels[role] || "User";
 }
 
-export default function Sidebar({ role, userInfo }) {
+export default function Sidebar({ role, userInfo, onCollapsedChange }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState(null);
   const menuList = menuItems[role] || menuItems.pet_owner;
 
   // Detect screen size
@@ -98,7 +108,7 @@ export default function Sidebar({ role, userInfo }) {
   };
 
   // Calculate sidebar width
-  const sidebarWidth = isMobile ? "240px" : (isCollapsed ? "80px" : "260px");
+  const sidebarWidth = isMobile ? "260px" : (isCollapsed ? "88px" : "280px");
 
   return (
     <>
@@ -106,7 +116,7 @@ export default function Sidebar({ role, userInfo }) {
       {isMobile && (
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="fixed top-4 left-4 z-[1100] p-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-xl text-2xl"
+          className="fixed top-4 left-4 z-[1100] p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xl text-2xl hover:scale-110 transition-transform"
           aria-label="Toggle menu"
         >
           {mobileOpen ? '✕' : '☰'}
@@ -125,88 +135,119 @@ export default function Sidebar({ role, userInfo }) {
       <aside
         className={cn(
           "fixed left-0 top-0 bottom-0 z-[1000] flex flex-col transition-all duration-300",
-          "bg-gradient-to-b from-pink-500 via-rose-400 to-pink-500 text-white shadow-2xl",
+          "bg-gradient-to-b from-amber-500 via-orange-500 to-rose-500 text-white shadow-2xl",
+          "sidebar-custom-scrollbar",
           isMobile && !mobileOpen && "-translate-x-full"
         )}
         style={{ width: sidebarWidth }}
       >
         {/* Header with Logo */}
         <div className="p-6 border-b border-white/20">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm text-3xl">
+          <div className="flex items-center gap-4">
+            <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-white/25 backdrop-blur-sm text-4xl shadow-lg group-hover:scale-110 transition-transform">
               🐾
+              {/* Glow effect */}
+              <div className="absolute inset-0 rounded-2xl bg-white/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
             {!isCollapsed && (
               <div>
-                <h2 className="text-xl font-bold tracking-wide">PAW LOVERS</h2>
-                <p className="text-xs opacity-90 font-medium">Pet Care System</p>
+                <h2 className="text-2xl font-extrabold tracking-wide drop-shadow-md">PAW LOVERS</h2>
+                <p className="text-sm opacity-90 font-semibold">Pet Care System</p>
               </div>
             )}
           </div>
           {!isMobile && !isCollapsed && (
             <button
-              onClick={() => setIsCollapsed(true)}
-              className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm font-medium"
+              onClick={() => {
+                setIsCollapsed(true);
+                onCollapsedChange?.(true);
+              }}
+              className="mt-4 w-full py-2.5 rounded-xl bg-white/15 hover:bg-white/25 transition-all text-base font-semibold flex items-center justify-center gap-2 hover:scale-[1.02]"
             >
-              ← Thu gọn
+              <span>←</span> Thu gọn
             </button>
           )}
           {!isMobile && isCollapsed && (
             <button
-              onClick={() => setIsCollapsed(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-xl"
+              onClick={() => {
+                setIsCollapsed(false);
+                onCollapsedChange?.(false);
+              }}
+              className="mt-4 w-full py-2.5 rounded-xl bg-white/15 hover:bg-white/25 transition-all text-2xl hover:scale-110"
             >
               →
             </button>
           )}
         </div>
 
-        {/* User Info */}
-        <div className="p-4 border-b border-white/20">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/30 backdrop-blur-sm font-bold text-xl shrink-0 shadow-lg">
-              {userInfo?.name?.charAt(0)?.toUpperCase() || "U"}
+        {/* User Info with Pet Avatar */}
+        <div className="p-5 border-b border-white/20">
+          <div className="flex items-center gap-4">
+            <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-sm text-3xl shrink-0 shadow-lg ring-2 ring-white/30">
+              {roleAvatars[role] || "🐾"}
+              {/* Online indicator */}
+              <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-400 rounded-full border-2 border-white shadow-md animate-pulse"></div>
             </div>
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm truncate drop-shadow-md">
+                <p className="font-bold text-lg truncate drop-shadow-md">
                   {userInfo?.name || "User"}
                 </p>
-                <p className="text-xs opacity-90 truncate font-medium">{getRoleLabel(role)}</p>
+                <p className="text-sm opacity-90 truncate font-semibold flex items-center gap-1">
+                  <span className="text-xs">✨</span> {getRoleLabel(role)}
+                </p>
               </div>
             )}
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-2 sidebar-scroll">
           {menuList.map((item, index) => {
             const isActive = pathname === item.path;
+            const isHovered = hoveredItem === index;
 
             return (
               <Link
                 key={index}
                 href={item.path}
                 onClick={handleNavClick}
+                onMouseEnter={() => setHoveredItem(index)}
+                onMouseLeave={() => setHoveredItem(null)}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                  "relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group",
                   "hover:bg-white/20 hover:shadow-lg hover:scale-[1.02]",
-                  isActive && "bg-white/30 shadow-xl backdrop-blur-sm"
+                  isActive && "bg-white/30 shadow-xl backdrop-blur-sm ring-2 ring-white/30"
                 )}
               >
+                {/* Paw print trail effect when hovered */}
+                {isHovered && !isCollapsed && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 opacity-40">
+                    <span className="text-sm animate-bounce" style={{ animationDelay: '0ms' }}>🐾</span>
+                    <span className="text-xs animate-bounce" style={{ animationDelay: '100ms' }}>🐾</span>
+                    <span className="text-[10px] animate-bounce" style={{ animationDelay: '200ms' }}>🐾</span>
+                  </div>
+                )}
+                
                 <span className={cn(
-                  "text-2xl shrink-0 transition-transform",
-                  "group-hover:scale-110"
+                  "text-3xl shrink-0 transition-all duration-300",
+                  "group-hover:scale-125 group-hover:rotate-6",
+                  isActive && "drop-shadow-lg"
                 )}>
                   {item.emoji}
                 </span>
                 {!isCollapsed && (
-                  <span className="font-semibold text-sm truncate drop-shadow-md">
+                  <span className="font-bold text-base truncate drop-shadow-md">
                     {item.label}
                   </span>
                 )}
+                
+                {/* Active indicator with glow */}
                 {isActive && !isCollapsed && (
-                  <div className="ml-auto w-2 h-2 rounded-full bg-white shrink-0 shadow-lg" />
+                  <div className="ml-auto flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-white shrink-0 shadow-lg animate-pulse" />
+                    <div className="absolute right-2 w-4 h-4 rounded-full bg-white/30 blur-sm animate-ping" />
+                  </div>
                 )}
               </Link>
             );
@@ -218,20 +259,45 @@ export default function Sidebar({ role, userInfo }) {
           <button
             onClick={handleLogout}
             className={cn(
-              "flex items-center gap-3 w-full px-4 py-3 rounded-xl",
-              "hover:bg-white/20 hover:shadow-lg transition-all group",
-              "text-left"
+              "flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl",
+              "hover:bg-red-500/30 hover:shadow-lg transition-all group",
+              "text-left hover:scale-[1.02]"
             )}
           >
-            <span className="text-2xl shrink-0 group-hover:scale-110 transition-transform">
+            <span className="text-3xl shrink-0 group-hover:scale-125 group-hover:-rotate-12 transition-all duration-300">
               🚪
             </span>
             {!isCollapsed && (
-              <span className="font-semibold text-sm drop-shadow-md">Đăng xuất</span>
+              <span className="font-bold text-base drop-shadow-md">Đăng xuất</span>
             )}
           </button>
         </div>
       </aside>
+
+      {/* Custom scrollbar styles */}
+      <style jsx global>{`
+        .sidebar-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.3);
+          border-radius: 10px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.5);
+        }
+        
+        /* Firefox scrollbar */
+        .sidebar-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
     </>
   );
 }
+

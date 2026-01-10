@@ -82,87 +82,138 @@ body {
 }
 
 /* ============================================
-   AUTH LAYOUT
+   AUTH LAYOUT - PREMIUM DESIGN
    ============================================ */
-.auth-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
+
+/* Floating Orbs Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(20px, -30px) scale(1.05);
+  }
+  50% {
+    transform: translate(-10px, 20px) scale(0.95);
+  }
+  75% {
+    transform: translate(15px, 10px) scale(1.02);
+  }
 }
 
-.auth-background {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  opacity: 0.05;
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-20px, 30px) scale(0.95);
+  }
+  50% {
+    transform: translate(10px, -20px) scale(1.05);
+  }
+  75% {
+    transform: translate(-15px, -10px) scale(0.98);
+  }
+}
+
+.auth-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.6;
   pointer-events: none;
 }
 
-.auth-bg-shape {
-  position: absolute;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  opacity: 0.1;
-}
-
-.auth-bg-shape.shape-1 {
+.auth-orb-1 {
   width: 400px;
   height: 400px;
   top: -100px;
   left: -100px;
+  background: linear-gradient(135deg, #f472b6, #fb7185);
+  animation: float 12s ease-in-out infinite;
 }
 
-.auth-bg-shape.shape-2 {
-  width: 300px;
-  height: 300px;
-  bottom: -50px;
-  right: -50px;
+.auth-orb-2 {
+  width: 350px;
+  height: 350px;
+  bottom: -80px;
+  right: -80px;
+  background: linear-gradient(135deg, #a78bfa, #c084fc);
+  animation: float-reverse 14s ease-in-out infinite;
 }
 
-.auth-bg-shape.shape-3 {
+.auth-orb-3 {
+  width: 250px;
+  height: 250px;
+  top: 30%;
+  right: 10%;
+  background: linear-gradient(135deg, #5eead4, #2dd4bf);
+  animation: float 10s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+.auth-orb-4 {
   width: 200px;
   height: 200px;
-  top: 50%;
-  right: 10%;
+  bottom: 20%;
+  left: 15%;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  animation: float-reverse 11s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+.auth-orb-5 {
+  width: 150px;
+  height: 150px;
+  top: 60%;
+  left: 50%;
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  animation: float 9s ease-in-out infinite;
+  animation-delay: -6s;
+}
+
+/* Glassmorphism Login Card - Warm Cream Theme */
+.auth-glass-card {
+  background: rgba(253, 246, 233, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(251, 191, 36, 0.3);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 4px 20px rgba(251, 191, 36, 0.1);
 }
 
 .auth-header {
   position: relative;
   z-index: 10;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
 }
 
-.auth-header a {
-  text-decoration: none;
+/* Dog Mascot Animations */
+@keyframes bounce-slight {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
-.auth-header a:hover,
-.auth-header a:focus-visible {
-  text-decoration: none;
+@keyframes eye-happy {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.3);
+  }
 }
 
-.auth-main {
-  flex: 1;
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
+.animate-bounce-slight {
+  animation: bounce-slight 1s ease-in-out infinite;
 }
 
-.auth-footer {
-  position: relative;
-  z-index: 10;
-  background: white;
-  border-top: 1px solid #e5e7eb;
+.animate-eye-happy {
+  animation: eye-happy 0.5s ease-in-out infinite;
 }
 
 /* ============================================

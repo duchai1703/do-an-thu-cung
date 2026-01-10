@@ -13,7 +13,7 @@
 .dashboard-main {
   flex: 1;
   margin-left: 240px; /* Desktop: expanded sidebar */
-  padding: 1.5rem;
+  padding: 0 1.5rem 1.5rem 1.5rem; /* No top padding, keep sides and bottom */
   transition: margin-left 0.3s ease;
   min-width: 0; /* Prevent overflow */
 }

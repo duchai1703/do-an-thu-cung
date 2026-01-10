@@ -14,6 +14,18 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const initializeDashboard = async () => {
@@ -104,6 +116,12 @@ export default function DashboardLayout({ children }) {
     return null;
   }
 
+  // Calculate main content margin based on sidebar state
+  const getMainMargin = () => {
+    if (isMobile) return '0';
+    return sidebarCollapsed ? '88px' : '280px';
+  };
+
   return (
     <ToastProvider>
       <div className="dashboard-layout">
@@ -113,8 +131,15 @@ export default function DashboardLayout({ children }) {
             name: user.account.email.split('@')[0],
             email: user.account.email
           }}
+          onCollapsedChange={setSidebarCollapsed}
         />
-        <main className="dashboard-main">
+        <main 
+          className="dashboard-main"
+          style={{ 
+            marginLeft: getMainMargin(),
+            transition: 'margin-left 0.3s ease'
+          }}
+        >
           {children}
         </main>
       </div>

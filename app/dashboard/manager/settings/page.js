@@ -221,7 +221,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* 🌈 Gradient Header (Slate → Gray) */}
-      <div className="bg-gradient-to-r from-slate-600 via-slate-500 to-gray-500 text-white p-8 pb-28 shadow-lg">
+      <div className="bg-gradient-to-r from-slate-600 via-slate-500 to-gray-500 text-white p-8 pb-28 shadow-lg rounded-b-3xl">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
