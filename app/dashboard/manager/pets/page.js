@@ -42,9 +42,29 @@ export default function PetsPage() {
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [medicalHistory, setMedicalHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Pet form state
+  const [petForm, setPetForm] = useState({
+    name: "",
+    species: "Dog",
+    breed: "",
+    gender: "Male",
+    birthDate: "",
+    weight: "",
+    color: "",
+    ownerId: "",
+    initialHealthStatus: "",
+    specialNotes: ""
+  });
+
+  // Pet owners for dropdown
+  const [petOwners, setPetOwners] = useState([]);
 
   // Stats
   const [stats, setStats] = useState({
@@ -67,11 +87,18 @@ export default function PetsPage() {
     try {
       setLoading(true);
       
-      const response = await apiClient.get('/pets');
-      const data = Array.isArray(response.data) ? response.data : 
-                  (response.data?.data || []);
+      const [petsRes, ownersRes] = await Promise.all([
+        apiClient.get('/pets'),
+        apiClient.get('/pet-owners').catch(() => ({ data: [] }))
+      ]);
       
-      setPets(data);
+      const petsData = Array.isArray(petsRes.data) ? petsRes.data : 
+                      (petsRes.data?.data || []);
+      const ownersData = Array.isArray(ownersRes.data) ? ownersRes.data : 
+                        (ownersRes.data?.data || []);
+      
+      setPets(petsData);
+      setPetOwners(ownersData);
     } catch (error) {
       console.error("Error loading pets:", error);
       showToast("Không thể tải danh sách thú cưng", "error");
@@ -145,6 +172,100 @@ export default function PetsPage() {
     setIsModalOpen(false);
     setSelectedPet(null);
     setMedicalHistory([]);
+  };
+
+  // Edit Modal Handlers
+  const handleOpenEditModal = (pet = null) => {
+    if (pet) {
+      setIsEditing(true);
+      setSelectedPet(pet);
+      setPetForm({
+        name: pet.name || "",
+        species: pet.species || "Dog",
+        breed: pet.breed || "",
+        gender: pet.gender || "Male",
+        birthDate: pet.birthDate ? new Date(pet.birthDate).toISOString().split('T')[0] : "",
+        weight: pet.weight || "",
+        color: pet.color || "",
+        ownerId: pet.ownerId || pet.owner?.ownerId || pet.owner?.id || "",
+        initialHealthStatus: pet.initialHealthStatus || "",
+        specialNotes: pet.specialNotes || ""
+      });
+    } else {
+      setIsEditing(false);
+      setSelectedPet(null);
+      setPetForm({
+        name: "",
+        species: "Dog",
+        breed: "",
+        gender: "Male",
+        birthDate: "",
+        weight: "",
+        color: "",
+        ownerId: petOwners[0]?.ownerId || petOwners[0]?.id || "",
+        initialHealthStatus: "",
+        specialNotes: ""
+      });
+    }
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedPet(null);
+    setIsEditing(false);
+  };
+
+  const handleSubmitPet = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setSaving(true);
+
+      // Payload matches CreatePetDto (no ownerId in body)
+      const payload = {
+        name: petForm.name,
+        species: petForm.species,
+        breed: petForm.breed || null,
+        gender: petForm.gender,
+        birthDate: petForm.birthDate || null,
+        weight: petForm.weight ? Number(petForm.weight) : null,
+        color: petForm.color || null,
+        initialHealthStatus: petForm.initialHealthStatus || null,
+        specialNotes: petForm.specialNotes || null
+      };
+
+      if (isEditing && selectedPet) {
+        const id = selectedPet.petId || selectedPet.id;
+        await apiClient.put(`/pets/${id}`, payload);
+        showToast("Cập nhật thú cưng thành công! ✅", "success");
+      } else {
+        // ownerId is sent as query parameter, not in body
+        await apiClient.post(`/pets?ownerId=${petForm.ownerId}`, payload);
+        showToast("Thêm thú cưng mới thành công! ✅", "success");
+      }
+
+      handleCloseEditModal();
+      loadData();
+    } catch (error) {
+      console.error("Error saving pet:", error);
+      showToast(error.response?.data?.message || "Không thể lưu thú cưng", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePet = async (pet) => {
+    const id = pet.petId || pet.id;
+    if (!confirm(`Bạn có chắc muốn xóa thú cưng "${pet.name}"?\n\nLưu ý: Thao tác này sẽ xóa toàn bộ lịch sử y tế và dữ liệu liên quan.`)) return;
+    
+    try {
+      await apiClient.delete(`/pets/${id}`);
+      showToast("Đã xóa thú cưng! 🗑️", "success");
+      loadData();
+    } catch (error) {
+      showToast("Không thể xóa thú cưng (có thể đang có lịch hẹn)", "error");
+    }
   };
 
   // UI Helpers
@@ -243,6 +364,12 @@ export default function PetsPage() {
                 Xem thông tin và lịch sử y tế của thú cưng
               </p>
             </div>
+            <Button 
+              onClick={() => handleOpenEditModal()}
+              className="bg-white/20 border-white/30 text-white hover:bg-white/30 flex items-center gap-2"
+            >
+              ➕ Thêm thú cưng
+            </Button>
           </div>
         </div>
       </div>
@@ -610,13 +737,215 @@ export default function PetsPage() {
                   Đóng
                 </Button>
                 <Button 
-                  onClick={() => router.push(`/dashboard/manager/appointments?petId=${selectedPet.petId || selectedPet.id}`)}
-                  className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+                  onClick={() => {
+                    handleCloseModal();
+                    handleOpenEditModal(selectedPet);
+                  }}
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
                 >
-                  📅 Xem lịch hẹn
+                  ✏️ Chỉnh sửa
+                </Button>
+                <Button 
+                  onClick={() => {
+                    handleCloseModal();
+                    handleDeletePet(selectedPet);
+                  }}
+                  className="bg-gradient-to-r from-red-500 to-pink-500 text-white"
+                >
+                  🗑️ Xóa
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pet Edit/Add Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  {isEditing ? '✏️ Chỉnh sửa thú cưng' : '➕ Thêm thú cưng mới'}
+                </h2>
+                <button onClick={handleCloseEditModal} className="text-white/80 hover:text-white text-2xl">
+                  ❌
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitPet} className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🐾 Tên thú cưng <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="text"
+                    value={petForm.name}
+                    onChange={(e) => setPetForm({...petForm, name: e.target.value})}
+                    placeholder="VD: Milo, Bella..."
+                    required
+                    className="border-2 focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    👤 Chủ sở hữu <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={petForm.ownerId}
+                    onChange={(e) => setPetForm({...petForm, ownerId: e.target.value})}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    required
+                  >
+                    <option value="">-- Chọn chủ nuôi --</option>
+                    {petOwners.map(owner => (
+                      <option key={owner.ownerId || owner.id} value={owner.ownerId || owner.id}>
+                        {owner.fullName} - {owner.phoneNumber}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🦴 Loài <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={petForm.species}
+                    onChange={(e) => setPetForm({...petForm, species: e.target.value})}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    required
+                  >
+                    <option value="Dog">🐕 Chó</option>
+                    <option value="Cat">🐱 Mèo</option>
+                    <option value="Bird">🐦 Chim</option>
+                    <option value="Rabbit">🐰 Thỏ</option>
+                    <option value="Hamster">🐹 Hamster</option>
+                    <option value="Turtle">🐢 Rùa</option>
+                    <option value="Snake">🐍 Rắn</option>
+                    <option value="Fish">🐟 Cá</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🎨 Giống
+                  </Label>
+                  <Input
+                    type="text"
+                    value={petForm.breed}
+                    onChange={(e) => setPetForm({...petForm, breed: e.target.value})}
+                    placeholder="VD: Husky, Anh lông ngắn..."
+                    className="border-2 focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    ⚧ Giới tính <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={petForm.gender}
+                    onChange={(e) => setPetForm({...petForm, gender: e.target.value})}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    required
+                  >
+                    <option value="Male">♂️ Đực</option>
+                    <option value="Female">♀️ Cái</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🎂 Ngày sinh
+                  </Label>
+                  <Input
+                    type="date"
+                    value={petForm.birthDate}
+                    onChange={(e) => setPetForm({...petForm, birthDate: e.target.value})}
+                    className="border-2 focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    ⚖️ Cân nặng (kg)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={petForm.weight}
+                    onChange={(e) => setPetForm({...petForm, weight: e.target.value})}
+                    placeholder="VD: 5.5"
+                    className="border-2 focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🌈 Màu lông
+                  </Label>
+                  <Input
+                    type="text"
+                    value={petForm.color}
+                    onChange={(e) => setPetForm({...petForm, color: e.target.value})}
+                    placeholder="VD: Vàng, Đen trắng..."
+                    className="border-2 focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Health Info */}
+              <div className="space-y-4 p-4 bg-green-50 rounded-xl border-2 border-green-200">
+                <h3 className="font-semibold text-green-800 flex items-center gap-2">
+                  💚 Thông tin sức khỏe
+                </h3>
+                
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    🏥 Tình trạng sức khỏe ban đầu
+                  </Label>
+                  <textarea
+                    value={petForm.initialHealthStatus}
+                    onChange={(e) => setPetForm({...petForm, initialHealthStatus: e.target.value})}
+                    placeholder="Mô tả tình trạng sức khỏe khi tiếp nhận..."
+                    className="w-full px-3 py-2 border-2 border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 min-h-[80px]"
+                  />
+                </div>
+
+                <div>
+                  <Label className="flex items-center gap-2 mb-2">
+                    📝 Ghi chú đặc biệt
+                  </Label>
+                  <textarea
+                    value={petForm.specialNotes}
+                    onChange={(e) => setPetForm({...petForm, specialNotes: e.target.value})}
+                    placeholder="Dị ứng, tiền sử bệnh, lưu ý đặc biệt..."
+                    className="w-full px-3 py-2 border-2 border-green-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 min-h-[80px]"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={handleCloseEditModal}>
+                  Hủy
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={saving}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
+                >
+                  {saving ? '⏳ Đang lưu...' : (isEditing ? '✅ Cập nhật' : '✅ Thêm mới')}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

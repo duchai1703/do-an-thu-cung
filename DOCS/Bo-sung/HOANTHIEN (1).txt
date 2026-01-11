@@ -1,0 +1,36 @@
+Manager : 
+- Dịch vụ khi tắt không hoạt động
+- Thú cưng : thông tin chi tiết chỉ mới xem được chứ chưa có chức năng thêm / xóa / sửa ( bỏ nút xem lịch hẹn )
+- Báo cáo : Bên tài chính thì chưa hiện gì cả nhưng tổng kết thì nó lại có tổng doanh thu
+- Quản lý chuồng : + Khi cho thú cưng vào chuồng rồi sao mình có thể chỉnh sửa thông tin chuồng 
+		   + Không thể trả chuồng được ( Failed to load resource: the server responded with a status of 400 (Bad Request))
+- Nhân viên : Khi thêm nhân viên thì có gửi email qua cho nhân viên đó không ( tài khoản , mk tạm thời )
+- Lịch làm việc : chưa thể sửa / xóa được 
+- Lịch đặt : bỏ nút xóa 
+- Khách hàng : UI chưa đồng bộ với mấy trang khác
+- Hóa đơn : Tính tiền có thể bị sai và tại sao lại 0 dịch vụ trong khi ngta đã có xài 1 dịch vụ 
+- Cài đặt : xóa trang này luôn vì không cần thiết 
+- UI có mấy cái hoạt đồng đồ thì chữ bị đùn xún 
+
+Bác sĩ :
+- Công việc hôm nay : bỏ trang này vì bị trùng với trang lịch đặt
+- Tiêm phòng :  UI bị lỗi khúc phản ứng 
+- Bệnh nhân :  thông tin chi tiết ( chủ nuôi chưa có data ) 
+- Chuồng : khi bác sĩ đã chọn chuồng L-03 thì vào trong bắt chọn chuồng lại , tại sao bác sĩ có quyền nhập giá tiền 
+- UI có mấy cái hoạt đồng đồ thì chữ bị đùn xún cùng với là trong thông tin chi tiết thì giá tiền nó lọt ra ngoài button luôn 
+
+Care Staff :
+- Lịch làm việc : Khi nhấn nút button sẵn sàng thì lại hiển thị thông báo không rãnh , vấn đề nhân viên không được có quyền bấm không rãnh chỉ có manager mới làm điều đó và phải xem các điều kiện liên quan coi có bị ảnh hưởng không nếu không thì nhân viên mới được nghỉ ngày hôm đó 
+- Công việc hôm nay : các trạng thái hoàn thành , chưa làm đồ nó chưa căn chỉnh đều nên sửa lại đều đẹp
+- Chuồng nuôi : Tại sao lại có trường hợp check-in  Pet vào trong khi là khi có cuộc hẹn thì sẽ qua lễ tân rồi mà lễ tân đó lại  không có chức năng đó
+
+Nhân viên lễ tân :
+- Đặt lịch : trạng thái thì các chữ bị đùn xuống , xem lại phần đăt lịch hẹn đã bị sai ( đúng luồng là kiểu mình chọn khách hàng sau đó chọn pet sau đó chọn dịch vụ rồi tùy loại dịch vụ mà ứng với đúng vai trò của nhân viên đó , trong chọn dịch vụ chưa load hết data ) , them thao tác từ bên phiếu hẹn qua bao gồm in phiếu , gửi email 
+Bỏ trang Phiếu hẹn và Nhắc lịch 
+- Thanh toán : bỏ tạo hóa đơn bởi vì khi nhân viên làm xong thì hệ thống tự tạo hóa đơn rồi nên nhân viên chỉ có việc xác nhân khách hàng thanh toán bằng hình thức nào thôi 
+- Khách hàng : Nhân viên không tự đặt lịch mà này dành cho khách hàng 
+- Thiếu quản lý chuồng , thiếu khi người lễ tân hủy lịch hẹn đó vì hệ thống không có bác sĩ khám cho loài đó thì mình phải có hủy lịch nữa 
+
+Pet owen :
+- Thêm thú cưng : thì khi người dùng chọn khác thì phải thêm mục ghi chú coi loài đó loài gì để lễ tân xác nhận coi có nhận 
+- Lịch đặt : thiếu phần hủy lịch 

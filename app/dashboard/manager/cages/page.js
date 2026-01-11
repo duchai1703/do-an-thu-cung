@@ -58,7 +58,8 @@ export default function CagesPage() {
     cageNumber: "",
     size: "MEDIUM",
     dailyRate: 0,
-    notes: ""
+    notes: "",
+    hasAssignment: false
   });
 
   // Assignment form
@@ -144,6 +145,8 @@ export default function CagesPage() {
 
   // Cage Modal Handlers
   const handleOpenCageModal = (cage = null) => {
+    const assignment = cage ? getCageAssignment(cage) : null;
+    
     if (cage) {
       setIsEditing(true);
       setSelectedCage(cage);
@@ -151,7 +154,8 @@ export default function CagesPage() {
         cageNumber: cage.cageNumber || "",
         size: cage.size || "MEDIUM",
         dailyRate: cage.dailyRate || 0,
-        notes: cage.notes || ""
+        notes: cage.notes || "",
+        hasAssignment: !!assignment // Track if cage has active assignment
       });
     } else {
       setIsEditing(false);
@@ -160,7 +164,8 @@ export default function CagesPage() {
         cageNumber: "",
         size: "MEDIUM",
         dailyRate: 0,
-        notes: ""
+        notes: "",
+        hasAssignment: false
       });
     }
     setIsCageModalOpen(true);
@@ -260,11 +265,19 @@ export default function CagesPage() {
   };
 
   const handleReleaseCage = async (cage) => {
-    const id = cage.cageId || cage.id;
     if (!confirm("Bạn có chắc muốn trả chuồng này?")) return;
     
     try {
-      await apiClient.post(`/cages/${id}/release`);
+      // Get current assignment for this cage
+      const assignment = getCageAssignment(cage);
+      if (!assignment) {
+        showToast("Không tìm thấy thông tin gán chuồng", "error");
+        return;
+      }
+
+      const assignmentId = assignment.assignmentId || assignment.id;
+      // Correct endpoint: PUT /cages/assignments/:assignmentId/checkout
+      await apiClient.put(`/cages/assignments/${assignmentId}/checkout`);
       showToast("Đã trả chuồng! ✅", "success");
       loadData();
     } catch (error) {
@@ -277,8 +290,7 @@ export default function CagesPage() {
     const sizes = {
       'SMALL': { label: 'Nhỏ', emoji: '🏠', bg: 'bg-blue-100 text-blue-700' },
       'MEDIUM': { label: 'Vừa', emoji: '🏡', bg: 'bg-green-100 text-green-700' },
-      'LARGE': { label: 'Lớn', emoji: '🏢', bg: 'bg-purple-100 text-purple-700' },
-      'EXTRA_LARGE': { label: 'Rất lớn', emoji: '🏰', bg: 'bg-amber-100 text-amber-700' }
+      'LARGE': { label: 'Lớn', emoji: '🏢', bg: 'bg-purple-100 text-purple-700' }
     };
     return sizes[size] || sizes.MEDIUM;
   };
@@ -426,7 +438,6 @@ export default function CagesPage() {
                 <option value="SMALL">🏠 Nhỏ</option>
                 <option value="MEDIUM">🏡 Vừa</option>
                 <option value="LARGE">🏢 Lớn</option>
-                <option value="EXTRA_LARGE">🏰 Rất lớn</option>
               </select>
 
               {/* Status Filter */}
@@ -512,7 +523,7 @@ export default function CagesPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Trạng thái:</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${status.textBg}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs flex items-center justify-center gap-1 ${status.textBg}`}>
                           {status.emoji} {status.label}
                         </span>
                       </div>
@@ -707,13 +718,17 @@ export default function CagesPage() {
                     <option value="SMALL">🏠 Nhỏ</option>
                     <option value="MEDIUM">🏡 Vừa</option>
                     <option value="LARGE">🏢 Lớn</option>
-                    <option value="EXTRA_LARGE">🏰 Rất lớn</option>
                   </select>
                 </div>
 
                 <div>
                   <Label className="flex items-center gap-2 mb-2">
                     💰 Giá/ngày (VND) <span className="text-red-500">*</span>
+                    {cageForm.hasAssignment && (
+                      <span className="text-xs text-amber-600 font-normal">
+                        (Không thể sửa khi đang có thú cưng)
+                      </span>
+                    )}
                   </Label>
                   <Input
                     type="number"
@@ -721,6 +736,8 @@ export default function CagesPage() {
                     onChange={(e) => setCageForm({...cageForm, dailyRate: e.target.value})}
                     min="0"
                     required
+                    disabled={cageForm.hasAssignment}
+                    className={cageForm.hasAssignment ? "bg-gray-100 cursor-not-allowed" : ""}
                   />
                 </div>
               </div>

@@ -228,7 +228,8 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
                 className={cn(
                   "relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group",
                   "hover:bg-white/20 hover:shadow-lg hover:scale-[1.02]",
-                  isActive && "bg-white/30 shadow-xl backdrop-blur-sm ring-2 ring-white/30"
+                  isActive && "bg-white/30 shadow-xl backdrop-blur-sm ring-2 ring-white/30",
+                  isCollapsed && "justify-center" // Center content when collapsed
                 )}
               >
                 {/* Paw print trail effect when hovered */}
