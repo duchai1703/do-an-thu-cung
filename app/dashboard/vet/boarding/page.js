@@ -43,6 +43,7 @@ export default function VeterinarianBoardingPage() {
     checkInDate: new Date().toISOString().split('T')[0],
     expectedCheckOutDate: "",
     notes: ""
+    // dailyRate removed - vets should not set prices
   });
   const [formLoading, setFormLoading] = useState(false);
   const [availableCagesForPet, setAvailableCagesForPet] = useState([]);
@@ -168,8 +169,8 @@ export default function VeterinarianBoardingPage() {
       cageId: cage ? cage.id : "",
       checkInDate: new Date().toISOString().split('T')[0],
       expectedCheckOutDate: "",
-      notes: "",
-      dailyRate: cage?.dailyRate || ""
+      notes: ""
+      // dailyRate removed - vets should not set prices
     });
     setAvailableCagesForPet(cage ? [cage] : cages.filter(c => c.status === 'available'));
     setIsAssignModalOpen(true);
@@ -189,7 +190,7 @@ export default function VeterinarianBoardingPage() {
         petId: Number(formData.petId),
         checkInDate: formData.checkInDate,
         expectedCheckOutDate: formData.expectedCheckOutDate || null,
-        dailyRate: formData.dailyRate ? Number(formData.dailyRate) : undefined,
+        // dailyRate removed - vets should not set prices, backend will use cage default
         notes: formData.notes || null
       });
 
@@ -888,24 +889,7 @@ export default function VeterinarianBoardingPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                💰 Giá theo ngày (VNĐ)
-              </Label>
-              <Input
-                type="number"
-                value={formData.dailyRate}
-                onChange={(e) => setFormData({ ...formData, dailyRate: e.target.value })}
-                placeholder="VD: 150000"
-                min="0"
-                step="1000"
-              />
-              {selectedCage?.dailyRate && (
-                <p className="text-xs text-muted-foreground">
-                  💡 Giá mặc định của chuồng: {Number(selectedCage.dailyRate).toLocaleString()}đ
-                </p>
-              )}
-            </div>
+            {/* Daily rate field removed - vets should not set cage prices */}
 
             <div className="space-y-2">
               <Label>Ghi chú</Label>

@@ -24,7 +24,6 @@ const menuItems = {
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/vet" },
     { emoji: "📅", label: "Lịch làm việc", path: "/dashboard/vet/schedule" },
     { emoji: "❤️", label: "Hồ sơ bệnh án", path: "/dashboard/vet/records" },
-    { emoji: "⚡", label: "Công việc hôm nay", path: "/dashboard/vet/today" },
     { emoji: "💉", label: "Tiêm phòng", path: "/dashboard/vet/vaccinations" },
     { emoji: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
     { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
