@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   CreditCard, CheckCircle2, Hourglass, Search, Eye, 
-  Calendar, Receipt, ClipboardList 
+  Calendar, Receipt, ClipboardList, Loader2 
 } from "lucide-react";
 import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export default function OwnerPaymentsPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [processingPayment, setProcessingPayment] = useState(null);
 
   useEffect(() => {
     loadInvoices();
@@ -104,31 +105,36 @@ export default function OwnerPaymentsPage() {
   };
 
   const handlePayNow = async (invoiceId) => {
-    if (confirm("Xác nhận thanh toán hóa đơn này?")) {
-      try {
-        const invoice = invoices.find(inv => inv.id === invoiceId);
-        
-        // Create payment for the invoice
-        const paymentData = {
-          invoiceId: invoiceId,
-          paymentMethod: 'ONLINE',
-          amount: invoice.totalAmount,
-          paymentDate: new Date().toISOString()
-        };
+    try {
+      setProcessingPayment(invoiceId);
+      
+      // Build return URL for VNPay callback
+      const baseUrl = window.location.origin;
+      const returnUrl = `${baseUrl}/dashboard/owner/payments/vnpay-return`;
+      
+      console.log("Initiating payment with return URL:", returnUrl);
+      
+      const response = await paymentApi.initiateOnline({
+        invoiceId: invoiceId,
+        paymentMethod: 'VNPAY',
+        returnUrl: returnUrl,
+        locale: 'vi'
+      });
 
-        const response = await paymentApi.create(paymentData);
-        
-        if (response.success) {
-          // Reload invoices to get updated data
-          await loadInvoices();
-          showToast("Thanh toán thành công!", "success");
-        } else {
-          showToast("Không thể thanh toán. Vui lòng thử lại.", "error");
-        }
-      } catch (error) {
-        console.error("Error processing payment:", error);
-        showToast("Lỗi khi thanh toán hóa đơn", "error");
+      const data = response.data || response;
+      
+      if (data.paymentUrl) {
+        showToast("Đang chuyển đến VNPay...", "success");
+        // Redirect to VNPay payment page
+        window.location.href = data.paymentUrl;
+      } else {
+        showToast("Không thể khởi tạo thanh toán", "error");
+        setProcessingPayment(null);
       }
+    } catch (error) {
+      console.error("Error initiating payment:", error);
+      showToast(error.response?.data?.message || "Không thể thanh toán", "error");
+      setProcessingPayment(null);
     }
   };
 
@@ -296,11 +302,21 @@ export default function OwnerPaymentsPage() {
                     {invoice.paymentStatus === 'unpaid' && (
                       <Button
                         onClick={() => handlePayNow(invoice.id)}
+                        disabled={processingPayment === invoice.id}
                         variant="default"
                         className="flex-1"
                       >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Thanh toán ngay
+                        {processingPayment === invoice.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Đang xử lý...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Thanh toán VNPay
+                          </>
+                        )}
                       </Button>
                     )}
                   </div>

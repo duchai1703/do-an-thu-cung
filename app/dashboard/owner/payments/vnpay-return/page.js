@@ -291,7 +291,7 @@ function VNPayReturnContent() {
             <div className="mt-8 space-y-3">
               {paymentResult?.success && (
                 <>
-                  <Button
+                  {/* <Button
                     onClick={handleVerifyPayment}
                     disabled={verifying}
                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
@@ -307,7 +307,7 @@ function VNPayReturnContent() {
                         Xác minh thanh toán
                       </>
                     )}
-                  </Button>
+                  </Button> */}
 
                   <Button
                     onClick={() => router.push('/dashboard/owner/invoices')}
@@ -321,7 +321,7 @@ function VNPayReturnContent() {
               )}
 
               <Button
-                onClick={() => router.push('/dashboard/owner/payments')}
+                onClick={() => router.push('/dashboard/owner/invoices')}
                 variant={paymentResult?.success ? "outline" : "default"}
                 className="w-full"
               >
