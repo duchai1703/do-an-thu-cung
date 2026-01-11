@@ -28,6 +28,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -40,6 +42,17 @@ export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredEmployees, 10);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -371,7 +384,7 @@ export default function EmployeesPage() {
         {/* Employee List */}
         {filteredEmployees.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredEmployees.map((employee) => {
+            {paginatedData.map((employee) => {
               const isAvailable = employee.isAvailable !== false;
               const employeeId = employee.employeeId || employee.id;
               
@@ -470,6 +483,22 @@ export default function EmployeesPage() {
           </Card>
         )}
       </div>
+
+      {/* Pagination */}
+      {filteredEmployees.length > 0 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            pageSizeOptions={[10, 20, 50]}
+          />
+        </div>
+      )}
+
 
       {/* Add/Edit Modal */}
       {isModalOpen && (

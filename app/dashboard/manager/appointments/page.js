@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function AppointmentsPage() {
   const router = useRouter();
@@ -42,6 +44,17 @@ export default function AppointmentsPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredAppointments, 10);
 
   // Data for dropdowns
   const [pets, setPets] = useState([]);
@@ -209,18 +222,7 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handleDelete = async (appointment) => {
-    const id = appointment.appointmentId || appointment.id;
-    if (!confirm("Bạn có chắc muốn xóa lịch hẹn này?")) return;
-    
-    try {
-      await apiClient.delete(`/appointments/${id}`);
-      showToast("Đã xóa lịch hẹn! 🗑️", "success");
-      loadData();
-    } catch (error) {
-      showToast("Không thể xóa lịch hẹn", "error");
-    }
-  };
+
 
   // UI Helpers
   const getPetEmoji = (species) => {
@@ -428,7 +430,7 @@ export default function AppointmentsPage() {
         {/* Appointments List */}
         {filteredAppointments.length > 0 ? (
           <div className="space-y-4">
-            {filteredAppointments.map((appointment) => {
+            {paginatedData.map((appointment) => {
               const status = getStatusConfig(appointment.status);
               const appointmentId = appointment.appointmentId || appointment.id;
               
@@ -544,6 +546,21 @@ export default function AppointmentsPage() {
           </Card>
         )}
       </div>
+
+      {/* Pagination */}
+      {filteredAppointments.length > 0 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            pageSizeOptions={[10, 20, 50]}
+          />
+        </div>
+      )}
 
       {/* Create Appointment Modal */}
       {isModalOpen && (

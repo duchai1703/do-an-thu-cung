@@ -28,6 +28,8 @@ import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 import PetIdBadge from "@/components/ui/PetIdBadge";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function PetsPage() {
   const router = useRouter();
@@ -39,6 +41,17 @@ export default function PetsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [speciesFilter, setSpeciesFilter] = useState("all");
   const [viewMode, setViewMode] = useState("grid"); // grid | list
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredPets, 12); // 12 pets per page
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +73,8 @@ export default function PetsPage() {
     color: "",
     ownerId: "",
     initialHealthStatus: "",
-    specialNotes: ""
+    specialNotes: "",
+    customSpecies: ""
   });
 
   // Pet owners for dropdown
@@ -179,9 +193,14 @@ export default function PetsPage() {
     if (pet) {
       setIsEditing(true);
       setSelectedPet(pet);
+      
+      // Check if species is custom (not in predefined list)
+      const predefinedSpecies = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Turtle', 'Snake', 'Fish'];
+      const isCustomSpecies = pet.species && !predefinedSpecies.includes(pet.species);
+      
       setPetForm({
         name: pet.name || "",
-        species: pet.species || "Dog",
+        species: isCustomSpecies ? 'Other' : (pet.species || "Dog"),
         breed: pet.breed || "",
         gender: pet.gender || "Male",
         birthDate: pet.birthDate ? new Date(pet.birthDate).toISOString().split('T')[0] : "",
@@ -189,7 +208,8 @@ export default function PetsPage() {
         color: pet.color || "",
         ownerId: pet.ownerId || pet.owner?.ownerId || pet.owner?.id || "",
         initialHealthStatus: pet.initialHealthStatus || "",
-        specialNotes: pet.specialNotes || ""
+        specialNotes: pet.specialNotes || "",
+        customSpecies: isCustomSpecies ? pet.species : ""
       });
     } else {
       setIsEditing(false);
@@ -204,7 +224,8 @@ export default function PetsPage() {
         color: "",
         ownerId: petOwners[0]?.ownerId || petOwners[0]?.id || "",
         initialHealthStatus: "",
-        specialNotes: ""
+        specialNotes: "",
+        customSpecies: ""
       });
     }
     setIsEditModalOpen(true);
@@ -222,10 +243,17 @@ export default function PetsPage() {
     try {
       setSaving(true);
 
+      // Validate custom species
+      if (petForm.species === 'Other' && !petForm.customSpecies?.trim()) {
+        showToast("Vui lòng nhập tên loài khi chọn 'Khác'", "error");
+        setSaving(false);
+        return;
+      }
+
       // Payload matches CreatePetDto (no ownerId in body)
       const payload = {
         name: petForm.name,
-        species: petForm.species,
+        species: petForm.species === 'Other' ? petForm.customSpecies : petForm.species,
         breed: petForm.breed || null,
         gender: petForm.gender,
         birthDate: petForm.birthDate || null,
@@ -240,8 +268,14 @@ export default function PetsPage() {
         await apiClient.put(`/pets/${id}`, payload);
         showToast("Cập nhật thú cưng thành công! ✅", "success");
       } else {
-        // ownerId is sent as query parameter, not in body
-        await apiClient.post(`/pets?ownerId=${petForm.ownerId}`, payload);
+        // ownerId is sent as query parameter (must be number)
+        const ownerIdNum = Number(petForm.ownerId);
+        if (!ownerIdNum || isNaN(ownerIdNum)) {
+          showToast("Vui lòng chọn chủ sở hữu hợp lệ", "error");
+          setSaving(false);
+          return;
+        }
+        await apiClient.post(`/pets?ownerId=${ownerIdNum}`, payload);
         showToast("Thêm thú cưng mới thành công! ✅", "success");
       }
 
@@ -472,7 +506,7 @@ export default function PetsPage() {
         {filteredPets.length > 0 ? (
           viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredPets.map((pet, idx) => {
+              {paginatedData.map((pet, idx) => {
                 const petId = pet.petId || pet.id;
                 
                 return (
@@ -519,7 +553,7 @@ export default function PetsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPets.map((pet, idx) => {
+              {paginatedData.map((pet, idx) => {
                 const petId = pet.petId || pet.id;
                 
                 return (
@@ -584,6 +618,21 @@ export default function PetsPage() {
               <p className="text-gray-500 mb-4">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
             </CardContent>
           </Card>
+        )}
+
+        {/* Pagination */}
+        {filteredPets.length > 0 && (
+          <div className="mt-8">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              pageSizeOptions={[12, 24, 48, 96]}
+            />
+          </div>
         )}
       </div>
 
@@ -797,19 +846,25 @@ export default function PetsPage() {
                   <Label className="flex items-center gap-2 mb-2">
                     👤 Chủ sở hữu <span className="text-red-500">*</span>
                   </Label>
-                  <select
-                    value={petForm.ownerId}
-                    onChange={(e) => setPetForm({...petForm, ownerId: e.target.value})}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    required
-                  >
-                    <option value="">-- Chọn chủ nuôi --</option>
-                    {petOwners.map(owner => (
-                      <option key={owner.ownerId || owner.id} value={owner.ownerId || owner.id}>
-                        {owner.fullName} - {owner.phoneNumber}
-                      </option>
-                    ))}
-                  </select>
+                  {isEditing ? (
+                    <div className="w-full px-3 py-2 border-2 border-gray-200 bg-gray-50 rounded-lg text-gray-700">
+                      {selectedPet?.owner?.fullName || 'Không rõ'} - {selectedPet?.owner?.phoneNumber || 'N/A'}
+                    </div>
+                  ) : (
+                    <select
+                      value={petForm.ownerId}
+                      onChange={(e) => setPetForm({...petForm, ownerId: e.target.value})}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      required
+                    >
+                      <option value="">-- Chọn chủ nuôi --</option>
+                      {petOwners.map(owner => (
+                        <option key={owner.ownerId || owner.id} value={owner.ownerId || owner.id}>
+                          {owner.fullName} - {owner.phoneNumber}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -830,8 +885,25 @@ export default function PetsPage() {
                     <option value="Turtle">🐢 Rùa</option>
                     <option value="Snake">🐍 Rắn</option>
                     <option value="Fish">🐟 Cá</option>
+                    <option value="Other">🦎 Khác (tự nhập)</option>
                   </select>
                 </div>
+
+                {petForm.species === 'Other' && (
+                  <div className="md:col-span-2">
+                    <Label className="flex items-center gap-2 mb-2">
+                      🦎 Nhập tên loài <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      type="text"
+                      value={petForm.customSpecies || ''}
+                      onChange={(e) => setPetForm({...petForm, customSpecies: e.target.value})}
+                      placeholder="VD: Rồng Komodo, Iguana, Vẹt..."
+                      required
+                      className="border-2 focus:border-amber-500"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <Label className="flex items-center gap-2 mb-2">

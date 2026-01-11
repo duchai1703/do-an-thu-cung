@@ -29,6 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function SchedulesPage() {
   const router = useRouter();
@@ -128,6 +130,19 @@ export default function SchedulesPage() {
       return empId == selectedEmployee;
     });
   };
+
+  const filteredSchedules = getFilteredSchedules();
+
+  // Pagination for List View
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredSchedules, 10);
 
   // Get schedules for a specific date and employee
   const getSchedulesForDate = (date, employeeId = null) => {
@@ -490,12 +505,12 @@ export default function SchedulesPage() {
         {viewMode === 'list' && (
           <>
             <p className="text-sm text-gray-500 mb-4">
-              {getFilteredSchedules().length} ca làm việc trong tuần này
+              Hiển thị {filteredSchedules.length} ca làm việc trong tuần này
             </p>
 
-            {getFilteredSchedules().length > 0 ? (
+            {filteredSchedules.length > 0 ? (
               <div className="space-y-3">
-                {getFilteredSchedules().map((schedule, idx) => {
+                {paginatedData.map((schedule, idx) => {
                   const shift = getScheduleShiftConfig(schedule);
                   const emp = schedule.employee || employees.find(e => 
                     (e.employeeId || e.id) == (schedule.employeeId || schedule.employee?.employeeId)
@@ -567,6 +582,21 @@ export default function SchedulesPage() {
                   </Button>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Pagination */}
+            {filteredSchedules.length > 0 && (
+              <div className="mt-8">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                  pageSizeOptions={[10, 20, 50]}
+                />
+              </div>
             )}
           </>
         )}

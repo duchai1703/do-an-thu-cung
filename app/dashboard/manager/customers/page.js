@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function CustomersPage() {
   const { showToast } = useToast();
@@ -29,6 +31,17 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredCustomers, 10);
 
   useEffect(() => {
     loadData();
@@ -211,7 +224,7 @@ export default function CustomersPage() {
         {/* Cute Customers Grid */}
         {filteredCustomers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCustomers.map((customer, index) => {
+            {paginatedData.map((customer, index) => {
               const customerId = customer.petOwnerId || customer.id;
               
               return (
@@ -304,6 +317,21 @@ export default function CustomersPage() {
           </Card>
         )}
       </div>
+
+      {/* Pagination */}
+      {filteredCustomers.length > 0 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            pageSizeOptions={[10, 20, 50, 100]}
+          />
+        </div>
+      )}
 
       {/* Cute Detail Modal */}
       {isDetailModalOpen && selectedCustomer && (

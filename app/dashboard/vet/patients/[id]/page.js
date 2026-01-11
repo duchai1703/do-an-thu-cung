@@ -18,7 +18,7 @@ import { useRouter, useParams } from "next/navigation";
 import { 
   PawPrint, FileText, Syringe, Calendar, 
   ArrowLeft, Download, CheckCircle, XCircle, Clock, Heart, Sparkles, AlertCircle,
-  User, Phone, Scale, Palette, Cake, Hash, TrendingUp, Activity, Stethoscope
+  User, Phone, Scale, Palette, Cake, Hash, TrendingUp, Activity, Stethoscope, MapPin
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -301,7 +301,48 @@ export default function VetPetDetailPage() {
                   Thông tin thú cưng
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-6 space-y-6">
+                {/* Owner Info Section */}
+                <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-4 rounded-xl border">
+                  <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Thông tin chủ nuôi
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Họ và tên</p>
+                        <p className="font-bold text-gray-800">{pet.owner?.fullName || 'Chưa cập nhật'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                        <Phone className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Số điện thoại</p>
+                        <p className="font-bold text-gray-800">{pet.owner?.phoneNumber || 'N/A'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500">Địa chỉ</p>
+                        <p className="font-bold text-gray-800 truncate" title={pet.owner?.address}>
+                          {pet.owner?.address || 'Chưa cập nhật'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <Hash className="h-5 w-5 text-teal-500" />

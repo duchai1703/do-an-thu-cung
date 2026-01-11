@@ -157,9 +157,14 @@ export default function VeterinarianBoardingPage() {
   };
 
   const handlePetSelect = (petId) => {
-    setFormData(prev => ({ ...prev, petId, cageId: "" }));
-    const allAvailableCages = cages.filter(cage => cage.status === 'available');
-    setAvailableCagesForPet(allAvailableCages);
+    // Preserve cageId if already selected (e.g. from handleOpenAssignModal(cage))
+    setFormData(prev => ({ ...prev, petId }));
+    
+    // Only update available cages specific cage is NOT selected
+    if (!selectedCage) {
+      const allAvailableCages = cages.filter(cage => cage.status === 'available');
+      setAvailableCagesForPet(allAvailableCages);
+    }
   };
 
   const handleOpenAssignModal = (cage = null) => {

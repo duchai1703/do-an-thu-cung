@@ -32,6 +32,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function ServicesPage() {
   const router = useRouter();
@@ -45,6 +47,17 @@ export default function ServicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("services"); // 'services' or 'categories'
   const [selectedCategory, setSelectedCategory] = useState("all");
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredServices, 10);
 
   // Modal states
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -86,7 +99,7 @@ export default function ServicesPage() {
       setLoading(true);
       
       const [servicesRes, categoriesRes] = await Promise.all([
-        apiClient.get('/services'),
+        apiClient.get('/services?includeUnavailable=true'),
         apiClient.get('/service-categories').catch(() => ({ data: [] }))
       ]);
 
@@ -442,9 +455,9 @@ export default function ServicesPage() {
             {/* Services Grid */}
             {filteredServices.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredServices.map((service) => {
+                {paginatedData.map((service) => {
                   const serviceId = service.serviceId || service.id;
-                  const isActive = service.isActive !== false;
+                  const isActive = service.isAvailable !== false;
                   
                   return (
                     <Card 
@@ -547,6 +560,21 @@ export default function ServicesPage() {
                   </Button>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Pagination */}
+            {filteredServices.length > 0 && (
+              <div className="mt-8">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                  pageSizeOptions={[10, 20, 50]}
+                />
+              </div>
             )}
           </>
         )}

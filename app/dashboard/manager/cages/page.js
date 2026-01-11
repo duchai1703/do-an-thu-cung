@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 import PetIdBadge from "@/components/ui/PetIdBadge";
 
 export default function CagesPage() {
@@ -45,6 +47,17 @@ export default function CagesPage() {
   const [sizeFilter, setSizeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewMode, setViewMode] = useState("grid"); // 'grid' or 'list'
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredCages, 12);
 
   // Modal states
   const [isCageModalOpen, setIsCageModalOpen] = useState(false);
@@ -270,18 +283,30 @@ export default function CagesPage() {
     try {
       // Get current assignment for this cage
       const assignment = getCageAssignment(cage);
+      console.log('Attempting to release cage:', cage);
+      console.log('Found assignment:', assignment);
+
       if (!assignment) {
         showToast("Không tìm thấy thông tin gán chuồng", "error");
         return;
       }
 
       const assignmentId = assignment.assignmentId || assignment.id;
+      
+      if (!assignmentId) {
+        console.error("Assignment ID is missing", assignment);
+        showToast("Lỗi dữ liệu: Không tìm thấy ID gán chuồng", "error");
+        return;
+      }
+
+      console.log('Calling API to checkout assignment:', assignmentId);
       // Correct endpoint: PUT /cages/assignments/:assignmentId/checkout
       await apiClient.put(`/cages/assignments/${assignmentId}/checkout`);
       showToast("Đã trả chuồng! ✅", "success");
       loadData();
     } catch (error) {
-      showToast("Không thể trả chuồng", "error");
+      console.error("Error releasing cage:", error);
+      showToast(error.response?.data?.message || "Không thể trả chuồng", "error");
     }
   };
 
@@ -483,7 +508,7 @@ export default function CagesPage() {
         {/* Cage Grid View */}
         {viewMode === 'grid' && filteredCages.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filteredCages.map((cage) => {
+            {paginatedData.map((cage) => {
               const cageId = cage.cageId || cage.id;
               const status = getCageStatus(cage);
               const size = getSizeConfig(cage.size);
@@ -587,7 +612,7 @@ export default function CagesPage() {
         {/* List View */}
         {viewMode === 'list' && filteredCages.length > 0 && (
           <div className="space-y-3">
-            {filteredCages.map((cage) => {
+            {paginatedData.map((cage) => {
               const cageId = cage.cageId || cage.id;
               const status = getCageStatus(cage);
               const size = getSizeConfig(cage.size);
@@ -675,6 +700,22 @@ export default function CagesPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Pagination */}
+        {filteredCages.length > 0 && (
+          <div className="mt-8">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              pageSizeOptions={[12, 24, 60]}
+            />
+          </div>
+        )}
+
       </div>
 
       {/* Cage Modal */}

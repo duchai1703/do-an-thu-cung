@@ -18,7 +18,6 @@ const menuItems = {
     { emoji: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
     { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
     { emoji: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
-    { emoji: "⚙️", label: "Cài đặt", path: "/dashboard/manager/settings" },
   ],
   veterinarian: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/vet" },

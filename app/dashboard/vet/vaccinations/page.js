@@ -688,7 +688,7 @@ export default function VeterinarianVaccinationsPage() {
                               </div>
                               <div className="bg-white p-2 rounded border text-sm col-span-2">
                                 <p className="text-xs text-gray-500">⚠️ Phản ứng</p>
-                                <p className={cn("font-semibold", vac.reactions ? "text-red-600" : "text-green-600")}>{vac.reactions || '✅ Không có'}</p>
+                                <p className={cn("font-semibold break-words", vac.reactions ? "text-red-600" : "text-green-600")}>{vac.reactions || '✅ Không có'}</p>
                               </div>
                             </div>
                             {vac.notes && (

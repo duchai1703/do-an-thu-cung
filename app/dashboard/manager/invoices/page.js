@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
+import Pagination from "@/components/ui/Pagination";
+import usePagination from "@/components/ui/usePagination";
 
 export default function InvoicesPage() {
   const router = useRouter();
@@ -38,6 +40,17 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+
+  // Pagination
+  const {
+    currentPage,
+    itemsPerPage,
+    totalPages,
+    totalItems,
+    paginatedData,
+    setCurrentPage,
+    setItemsPerPage,
+  } = usePagination(filteredInvoices, 10);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -403,7 +416,7 @@ export default function InvoicesPage() {
         {/* Invoice List */}
         {filteredInvoices.length > 0 ? (
           <div className="space-y-3">
-            {filteredInvoices.map((invoice, idx) => {
+            {paginatedData.map((invoice, idx) => {
               const invoiceId = invoice.invoiceId || invoice.id;
               const status = getStatusConfig(invoice.paymentStatus || invoice.status);
               const customer = invoice.petOwner || invoice.customer || invoice.owner;
@@ -491,6 +504,21 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {/* Pagination */}
+      {filteredInvoices.length > 0 && (
+        <div className="mt-8">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            pageSizeOptions={[10, 20, 50, 100]}
+          />
+        </div>
+      )}
+
       {/* Invoice Detail Modal */}
       {isModalOpen && selectedInvoice && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -545,16 +573,16 @@ export default function InvoicesPage() {
                     </thead>
                     <tbody>
                       {/* Display service info if available */}
-                      {selectedInvoice.service && (
+                      {(selectedInvoice.service || selectedInvoice.appointment?.service) && (
                         <tr className="border-t">
-                          <td className="p-3">{selectedInvoice.service.serviceName}</td>
+                          <td className="p-3">{selectedInvoice.service?.serviceName || selectedInvoice.appointment?.service?.serviceName}</td>
                           <td className="text-center p-3">1</td>
-                          <td className="text-right p-3">{formatCurrency(selectedInvoice.service.basePrice)}</td>
-                          <td className="text-right p-3 font-medium">{formatCurrency(selectedInvoice.service.basePrice)}</td>
+                          <td className="text-right p-3">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
+                          <td className="text-right p-3 font-medium">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
                         </tr>
                       )}
                       {/* Fallback to items if no service */}
-                      {!selectedInvoice.service && (selectedInvoice.items || selectedInvoice.invoiceItems || []).map((item, idx) => (
+                      {!(selectedInvoice.service || selectedInvoice.appointment?.service) && (selectedInvoice.items || selectedInvoice.invoiceItems || []).map((item, idx) => (
                         <tr key={idx} className="border-t">
                           <td className="p-3">{item.serviceName || item.service?.serviceName || item.description}</td>
                           <td className="text-center p-3">{item.quantity || 1}</td>
@@ -562,7 +590,7 @@ export default function InvoicesPage() {
                           <td className="text-right p-3 font-medium">{formatCurrency(item.amount || item.subtotal || (item.unitPrice * (item.quantity || 1)))}</td>
                         </tr>
                       ))}
-                      {!selectedInvoice.service && (selectedInvoice.items || selectedInvoice.invoiceItems || []).length === 0 && (
+                      {!(selectedInvoice.service || selectedInvoice.appointment?.service) && (selectedInvoice.items || selectedInvoice.invoiceItems || []).length === 0 && (
                         <tr className="border-t">
                           <td colSpan="4" className="p-3 text-center text-gray-500">Không có chi tiết dịch vụ</td>
                         </tr>
