@@ -2,7 +2,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Syringe, Clock, CheckCircle2, AlertTriangle, Search, Plus, PawPrint, Cat, User, Calendar, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,14 +84,32 @@ export default function VeterinarianVaccinationsPage() {
       // Load all pets
       const petsRes = await petApi.getAll();
       if (petsRes.success && petsRes.data) {
-        const mappedPets = petsRes.data.map(pet => ({
-          id: pet.petId,
-          name: pet.name,
-          species: pet.species,
-          icon: pet.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          ownerName: pet.owner?.fullName || pet.owner?.account?.email?.split('@')[0] || 'Unknown',
-          ownerPhone: pet.owner?.phoneNumber || 'N/A'
-        }));
+        const mappedPets = [];
+        
+        for (const pet of petsRes.data) {
+          let ownerData = pet.owner;
+          
+          // If owner not included, fetch separately
+          if (!ownerData && pet.ownerId) {
+            try {
+              const ownerRes = await apiClient.get(`/pet-owners/${pet.ownerId}`);
+              ownerData = ownerRes.data || ownerRes;
+            } catch (err) {
+              console.log(`Could not load owner for pet ${pet.petId}`);
+            }
+          }
+          
+          mappedPets.push({
+            id: pet.petId,
+            name: pet.name,
+            species: pet.species,
+            icon: pet.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+            ownerName: ownerData?.fullName || ownerData?.account?.email?.split('@')[0] || 'Unknown',
+            ownerPhone: ownerData?.phoneNumber || 'N/A',
+            ownerEmail: ownerData?.email || ownerData?.account?.email || 'N/A'
+          });
+        }
+        
         setPets(mappedPets);
 
         // Load vaccine types from API
@@ -118,6 +135,8 @@ export default function VeterinarianVaccinationsPage() {
                   petName: pet.name,
                   petIcon: pet.icon,
                   ownerName: pet.ownerName,
+                  ownerPhone: pet.ownerPhone,
+                  ownerEmail: pet.ownerEmail,
                   vaccineTypeId: vac.vaccineTypeId,
                   dateAdministered: vac.administrationDate || vac.createdAt,
                   nextDueDate: vac.nextDueDate,
@@ -277,440 +296,526 @@ export default function VeterinarianVaccinationsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Quản lý tiêm phòng"
-        subtitle="Theo dõi và ghi nhận tiêm phòng cho thú cưng"
-      />
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng số lần tiêm</CardTitle>
-            <Syringe className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sắp đến hạn</CardTitle>
-            <Clock className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">{stats.upcoming}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quá hạn</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats.overdue}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Đã hoàn thành</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{stats.completed}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Enhanced Filter Bar */}
-      <VetFilterBar
-        searchValue={searchTerm}
-        onSearchChange={setSearchTerm}
-        searchPlaceholder="Tìm theo tên pet, vaccine, batch number..."
-        toggleFilters={[
-          {
-            key: "status",
-            label: "Trạng thái",
-            value: filter,
-            defaultValue: "all",
-            onChange: setFilter,
-            options: [
-              { value: "all", label: "Tất cả", icon: "💉" },
-              { value: "upcoming", label: "Sắp hạn", icon: "⏰" },
-              { value: "overdue", label: "Quá hạn", icon: "⚠️" },
-              { value: "completed", label: "Đã tiêm", icon: "✅" }
-            ]
-          }
-        ]}
-        filters={[
-          {
-            key: "vaccineType",
-            label: "Loại vaccine",
-            value: vaccineTypeFilter,
-            defaultValue: "all",
-            onChange: setVaccineTypeFilter,
-            options: [
-              { value: "all", label: "Tất cả loại" },
-              ...vaccineTypes.map(vt => ({ value: String(vt.id), label: vt.name }))
-            ]
-          },
-          {
-            key: "sortBy",
-            label: "Sắp xếp",
-            value: sortBy,
-            defaultValue: "newest",
-            onChange: setSortBy,
-            options: [
-              { value: "newest", label: "Mới nhất" },
-              { value: "oldest", label: "Cũ nhất" },
-              { value: "petName", label: "Tên A-Z" },
-              { value: "dueDate", label: "Theo hạn" }
-            ]
-          }
-        ]}
-        onReset={() => {
-          setFilter("all");
-          setSearchTerm("");
-          setVaccineTypeFilter("all");
-          setHasReactionsFilter(false);
-          setSortBy("newest");
-          setDateRange({ start: null, end: null });
-        }}
-        activeFilterCount={activeFilterCount + (dateRange.start || dateRange.end ? 1 : 0)}
-      />
-      
-      {/* Date Range Filter */}
-      <DateRangeFilter
-        onChange={(start, end, preset) => setDateRange({ start, end })}
-        defaultPreset="all"
-        theme="blue"
-        size="md"
-        showLabel={true}
-        showCustomRange={true}
-      />
-
-      {/* Quick Filter Badges + Add Button */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={handleOpenModal} className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600">
-          <Plus className="h-4 w-4" /> Ghi nhận tiêm phòng
-        </Button>
+    <div className="flex-1 space-y-6">
+      {/* 🎨 Stunning Gradient Header Banner - Vaccination Theme */}
+      <div className="relative overflow-hidden rounded-b-3xl">
+        {/* Animated Background - Purple/Pink (Medical theme) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500">
+          <div className="absolute inset-0 opacity-20" 
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+               }}
+          />
+        </div>
         
-        <button
-          onClick={() => setHasReactionsFilter(!hasReactionsFilter)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
-            hasReactionsFilter 
-              ? "bg-orange-500 text-white border-orange-500" 
-              : "bg-white text-orange-600 border-orange-200 hover:border-orange-400"
-          )}
-        >
-          <span>🔬</span>
-          <span className="text-sm font-medium">Có phản ứng</span>
-          <span className={cn(
-            "px-2 py-0.5 rounded-full text-xs font-bold",
-            hasReactionsFilter ? "bg-white/20" : "bg-orange-100"
-          )}>
-            {vaccinations.filter(v => v.reactions && v.reactions.trim() !== "").length}
-          </span>
-        </button>
+        {/* Floating decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {['💉', '💊', '🏥', '❤️', '✨', '🌟'].map((icon, i) => (
+            <span 
+              key={i}
+              className="absolute text-white/10 text-4xl"
+              style={{
+                left: `${10 + i * 15}%`,
+                top: `${20 + (i % 3) * 25}%`,
+                animation: `float ${3 + i % 2}s ease-in-out infinite`,
+                animationDelay: `${i * 0.4}s`
+              }}
+            >
+              {icon}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative text-white p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Left side - Title & Info */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-xl animate-pulse">
+                  💉
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-2">
+                    Quản lý tiêm phòng
+                    <span className="text-yellow-200">✨</span>
+                  </h1>
+                  <p className="text-white/80 mt-1">
+                    Theo dõi và ghi nhận tiêm phòng cho thú cưng
+                  </p>
+                </div>
+              </div>
+
+              {/* Right side - Stats summary */}
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-4">
+                  <div className="flex items-center gap-6 text-center">
+                    <div>
+                      <p className="text-3xl font-bold">{stats.total}</p>
+                      <p className="text-xs text-white/80">tổng số</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-yellow-200">{stats.upcoming}</p>
+                      <p className="text-xs text-white/80">sắp hạn</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/30" />
+                    <div>
+                      <p className="text-3xl font-bold text-red-200">{stats.overdue}</p>
+                      <p className="text-xs text-white/80">quá hạn</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[11%]">Thú cưng</TableHead>
-              <TableHead className="w-[10%]">Chủ nuôi</TableHead>
-              <TableHead className="w-[10%]">Ngày tiêm</TableHead>
-              <TableHead className="w-[10%]">Hạn tiếp</TableHead>
-              <TableHead className="w-[8%]">Mã lô</TableHead>
-              <TableHead className="w-[8%]">Vị trí</TableHead>
-              <TableHead className="w-[9%]">BS tiêm</TableHead>
-              <TableHead className="w-[10%]">Phản ứng</TableHead>
-              <TableHead className="w-[14%]">Trạng thái</TableHead>
-              <TableHead className="w-[10%]">Tạo lúc</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredVaccinations.length === 0 ? (
+      <div className="max-w-7xl mx-auto px-6 space-y-6">
+        {/* Stats - Cute Premium Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-50 to-pink-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-purple-700">Tổng số lần tiêm</CardTitle>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xl">
+                💉
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-purple-600">{stats.total}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-amber-700">Sắp đến hạn</CardTitle>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center text-white text-xl animate-pulse">
+                ⏰
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-amber-600">{stats.upcoming}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-red-50 to-rose-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-red-700">Quá hạn</CardTitle>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-rose-400 flex items-center justify-center text-white text-xl">
+                ⚠️
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{stats.overdue}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-emerald-700">Đã hoàn thành</CardTitle>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center text-white text-xl">
+                ✅
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-emerald-600">{stats.completed}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Enhanced Filter Bar */}
+        <VetFilterBar
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Tìm theo tên pet, vaccine, batch number..."
+          toggleFilters={[
+            {
+              key: "status",
+              label: "Trạng thái",
+              value: filter,
+              defaultValue: "all",
+              onChange: setFilter,
+              options: [
+                { value: "all", label: "Tất cả", icon: "💉" },
+                { value: "upcoming", label: "Sắp hạn", icon: "⏰" },
+                { value: "overdue", label: "Quá hạn", icon: "⚠️" },
+                { value: "completed", label: "Đã tiêm", icon: "✅" }
+              ]
+            }
+          ]}
+          filters={[
+            {
+              key: "vaccineType",
+              label: "Loại vaccine",
+              value: vaccineTypeFilter,
+              defaultValue: "all",
+              onChange: setVaccineTypeFilter,
+              options: [
+                { value: "all", label: "Tất cả loại" },
+                ...vaccineTypes.map(vt => ({ value: String(vt.id), label: vt.name }))
+              ]
+            },
+            {
+              key: "sortBy",
+              label: "Sắp xếp",
+              value: sortBy,
+              defaultValue: "newest",
+              onChange: setSortBy,
+              options: [
+                { value: "newest", label: "Mới nhất" },
+                { value: "oldest", label: "Cũ nhất" },
+                { value: "petName", label: "Tên A-Z" },
+                { value: "dueDate", label: "Theo hạn" }
+              ]
+            }
+          ]}
+          onReset={() => {
+            setFilter("all");
+            setSearchTerm("");
+            setVaccineTypeFilter("all");
+            setHasReactionsFilter(false);
+            setSortBy("newest");
+            setDateRange({ start: null, end: null });
+          }}
+          activeFilterCount={activeFilterCount + (dateRange.start || dateRange.end ? 1 : 0)}
+        />
+        
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          onChange={(start, end, preset) => setDateRange({ start, end })}
+          defaultPreset="all"
+          theme="purple"
+          size="md"
+          showLabel={true}
+          showCustomRange={true}
+        />
+
+        {/* Quick Filter Badges + Add Button */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={handleOpenModal} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg hover:shadow-xl transition-all">
+            <Plus className="h-4 w-4" /> Ghi nhận tiêm phòng
+          </Button>
+          
+          <button
+            onClick={() => setHasReactionsFilter(!hasReactionsFilter)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all",
+              hasReactionsFilter 
+                ? "bg-orange-500 text-white border-orange-500 shadow-lg" 
+                : "bg-white text-orange-600 border-orange-200 hover:border-orange-400"
+            )}
+          >
+            <span>🔬</span>
+            <span className="text-sm font-medium">Có phản ứng</span>
+            <span className={cn(
+              "px-2 py-0.5 rounded-full text-xs font-bold",
+              hasReactionsFilter ? "bg-white/20" : "bg-orange-100"
+            )}>
+              {vaccinations.filter(v => v.reactions && v.reactions.trim() !== "").length}
+            </span>
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="rounded-xl border shadow-lg overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
               <TableRow>
-              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                  <Syringe className="mx-auto h-8 w-8 mb-2" />
-                  {loading ? "Đang tải..." : "Không có dữ liệu tiêm phòng"}
-                </TableCell>
+                <TableHead className="w-[11%] font-bold text-purple-700">Thú cưng</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Chủ nuôi</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Ngày tiêm</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Hạn tiếp</TableHead>
+                <TableHead className="w-[8%] font-bold text-purple-700">Mã lô</TableHead>
+                <TableHead className="w-[8%] font-bold text-purple-700">Vị trí</TableHead>
+                <TableHead className="w-[9%] font-bold text-purple-700">BS tiêm</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Phản ứng</TableHead>
+                <TableHead className="w-[14%] font-bold text-purple-700">Trạng thái</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Tạo lúc</TableHead>
               </TableRow>
-            ) : (
-              filteredVaccinations.map((vac) => {
-                // Calculate status from isDue and daysUntilDue
-                let status = 'completed';
-                if (vac.daysUntilDue !== null) {
-                  if (vac.daysUntilDue < 0) status = 'overdue';
-                  else if (vac.daysUntilDue <= 14) status = 'upcoming';
-                }
-                const statusBadge = getStatusBadge(status);
-                const PetIcon = vac.petIcon === '🐕' ? PawPrint : Cat;
-                return (
-                  <>
-                  <TableRow 
-                    key={vac.id} 
-                    className={cn(
-                      "cursor-pointer hover:bg-blue-50 transition-colors",
-                      expandedRows[vac.id] && "bg-blue-50/50 border-l-4 border-blue-400"
-                    )} 
-                    onClick={() => toggleRow(vac.id)}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary">
-                          <PetIcon className="h-4 w-4" />
+            </TableHeader>
+            <TableBody>
+              {filteredVaccinations.length === 0 ? (
+                <TableRow>
+                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-4xl">
+                        💉
+                      </div>
+                      <p className="text-lg font-medium">{loading ? "Đang tải..." : "Không có dữ liệu tiêm phòng"}</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredVaccinations.map((vac) => {
+                  // Calculate status from isDue and daysUntilDue
+                  let status = 'completed';
+                  if (vac.daysUntilDue !== null) {
+                    if (vac.daysUntilDue < 0) status = 'overdue';
+                    else if (vac.daysUntilDue <= 14) status = 'upcoming';
+                  }
+                  const statusBadge = getStatusBadge(status);
+                  const PetIcon = vac.petIcon === '🐕' ? PawPrint : Cat;
+                  return (
+                    <>
+                    <TableRow 
+                      key={vac.id} 
+                      className={cn(
+                        "cursor-pointer hover:bg-purple-50 transition-colors",
+                        expandedRows[vac.id] && "bg-purple-50/50 border-l-4 border-purple-400"
+                      )} 
+                      onClick={() => toggleRow(vac.id)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-purple-100 to-pink-100">
+                            <PetIcon className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <span className="font-semibold">{vac.petName}</span>
                         </div>
-                        <span className="font-semibold">{vac.petName}</span>
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <span className="text-sm">{vac.ownerName}</span>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">
-                          {vac.dateAdministered ? new Date(vac.dateAdministered).toLocaleDateString('vi-VN') : 'N/A'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <span className="text-sm">
-                        {vac.nextDueDate ? new Date(vac.nextDueDate).toLocaleDateString('vi-VN') : 'N/A'}
-                      </span>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono text-xs">{vac.batchNumber}</Badge>
-                    </TableCell>
-                    
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">{vac.site || '-'}</span>
-                    </TableCell>
-                    
-                    {/* administeredBy - Bác sĩ tiêm */}
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {vac.administeredByName || vac.vetName || '-'}
-                      </span>
-                    </TableCell>
-                    
-                    <TableCell>
-                      {vac.reactions ? (
-                        <Badge variant="warning" className="text-xs">
-                          ⚠️ {vac.reactions.length > 20 ? vac.reactions.slice(0, 20) + '...' : vac.reactions}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Không có</span>
-                      )}
-                    </TableCell>
-                    
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
-                          <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                        </Badge>
-                        {/* daysUntilDue countdown */}
-                        {vac.daysUntilDue !== null && vac.daysUntilDue !== undefined && (
-                          <span className={cn(
-                            "text-xs font-medium",
-                            vac.daysUntilDue < 0 ? "text-red-600" :
-                            vac.daysUntilDue <= 7 ? "text-orange-600" :
-                            vac.daysUntilDue <= 14 ? "text-yellow-600" : "text-green-600"
-                          )}>
-                            {vac.daysUntilDue < 0 
-                              ? `⚠️ Quá hạn ${Math.abs(vac.daysUntilDue)} ngày` 
-                              : vac.daysUntilDue === 0 
-                                ? "📅 Hôm nay"
-                                : `⏰ Còn ${vac.daysUntilDue} ngày`}
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{vac.ownerName}</span>
+                          <span className="text-xs text-gray-500">{vac.ownerPhone}</span>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">
+                            {vac.dateAdministered ? new Date(vac.dateAdministered).toLocaleDateString('vi-VN') : 'N/A'}
                           </span>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <span className="text-sm">
+                          {vac.nextDueDate ? new Date(vac.nextDueDate).toLocaleDateString('vi-VN') : 'N/A'}
+                        </span>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Badge variant="secondary" className="font-mono text-xs">{vac.batchNumber}</Badge>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">{vac.site || '-'}</span>
+                      </TableCell>
+                      
+                      {/* administeredBy - Bác sĩ tiêm */}
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {vac.administeredByName || vac.vetName || vetMap[vac.administeredBy] || '-'}
+                        </span>
+                      </TableCell>
+                      
+                      <TableCell>
+                        {vac.reactions ? (
+                          <Badge variant="warning" className="text-xs bg-orange-100 text-orange-700">
+                            ⚠️ {vac.reactions.length > 20 ? vac.reactions.slice(0, 20) + '...' : vac.reactions}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Không có</span>
                         )}
-                      </div>
-                    </TableCell>
-                    
-                    {/* createdAt */}
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : '-'}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                  
-                  {/* Expandable Detail Row */}
-                  {expandedRows[vac.id] && (
-                    <TableRow className="bg-gradient-to-r from-blue-50 to-cyan-50">
-                      <TableCell colSpan={10} className="p-0">
-                        <div className="p-4 space-y-3 animate-in slide-in-from-top-2">
-                          <div className="flex items-center gap-2 pb-2 border-b border-blue-200">
-                            <Syringe className="h-4 w-4 text-blue-600" />
-                            <span className="font-bold text-blue-800">Chi tiết tiêm phòng #{vac.id}</span>
-                          </div>
-                          <div className="grid grid-cols-4 gap-3">
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">👨‍⚕️ Bác sĩ tiêm</p>
-                              <p className="font-semibold">{vac.administeredBy ? (vetMap[vac.administeredBy] || `BS #${vac.administeredBy}`) : 'Chưa ghi nhận'}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">📅 Ngày tiêm</p>
-                              <p className="font-semibold">{vac.dateAdministered ? new Date(vac.dateAdministered).toLocaleDateString('vi-VN') : 'N/A'}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">🔄 Hạn tiếp theo</p>
-                              <p className={cn("font-semibold", vac.daysUntilDue < 0 && "text-red-600")}>{vac.nextDueDate ? new Date(vac.nextDueDate).toLocaleDateString('vi-VN') : 'N/A'}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">🏷️ Mã lô</p>
-                              <p className="font-semibold font-mono">{vac.batchNumber}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">📍 Vị trí tiêm</p>
-                              <p className="font-semibold">{vac.site || 'Không ghi nhận'}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm">
-                              <p className="text-xs text-gray-500">🕐 Ngày tạo</p>
-                              <p className="font-semibold">{vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : 'N/A'}</p>
-                            </div>
-                            <div className="bg-white p-2 rounded border text-sm col-span-2">
-                              <p className="text-xs text-gray-500">⚠️ Phản ứng</p>
-                              <p className={cn("font-semibold", vac.reactions ? "text-red-600" : "text-green-600")}>{vac.reactions || '✅ Không có'}</p>
-                            </div>
-                          </div>
-                          {vac.notes && (
-                            <div className="bg-amber-50 p-2 rounded border border-amber-200 text-sm">
-                              <p className="text-xs text-amber-600 font-semibold">📝 Ghi chú</p>
-                              <p className="text-gray-700">{vac.notes}</p>
-                            </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
+                            <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
+                          </Badge>
+                          {/* daysUntilDue countdown */}
+                          {vac.daysUntilDue !== null && vac.daysUntilDue !== undefined && (
+                            <span className={cn(
+                              "text-xs font-medium",
+                              vac.daysUntilDue < 0 ? "text-red-600" :
+                              vac.daysUntilDue <= 7 ? "text-orange-600" :
+                              vac.daysUntilDue <= 14 ? "text-yellow-600" : "text-green-600"
+                            )}>
+                              {vac.daysUntilDue < 0 
+                                ? `⚠️ Quá hạn ${Math.abs(vac.daysUntilDue)} ngày` 
+                                : vac.daysUntilDue === 0 
+                                  ? "📅 Hôm nay"
+                                  : `⏰ Còn ${vac.daysUntilDue} ngày`}
+                            </span>
                           )}
                         </div>
                       </TableCell>
+                      
+                      {/* createdAt */}
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : '-'}
+                        </span>
+                      </TableCell>
                     </TableRow>
-                  )}
-                  </>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Modal - Add Vaccination */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Syringe className="h-5 w-5 text-primary" />
-              Ghi nhận tiêm phòng
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Chọn thú cưng *</Label>
-              <Select
-                value={formData.petId}
-                onChange={(e) => setFormData({ ...formData, petId: e.target.value })}
-              >
-                <option value="">-- Chọn thú cưng --</option>
-                {pets.map(pet => (
-                  <option key={pet.id} value={pet.id}>
-                    {pet.icon} {pet.name} - {pet.ownerName}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800">
-                <strong>Lưu ý:</strong> Thông tin vaccine sẽ được lấy từ danh mục vaccine đã đăng ký trong hệ thống.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>💉 Loại Vaccine *</Label>
-              <Select
-                value={formData.vaccineTypeId}
-                onChange={(e) => setFormData({ ...formData, vaccineTypeId: e.target.value })}
-              >
-                <option value="">-- Chọn loại vaccine --</option>
-                {vaccineTypes.map(vt => (
-                  <option key={vt.vaccineTypeId || vt.id} value={vt.vaccineTypeId || vt.id}>
-                    {vt.name || vt.vaccineName} {vt.category ? `(${vt.category})` : ''}
-                  </option>
-                ))}
-              </Select>
-              {formData.vaccineTypeId && (
-                <p className="text-xs text-muted-foreground">
-                  ℹ️ {vaccineTypes.find(vt => (vt.vaccineTypeId || vt.id) == formData.vaccineTypeId)?.description || ''}
-                </p>
+                    
+                    {/* Expandable Detail Row */}
+                    {expandedRows[vac.id] && (
+                      <TableRow className="bg-gradient-to-r from-purple-50 to-pink-50">
+                        <TableCell colSpan={10} className="p-0">
+                          <div className="p-4 space-y-3 animate-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 pb-2 border-b border-purple-200">
+                              <Syringe className="h-4 w-4 text-purple-600" />
+                              <span className="font-bold text-purple-800">Chi tiết tiêm phòng #{vac.id}</span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">👨‍⚕️ Bác sĩ tiêm</p>
+                                <p className="font-semibold">{vac.administeredBy ? (vetMap[vac.administeredBy] || `BS #${vac.administeredBy}`) : 'Chưa ghi nhận'}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">📅 Ngày tiêm</p>
+                                <p className="font-semibold">{vac.dateAdministered ? new Date(vac.dateAdministered).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">🔄 Hạn tiếp theo</p>
+                                <p className={cn("font-semibold", vac.daysUntilDue < 0 && "text-red-600")}>{vac.nextDueDate ? new Date(vac.nextDueDate).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">🏷️ Mã lô</p>
+                                <p className="font-semibold font-mono">{vac.batchNumber}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">📍 Vị trí tiêm</p>
+                                <p className="font-semibold">{vac.site || 'Không ghi nhận'}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm">
+                                <p className="text-xs text-gray-500">🕐 Ngày tạo</p>
+                                <p className="font-semibold">{vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border text-sm col-span-2">
+                                <p className="text-xs text-gray-500">⚠️ Phản ứng</p>
+                                <p className={cn("font-semibold", vac.reactions ? "text-red-600" : "text-green-600")}>{vac.reactions || '✅ Không có'}</p>
+                              </div>
+                            </div>
+                            {vac.notes && (
+                              <div className="bg-amber-50 p-2 rounded border border-amber-200 text-sm">
+                                <p className="text-xs text-amber-600 font-semibold">📝 Ghi chú</p>
+                                <p className="text-gray-700">{vac.notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </>
+                  );
+                })
               )}
-            </div>
+            </TableBody>
+          </Table>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Mã lô vaccine (batch)</Label>
-              <Input
-                value={formData.batchNumber}
-                onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-                placeholder="VD: LOT-2024-001"
-              />
-            </div>
+        {/* Modal - Add Vaccination */}
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Syringe className="h-5 w-5 text-primary" />
+                Ghi nhận tiêm phòng
+              </DialogTitle>
+            </DialogHeader>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Chọn thú cưng *</Label>
+                <Select
+                  value={formData.petId}
+                  onChange={(e) => setFormData({ ...formData, petId: e.target.value })}
+                >
+                  <option value="">-- Chọn thú cưng --</option>
+                  {pets.map(pet => (
+                    <option key={pet.id} value={pet.id}>
+                      {pet.icon} {pet.name} - {pet.ownerName}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Vị trí tiêm</Label>
-              <Input
-                value={formData.site}
-                onChange={(e) => setFormData({ ...formData, site: e.target.value })}
-                placeholder="VD: Vai trái, Đùi phải..."
-              />
-            </div>
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  <strong>Lưu ý:</strong> Thông tin vaccine sẽ được lấy từ danh mục vaccine đã đăng ký trong hệ thống.
+                </p>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Ghi chú</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Ghi chú thêm về tiêm phòng..."
-                rows={2}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label>💉 Loại Vaccine *</Label>
+                <Select
+                  value={formData.vaccineTypeId}
+                  onChange={(e) => setFormData({ ...formData, vaccineTypeId: e.target.value })}
+                >
+                  <option value="">-- Chọn loại vaccine --</option>
+                  {vaccineTypes.map(vt => (
+                    <option key={vt.vaccineTypeId || vt.id} value={vt.vaccineTypeId || vt.id}>
+                      {vt.name || vt.vaccineName} {vt.category ? `(${vt.category})` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {formData.vaccineTypeId && (
+                  <p className="text-xs text-muted-foreground">
+                    ℹ️ {vaccineTypes.find(vt => (vt.vaccineTypeId || vt.id) == formData.vaccineTypeId)?.description || ''}
+                  </p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                Phản ứng sau tiêm (nếu có)
-              </Label>
-              <Textarea
-                value={formData.reactions}
-                onChange={(e) => setFormData({ ...formData, reactions: e.target.value })}
-                placeholder="Mô tả các phản ứng bất thường như: sốt, sưng, dị ứng..."
-                rows={2}
-                className="border-yellow-200 focus:border-yellow-400"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label>Mã lô vaccine (batch)</Label>
+                <Input
+                  value={formData.batchNumber}
+                  onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
+                  placeholder="VD: LOT-2024-001"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vị trí tiêm</Label>
+                <Input
+                  value={formData.site}
+                  onChange={(e) => setFormData({ ...formData, site: e.target.value })}
+                  placeholder="VD: Vai trái, Đùi phải..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ghi chú</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Ghi chú thêm về tiêm phòng..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  Phản ứng sau tiêm (nếu có)
+                </Label>
+                <Textarea
+                  value={formData.reactions}
+                  onChange={(e) => setFormData({ ...formData, reactions: e.target.value })}
+                  placeholder="Mô tả các phản ứng bất thường như: sốt, sưng, dị ứng..."
+                  rows={2}
+                  className="border-yellow-200 focus:border-yellow-400"
+                />
+              </div>
 
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit" disabled={formLoading}>
-                {formLoading ? "Đang lưu..." : "Ghi nhận"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+                  Hủy
+                </Button>
+                <Button type="submit" disabled={formLoading}>
+                  {formLoading ? "Đang lưu..." : "Ghi nhận"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>  {/* Close max-w-7xl container */}
     </div>
   );
 }

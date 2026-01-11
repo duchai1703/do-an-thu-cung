@@ -53,7 +53,21 @@ export default function VetPetDetailPage() {
       setLoading(true);
       
       const petRes = await apiClient.get(`/pets/${petId}`);
-      const petData = petRes.data || petRes;
+      let petData = petRes.data || petRes;
+      
+      // If owner data is not included, fetch it separately
+      if (!petData.owner && petData.ownerId) {
+        try {
+          const ownerRes = await apiClient.get(`/pet-owners/${petData.ownerId}`);
+          petData = {
+            ...petData,
+            owner: ownerRes.data || ownerRes
+          };
+        } catch (err) {
+          console.log('Could not load owner data');
+        }
+      }
+      
       setPet(petData);
 
       // Fetch veterinarians for name lookup
