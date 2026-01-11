@@ -375,20 +375,22 @@ export default function CareStaffSchedulePage() {
                     )}
                   </div>
 
-                  {/* Availability Toggle */}
+                  {/* Availability Display (Read-only) */}
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleToggleAvailability(schedule.id, isAvailable)}
+                    <div
                       className={cn(
-                        "px-4 py-2 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-md",
+                        "px-4 py-2 rounded-xl font-semibold flex items-center gap-2 shadow-md",
                         isAvailable
-                          ? "bg-gradient-to-r from-green-500 to-emerald-400 text-white hover:shadow-lg"
-                          : "bg-gradient-to-r from-gray-400 to-gray-500 text-white hover:shadow-lg"
+                          ? "bg-gradient-to-r from-green-500 to-emerald-400 text-white"
+                          : "bg-gradient-to-r from-gray-400 to-gray-500 text-white"
                       )}
                     >
                       <span>{isAvailable ? '✅' : '🚫'}</span>
                       {isAvailable ? 'Sẵn sàng' : 'Không rảnh'}
-                    </button>
+                    </div>
+                    <div className="text-xs text-gray-500 max-w-[120px]">
+                      📝 Chỉ quản lý mới có thể thay đổi
+                    </div>
                   </div>
                 </div>
               );

@@ -31,6 +31,6 @@ Bỏ trang Phiếu hẹn và Nhắc lịch
 - Khách hàng : Nhân viên không tự đặt lịch mà này dành cho khách hàng 
 - Thiếu quản lý chuồng , thiếu khi người lễ tân hủy lịch hẹn đó vì hệ thống không có bác sĩ khám cho loài đó thì mình phải có hủy lịch nữa 
 
-Pet owen :
+Pet owner:
 - Thêm thú cưng : thì khi người dùng chọn khác thì phải thêm mục ghi chú coi loài đó loài gì để lễ tân xác nhận coi có nhận 
 - Lịch đặt : thiếu phần hủy lịch 

@@ -55,17 +55,17 @@ export default function VetPetDetailPage() {
       const petRes = await apiClient.get(`/pets/${petId}`);
       let petData = petRes.data || petRes;
       
-      // If owner data is not included, fetch it separately
+      console.log('Pet data loaded:', {
+        petId: petData.petId || petData.id,
+        hasOwner: !!petData.owner,
+        ownerId: petData.ownerId,
+        ownerData: petData.owner
+      });
+      
+      // Owner should be included in pet response from backend
+      // If not, it means the pet doesn't have an owner assigned yet
       if (!petData.owner && petData.ownerId) {
-        try {
-          const ownerRes = await apiClient.get(`/pet-owners/${petData.ownerId}`);
-          petData = {
-            ...petData,
-            owner: ownerRes.data || ownerRes
-          };
-        } catch (err) {
-          console.log('Could not load owner data');
-        }
+        console.warn(`Pet ${petId} has ownerId but no owner data included`);
       }
       
       setPet(petData);
@@ -224,7 +224,7 @@ export default function VetPetDetailPage() {
                   <PetIdBadge petId={pet.petId || pet.id} size="md" className="bg-white/20" />
                 </div>
                 <p className="text-white/80 text-lg">
-                  {pet.species} • {pet.breed || 'Không rõ giống'} • {pet.gender === 'male' ? '♂ Đực' : '♀ Cái'}
+                  {pet.species} • {pet.breed || 'Không rõ giống'} • {pet.gender?.toLowerCase() === 'male' ? '♂ Đực' : pet.gender?.toLowerCase() === 'female' ? '♀ Cái' : pet.gender || 'N/A'}
                 </p>
                 <div className="flex flex-wrap gap-3 mt-4 justify-center md:justify-start">
                   <Badge className="bg-white/20 text-white px-3 py-1">
@@ -293,113 +293,64 @@ export default function VetPetDetailPage() {
 
           {/* Tab: Info */}
           <TabsContent value="info" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Pet Details Card */}
-              <Card className="overflow-hidden border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
-                  <CardTitle className="flex items-center gap-2 text-teal-700">
-                    <PawPrint className="h-5 w-5" />
-                    Thông tin thú cưng
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Hash className="h-5 w-5 text-teal-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Mã thú cưng</p>
-                        <p className="font-semibold">{pet.petId || pet.id}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Scale className="h-5 w-5 text-teal-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Cân nặng</p>
-                        <p className="font-semibold">{pet.weight ? `${pet.weight} kg` : 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Palette className="h-5 w-5 text-teal-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Màu lông</p>
-                        <p className="font-semibold">{pet.color || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Cake className="h-5 w-5 text-teal-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Ngày sinh</p>
-                        <p className="font-semibold">
-                          {pet.birthDate ? new Date(pet.birthDate).toLocaleDateString('vi-VN') : 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Additional Pet Info */}
-                  {pet.initialHealthStatus && (
-                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-                      <p className="text-xs text-amber-600 font-semibold mb-1">📋 Tình trạng sức khỏe ban đầu</p>
-                      <p className="text-sm text-gray-700">{pet.initialHealthStatus}</p>
-                    </div>
-                  )}
-                  
-                  {pet.specialNotes && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-xs text-blue-600 font-semibold mb-1">📝 Ghi chú đặc biệt</p>
-                      <p className="text-sm text-gray-700">{pet.specialNotes}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Owner Details Card */}
-              <Card className="overflow-hidden border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-                  <CardTitle className="flex items-center gap-2 text-blue-700">
-                    <User className="h-5 w-5" />
-                    Thông tin chủ nuôi
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold">
-                      {(owner.fullName || 'U')[0].toUpperCase()}
-                    </div>
+            {/* Pet Details Card - Full Width */}
+            <Card className="overflow-hidden border-0 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b">
+                <CardTitle className="flex items-center gap-2 text-teal-700">
+                  <PawPrint className="h-5 w-5" />
+                  Thông tin thú cưng
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Hash className="h-5 w-5 text-teal-500" />
                     <div>
-                      <p className="font-bold text-lg">{owner.fullName || 'N/A'}</p>
-                      <p className="text-sm text-gray-500">{owner.email || owner.account?.email || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">Mã thú cưng</p>
+                      <p className="font-semibold">{pet.petId || pet.id}</p>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Phone className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Điện thoại</p>
-                        <p className="font-semibold">{owner.phoneNumber || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Hash className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-xs text-gray-500">Mã chủ nuôi</p>
-                        <p className="font-semibold">{owner.petOwnerId || owner.id || 'N/A'}</p>
-                      </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Scale className="h-5 w-5 text-teal-500" />
+                    <div>
+                      <p className="text-xs text-gray-500">Cân nặng</p>
+                      <p className="font-semibold">{pet.weight ? `${pet.weight} kg` : 'N/A'}</p>
                     </div>
                   </div>
-                  
-                  {owner.address && (
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-xs text-gray-500">Địa chỉ</p>
-                        <p className="font-semibold">{owner.address}</p>
-                      </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Palette className="h-5 w-5 text-teal-500" />
+                    <div>
+                      <p className="text-xs text-gray-500">Màu lông</p>
+                      <p className="font-semibold">{pet.color || 'N/A'}</p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Cake className="h-5 w-5 text-teal-500" />
+                    <div>
+                      <p className="text-xs text-gray-500">Ngày sinh</p>
+                      <p className="font-semibold">
+                        {pet.birthDate ? new Date(pet.birthDate).toLocaleDateString('vi-VN') : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Additional Pet Info */}
+                {pet.initialHealthStatus && (
+                  <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-xs text-amber-600 font-semibold mb-1">📋 Tình trạng sức khỏe ban đầu</p>
+                    <p className="text-sm text-gray-700">{pet.initialHealthStatus}</p>
+                  </div>
+                )}
+                
+                {pet.specialNotes && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-600 font-semibold mb-1">📝 Ghi chú đặc biệt</p>
+                    <p className="text-sm text-gray-700">{pet.specialNotes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tab: Medical Records */}

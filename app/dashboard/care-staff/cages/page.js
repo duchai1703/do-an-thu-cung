@@ -19,7 +19,6 @@ export default function CareStaffCagesPage() {
     maintenance: 0
   });
   
-  // Check-in modal state
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [selectedCage, setSelectedCage] = useState(null);
   const [checkInForm, setCheckInForm] = useState({
@@ -29,6 +28,10 @@ export default function CareStaffCagesPage() {
     notes: ''
   });
   const [pets, setPets] = useState([]);
+  
+  // Note: Check-in functionality is disabled for Care Staff
+  // Only receptionists should be able to check-in pets
+  const CHECKIN_DISABLED = true;
 
   // Details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -509,13 +512,12 @@ export default function CareStaffCagesPage() {
                       <div className="flex gap-2">
                         {cage.status === 'AVAILABLE' && (
                           <>
-                            <Button
-                              onClick={() => handleOpenCheckIn(cage)}
-                              className="flex-1 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500"
-                              size="sm"
-                            >
-                              <span className="mr-1">🐾</span> Check-in
-                            </Button>
+                            {/* Check-in button removed - Only receptionists can check-in */}
+                            <div className="flex-1 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                              <p className="text-xs text-blue-600 font-medium">
+                                🛡️ Lễ tân sẽ check-in pet
+                              </p>
+                            </div>
                             <Button
                               onClick={() => handleStartMaintenance(cage.cageId)}
                               variant="outline"

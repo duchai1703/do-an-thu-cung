@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
-import { CustomerHistoryTabs, CreateAppointmentModal } from "@/components/receptionist";
+import { CustomerHistoryTabs } from "@/components/receptionist";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +44,6 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false);
-  const [appointmentCustomer, setAppointmentCustomer] = useState(null);
 
   useEffect(() => {
     loadCustomers();
@@ -560,16 +558,6 @@ export default function CustomersPage() {
 
                 <DialogFooter className="p-6 pt-0 gap-3">
                   <Button 
-                    onClick={() => {
-                      setAppointmentCustomer(selectedCustomer);
-                      setShowCreateAppointmentModal(true);
-                    }}
-                    className="flex-1 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Đặt lịch hẹn
-                  </Button>
-                  <Button 
                     variant="outline"
                     onClick={() => setSelectedCustomer(null)}
                     className="flex-1"
@@ -581,13 +569,6 @@ export default function CustomersPage() {
             )}
           </DialogContent>
         </Dialog>
-
-        <CreateAppointmentModal
-          isOpen={showCreateAppointmentModal}
-          onClose={() => setShowCreateAppointmentModal(false)}
-          onSuccess={() => loadCustomers()}
-          preselectedCustomer={appointmentCustomer}
-        />
       </div>
     </div>
   );

@@ -509,11 +509,11 @@ export default function AppointmentsPage() {
                           </TableCell>
                           <TableCell>
                             <Badge className={cn(
-                              "flex items-center gap-1.5 px-3 py-1.5 text-white border-0 shadow-lg",
+                              "flex items-center gap-1.5 px-3 py-1.5 text-white border-0 shadow-lg whitespace-nowrap",
                               statusConfig.badgeBg
                             )}>
-                              <statusConfig.icon className="w-3.5 h-3.5" />
-                              {statusConfig.label}
+                              <statusConfig.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="flex-shrink-0">{statusConfig.label}</span>
                             </Badge>
                           </TableCell>
                           <TableCell>

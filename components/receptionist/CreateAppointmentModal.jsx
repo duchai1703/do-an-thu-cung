@@ -23,7 +23,7 @@ import {
   Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { appointmentApi, petOwnerApi, serviceApi } from "@/lib/api";
+import { appointmentApi, petOwnerApi, serviceApi, employeeApi } from "@/lib/api";
 
 export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
   const [step, setStep] = useState(1); // 1: Customer, 2: Pet, 3: Service, 4: Schedule
@@ -55,13 +55,6 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
-  // Mock employees data
-  const MOCK_EMPLOYEES = [
-    { employeeId: 1, fullName: "BS. Nguyễn Văn A", specialty: "Khám tổng quát" },
-    { employeeId: 2, fullName: "BS. Trần Thị B", specialty: "Nội khoa" },
-    { employeeId: 3, fullName: "BS. Lê Minh C", specialty: "Ngoại khoa" },
-  ];
-
   useEffect(() => {
     if (isOpen) {
       loadInitialData();
@@ -71,16 +64,22 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [customersRes, servicesRes] = await Promise.all([
+      const [customersRes, servicesRes, employeesRes] = await Promise.all([
         petOwnerApi.getAll(),
-        serviceApi?.getAll ? serviceApi.getAll() : { success: true, data: [] }
+        serviceApi.getAll(),
+        employeeApi.getByRole('VETERINARIAN')
       ]);
       
       if (customersRes.success) {
         setCustomers(customersRes.data || []);
       }
       if (servicesRes.success) {
+        console.log('Services loaded:', servicesRes.data?.length || 0);
         setServices(servicesRes.data || []);
+      }
+      if (employeesRes.success) {
+        console.log('Employees loaded:', employeesRes.data?.length || 0);
+        setEmployees(employeesRes.data || []);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -328,68 +327,44 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                   
                   <h3 className="font-semibold text-gray-800">Chọn dịch vụ:</h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
-                    {services.length > 0 ? services.map((service) => {
-                      const ServiceIcon = getServiceIcon(service.serviceCategory?.categoryName);
-                      return (
-                        <div
-                          key={service.serviceId}
-                          onClick={() => handleSelectService(service)}
-                          className={cn(
-                            "p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg",
-                            selectedService?.serviceId === service.serviceId
-                              ? "border-emerald-500 bg-emerald-50"
-                              : "border-gray-100 hover:border-emerald-200"
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center">
-                              <ServiceIcon className="w-6 h-6 text-emerald-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-800">{service.serviceName}</p>
-                              <p className="text-xs text-gray-500 mt-1">{service.description}</p>
-                              <div className="flex items-center justify-between mt-2">
-                                <span className="text-emerald-600 font-bold">{formatCurrency(service.price)}</span>
-                                <span className="text-xs text-gray-400">{service.duration} phút</span>
+                  {services.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                      <p>Đang tải danh sách dịch vụ...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
+                      {services.map((service) => {
+                        const ServiceIcon = getServiceIcon(service.serviceCategory?.categoryName);
+                        return (
+                          <div
+                            key={service.serviceId}
+                            onClick={() => handleSelectService(service)}
+                            className={cn(
+                              "p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg",
+                              selectedService?.serviceId === service.serviceId
+                                ? "border-emerald-500 bg-emerald-50"
+                                : "border-gray-100 hover:border-emerald-200"
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
+                                <ServiceIcon className="w-6 h-6 text-emerald-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-800">{service.serviceName}</p>
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.description}</p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-emerald-600 font-bold">{formatCurrency(service.price)}</span>
+                                  <span className="text-xs text-gray-400">{service.duration || 30} phút</span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    }) : (
-                      // Mock services if API not available
-                      [
-                        { serviceId: 1, serviceName: "Khám tổng quát", price: 250000, duration: 30 },
-                        { serviceId: 2, serviceName: "Tắm spa", price: 200000, duration: 45 },
-                        { serviceId: 3, serviceName: "Cắt tỉa lông", price: 150000, duration: 60 },
-                      ].map((service) => (
-                        <div
-                          key={service.serviceId}
-                          onClick={() => handleSelectService(service)}
-                          className={cn(
-                            "p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg",
-                            selectedService?.serviceId === service.serviceId
-                              ? "border-emerald-500 bg-emerald-50"
-                              : "border-gray-100 hover:border-emerald-200"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center">
-                              <Stethoscope className="w-6 h-6 text-emerald-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-800">{service.serviceName}</p>
-                              <div className="flex items-center justify-between mt-1">
-                                <span className="text-emerald-600 font-bold">{formatCurrency(service.price)}</span>
-                                <span className="text-xs text-gray-400">{service.duration} phút</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -453,33 +428,42 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Briefcase className="w-4 h-4 inline mr-1" /> Bác sĩ phụ trách *
                     </label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {MOCK_EMPLOYEES.map((emp) => (
-                        <div
-                          key={emp.employeeId}
-                          onClick={() => {
-                            setSelectedEmployee(emp);
-                            setFormData(prev => ({ ...prev, employeeId: emp.employeeId }));
-                          }}
-                          className={cn(
-                            "p-3 rounded-xl border-2 cursor-pointer transition-all",
-                            formData.employeeId === emp.employeeId
-                              ? "border-indigo-500 bg-indigo-50"
-                              : "border-gray-100 hover:border-indigo-200"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-100 to-blue-100 flex items-center justify-center text-indigo-600 font-bold">
-                              {emp.fullName.split(' ').pop()?.[0]}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-gray-800 text-sm">{emp.fullName}</p>
-                              <p className="text-xs text-gray-500">{emp.specialty}</p>
+                    {employees.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {employees.map((emp) => (
+                          <div
+                            key={emp.employeeId}
+                            onClick={() => {
+                              setSelectedEmployee(emp);
+                              setFormData(prev => ({ ...prev, employeeId: emp.employeeId }));
+                            }}
+                            className={cn(
+                              "p-3 rounded-xl border-2 cursor-pointer transition-all",
+                              formData.employeeId === emp.employeeId
+                                ? "border-indigo-500 bg-indigo-50"
+                                : "border-gray-100 hover:border-indigo-200"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-100 to-blue-100 flex items-center justify-center text-indigo-600 font-bold">
+                                {emp.fullName.split(' ').pop()?.[0]}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-800 text-sm truncate">{emp.fullName}</p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {emp.userType === 'VETERINARIAN' ? 'Bác sĩ' : emp.userType}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500 py-4">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                        Đang tải danh sách bác sĩ...
+                      </div>
+                    )}
                   </div>
                   
                   <div>

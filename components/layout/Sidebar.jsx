@@ -37,8 +37,7 @@ const menuItems = {
   receptionist: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/receptionist" },
     { emoji: "📅", label: "Đặt lịch", path: "/dashboard/receptionist/appointments" },
-    { emoji: "📄", label: "Phiếu hẹn", path: "/dashboard/receptionist/slips" },
-    { emoji: "🔔", label: "Nhắc lịch", path: "/dashboard/receptionist/reminders" },
+    { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/receptionist/cages" },
     { emoji: "💳", label: "Thanh toán", path: "/dashboard/receptionist/payments" },
     { emoji: "👥", label: "Khách hàng", path: "/dashboard/receptionist/customers" },
   ],

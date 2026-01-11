@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
-import { CreateInvoiceModal } from "@/components/receptionist";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +59,6 @@ export default function PaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
   const [paymentNotes, setPaymentNotes] = useState("");
   const [methodFilter, setMethodFilter] = useState("all");
   const [showInvoiceDetailModal, setShowInvoiceDetailModal] = useState(false);
@@ -395,13 +393,9 @@ export default function PaymentsPage() {
                 <CardTitle className="text-xl font-bold text-gray-800">Danh sách thanh toán</CardTitle>
               </div>
               <div className="flex items-center gap-3">
-                <Button 
-                  onClick={() => setShowCreateInvoiceModal(true)}
-                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Tạo hóa đơn
-                </Button>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-sm px-4 py-1">
+                  ℹ️ Hóa đơn tự động được tạo sau khi hoàn thành dịch vụ
+                </Badge>
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-sm px-4 py-1">
                   {filteredPayments.length} hóa đơn
                 </Badge>
@@ -751,12 +745,6 @@ export default function PaymentsPage() {
             )}
           </DialogContent>
         </Dialog>
-
-        <CreateInvoiceModal
-          isOpen={showCreateInvoiceModal}
-          onClose={() => setShowCreateInvoiceModal(false)}
-          onSuccess={loadPayments}
-        />
 
         <InvoiceDetailModal
           isOpen={showInvoiceDetailModal}

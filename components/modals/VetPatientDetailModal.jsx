@@ -123,74 +123,144 @@ export default function VetPatientDetailModal({ isOpen, onClose, patient }) {
               </div>
             </div>
 
-            {/* Owner Info */}
+            {/* Owner Info - Enhanced với đầy đủ fields */}
             <div className="mb-5">
               <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                 <User className="h-4 w-4 flex-shrink-0" />
                 Thông tin chủ nuôi
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background flex-shrink-0">
-                    <User className="h-5 w-5 text-primary" />
+                {/* Owner Name & ID */}
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-lg flex-shrink-0 shadow-md">
+                    {(patient.ownerName || 'U')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Họ tên</p>
-                    <p className="text-base font-bold text-foreground break-words">{patient.ownerName}</p>
+                    <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Chủ nuôi</p>
+                    <p className="text-base font-bold text-foreground truncate">{patient.ownerName}</p>
+                    {patient.ownerId && (
+                      <p className="text-xs text-muted-foreground">ID: #{patient.ownerId}</p>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background flex-shrink-0">
-                    <Phone className="h-5 w-5 text-primary" />
+
+                {/* Phone */}
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-100">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 flex-shrink-0">
+                    <Phone className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-green-600 uppercase mb-1">Điện thoại</p>
+                    <p className="text-base font-bold text-foreground truncate">{patient.ownerPhone}</p>
+                  </div>
+                </div>
+
+                {/* Email - NEW */}
+                {patient.ownerEmail && patient.ownerEmail !== 'N/A' && (
+                  <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg border border-purple-100">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 flex-shrink-0">
+                      <span className="text-lg">📧</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-purple-600 uppercase mb-1">Email</p>
+                      <p className="text-sm font-medium text-foreground truncate" title={patient.ownerEmail}>{patient.ownerEmail}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Address - NEW */}
+                {patient.ownerAddress && patient.ownerAddress !== 'N/A' && (
+                  <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-lg border border-amber-100">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 flex-shrink-0">
+                      <span className="text-lg">🏠</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-amber-600 uppercase mb-1">Địa chỉ</p>
+                      <p className="text-sm font-medium text-foreground line-clamp-2" title={patient.ownerAddress}>{patient.ownerAddress}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Account Status - NEW */}
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg border border-teal-100">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-100 flex-shrink-0">
+                    {patient.ownerActive ? (
+                      <CheckCircle2 className="h-5 w-5 text-teal-600" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    )}
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Điện thoại</p>
-                    <p className="text-base font-bold text-foreground">{patient.ownerPhone}</p>
+                    <p className="text-xs font-semibold text-teal-600 uppercase mb-1">Trạng thái tài khoản</p>
+                    <Badge variant={patient.ownerActive ? "success" : "destructive"} className="text-xs">
+                      {patient.ownerActive ? '✅ Đang hoạt động' : '❌ Không hoạt động'}
+                    </Badge>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Visit Stats */}
+            {/* Pet Statistics */}
             <div className="mb-5">
               <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 flex-shrink-0" />
                 Thống kê khám
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background flex-shrink-0">
-                    <Calendar className="h-5 w-5 text-primary" />
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-rose-50 to-pink-50 rounded-lg border border-rose-100">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-rose-100 flex-shrink-0">
+                    <Calendar className="h-5 w-5 text-rose-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Lần khám gần nhất</p>
+                    <p className="text-xs font-semibold text-rose-600 uppercase mb-1">Lần khám gần nhất</p>
                     <p className="text-base font-bold text-foreground">{patient.lastVisit}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background flex-shrink-0">
-                    <Hash className="h-5 w-5 text-primary" />
+
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-lg border border-violet-100">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-100 flex-shrink-0">
+                    <Hash className="h-5 w-5 text-violet-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Tổng số lần khám</p>
+                    <p className="text-xs font-semibold text-violet-600 uppercase mb-1">Tổng số lần khám</p>
                     <p className="text-base font-bold text-foreground">{patient.totalVisits} lần</p>
                   </div>
                 </div>
-                {patient.createdAt && (
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 flex-shrink-0">
-                      <span className="text-lg">📝</span>
+
+                {patient.vaccinationCount !== undefined && (
+                  <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-fuchsia-50 to-pink-50 rounded-lg border border-fuchsia-100">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-fuchsia-100 flex-shrink-0">
+                      <Syringe className="h-5 w-5 text-fuchsia-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Đăng ký từ</p>
-                      <p className="text-sm font-bold text-blue-700">
-                        {new Date(patient.createdAt).toLocaleDateString('vi-VN')}
-                      </p>
+                      <p className="text-xs font-semibold text-fuchsia-600 uppercase mb-1">Đã tiêm phòng</p>
+                      <p className="text-base font-bold text-foreground">{patient.vaccinationCount} mũi</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Registration Date - NEW */}
+            {patient.createdAt && (
+              <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-lg p-4 border border-sky-100 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sky-100 flex-shrink-0">
+                    <span className="text-lg">📝</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-sky-600 uppercase mb-1">Ngày đăng ký</p>
+                    <p className="text-sm font-bold text-sky-700">
+                      {new Date(patient.createdAt).toLocaleDateString('vi-VN', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Medical History */}
             {patient.medicalHistory && patient.medicalHistory.length > 0 && (

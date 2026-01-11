@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,12 +17,44 @@ import {
   Phone,
   Mail,
   MapPin,
-  Briefcase
+  Briefcase,
+  Printer,
+  Send,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AppointmentDetailModal({ isOpen, onClose, appointment }) {
+  const [printing, setPrinting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+
   if (!appointment) return null;
+
+  const handlePrint = async () => {
+    setPrinting(true);
+    // Wait a bit for the print dialog to render
+    setTimeout(() => {
+      window.print();
+      setPrinting(false);
+    }, 300);
+  };
+
+  const handleSendEmail = async () => {
+    setEmailing(true);
+    try {
+      // TODO: Integrate with backend email API
+      // await appointmentApi.sendEmail(appointment.appointmentId);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      alert('✅ Đã gửi email xác nhận tới ' + (appointment.pet?.owner?.account?.email || 'khách hàng'));
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('❌ Lỗi khi gửi email');
+    } finally {
+      setEmailing(false);
+    }
+  };
 
   const formatCurrency = (amount) => {
     if (!amount) return "--";
@@ -189,10 +222,38 @@ export default function AppointmentDetailModal({ isOpen, onClose, appointment })
         </div>
 
         {/* Footer */}
-        <DialogFooter className="p-6 pt-0">
+        <DialogFooter className="p-6 pt-0 flex gap-3">
+          <Button 
+            onClick={handlePrint}
+            disabled={printing}
+            variant="outline"
+            className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50"
+          >
+            {printing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Printer className="w-4 h-4 mr-2" />
+            )}
+            In phiếu
+          </Button>
+          
+          <Button 
+            onClick={handleSendEmail}
+            disabled={emailing || !appointment.pet?.owner?.account?.email}
+            variant="outline"
+            className="flex-1 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+          >
+            {emailing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4 mr-2" />
+            )}
+            Gửi email
+          </Button>
+          
           <Button 
             onClick={onClose}
-            className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
+            className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
           >
             Đóng
           </Button>

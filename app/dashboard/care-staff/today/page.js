@@ -282,13 +282,22 @@ export default function CareStaffTodayPage() {
                       <h3 className="font-semibold text-gray-800">{task.title}</h3>
                       <div className="flex items-center gap-2">
                         {isPending && (
-                          <Badge className="bg-amber-500 text-white">⏰ Chưa làm</Badge>
+                          <Badge className="bg-amber-500 text-white flex items-center gap-1 px-3 py-1">
+                            <span>⌚</span>
+                            <span>Chưa làm</span>
+                          </Badge>
                         )}
                         {isInProgress && (
-                          <Badge className="bg-purple-500 text-white">🔄 Đang làm</Badge>
+                          <Badge className="bg-purple-500 text-white flex items-center gap-1 px-3 py-1">
+                            <span>🔄</span>
+                            <span>Đang làm</span>
+                          </Badge>
                         )}
                         {isCompleted && (
-                          <Badge className="bg-green-500 text-white">✅ Hoàn thành</Badge>
+                          <Badge className="bg-green-500 text-white flex items-center gap-1 px-3 py-1">
+                            <span>✅</span>
+                            <span>Hoàn thành</span>
+                          </Badge>
                         )}
                       </div>
                     </div>

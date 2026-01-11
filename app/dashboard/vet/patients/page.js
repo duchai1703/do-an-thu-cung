@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { appointmentApi, medicalRecordApi, petApi, getToken, authApi } from "@/lib/api";
+import { appointmentApi, medicalRecordApi, petApi, petOwnerApi, getToken, authApi } from "@/lib/api";
 import { formatPetId } from "@/lib/utils/id-formatter";
 import VetFilterBar from "@/components/ui/VetFilterBar";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
@@ -81,6 +81,18 @@ export default function VeterinarianPatientsPage() {
         // Fetch medical records for each pet
         const patientsData = [];
         for (const [petId, data] of petMap.entries()) {
+          // Owner data is already included from appointment query
+          const ownerData = data.owner || data.pet?.owner;
+          
+          console.log(`Pet ${petId} owner data:`, {
+            hasOwner: !!ownerData,
+            ownerId: ownerData?.petOwnerId || ownerData?.id,
+            fullName: ownerData?.fullName,
+            phone: ownerData?.phoneNumber,
+            email: ownerData?.email || ownerData?.account?.email,
+            address: ownerData?.address
+          });
+
           const recordsRes = await medicalRecordApi.getByPet(petId);
           const medicalHistory = recordsRes.success && recordsRes.data ? 
             recordsRes.data.map(record => ({
@@ -113,6 +125,15 @@ export default function VeterinarianPatientsPage() {
             new Date(b.appointmentDate) - new Date(a.appointmentDate)
           );
 
+          // Normalize gender format
+          const normalizeGender = (gender) => {
+            if (!gender) return 'N/A';
+            const g = gender.toLowerCase();
+            if (g === 'male' || g === 'đực') return 'Male';
+            if (g === 'female' || g === 'cái') return 'Female';
+            return gender;
+          };
+
           patientsData.push({
             id: petId,
             code: formatPetId(petId),
@@ -121,18 +142,22 @@ export default function VeterinarianPatientsPage() {
             type: data.pet.species?.toLowerCase() || 'unknown',
             breed: data.pet.breed || 'Mixed',
             age: data.pet.birthDate ? calculateAge(data.pet.birthDate) : 'N/A',
-            gender: data.pet.gender || 'N/A',
+            gender: normalizeGender(data.pet.gender),
             weight: data.pet.weight ? `${data.pet.weight} kg` : 'N/A',
             color: data.pet.color || 'N/A',
             dateOfBirth: data.pet.birthDate || 'N/A',
-            ownerId: data.owner?.petOwnerId,
-            ownerName: data.owner?.fullName || data.owner?.account?.email?.split('@')[0] || 'Unknown',
-            ownerPhone: data.owner?.phoneNumber || 'N/A',
+            ownerId: ownerData?.petOwnerId || ownerData?.id,
+            ownerName: ownerData?.fullName || 'Unknown',
+            ownerPhone: ownerData?.phoneNumber || 'N/A',
+            ownerEmail: ownerData?.email || ownerData?.account?.email || 'N/A',
+            ownerAddress: ownerData?.address || 'N/A',
+            ownerActive: ownerData?.account?.isActive ?? true,
             lastVisit: sortedAppointments[0]?.appointmentDate || 'N/A',
             totalVisits: data.appointments.length,
             medicalHistory,
             vaccinationHistory,
-            vaccinationCount: vaccinationHistory.length
+            vaccinationCount: vaccinationHistory.length,
+            createdAt: data.pet.createdAt
           });
         }
 
@@ -237,33 +262,42 @@ export default function VeterinarianPatientsPage() {
         subtitle="Danh sách thú cưng đã và đang điều trị"
       />
 
-      {/* Stats - Premium Gradient Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="vet-stat-card vet-gradient-primary">
+      {/* Stats - Premium Gradient Cards with Animations */}
+      <div className="grid gap-6 md:grid-cols-4">
+        <div className="vet-stat-card vet-gradient-primary group hover:scale-105 transition-transform">
           <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🐾</div>
+            <div className="icon-wrapper text-3xl group-hover:scale-110 transition-transform">🐾</div>
             <span className="text-xs uppercase tracking-wider opacity-80">Tổng số</span>
           </div>
           <div className="value">{stats.total}</div>
           <div className="label mt-1">Tổng bệnh nhân</div>
         </div>
 
-        <div className="vet-stat-card vet-gradient-warning">
+        <div className="vet-stat-card vet-gradient-warning group hover:scale-105 transition-transform">
           <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🐕</div>
+            <div className="icon-wrapper text-3xl group-hover:scale-110 transition-transform">🐕</div>
             <span className="text-xs uppercase tracking-wider opacity-80">Chó</span>
           </div>
           <div className="value">{stats.dogs}</div>
           <div className="label mt-1">Bệnh nhân chó</div>
         </div>
 
-        <div className="vet-stat-card vet-gradient-info">
+        <div className="vet-stat-card vet-gradient-info group hover:scale-105 transition-transform">
           <div className="flex items-start justify-between mb-4">
-            <div className="icon-wrapper text-3xl">🐈</div>
+            <div className="icon-wrapper text-3xl group-hover:scale-110 transition-transform">🐈</div>
             <span className="text-xs uppercase tracking-wider opacity-80">Mèo</span>
           </div>
           <div className="value">{stats.cats}</div>
           <div className="label mt-1">Bệnh nhân mèo</div>
+        </div>
+
+        <div className="vet-stat-card vet-gradient-success group hover:scale-105 transition-transform">
+          <div className="flex items-start justify-between mb-4">
+            <div className="icon-wrapper text-3xl group-hover:scale-110 transition-transform">📅</div>
+            <span className="text-xs uppercase tracking-wider opacity-80">Gần đây</span>
+          </div>
+          <div className="value">{stats.recentVisits}</div>
+          <div className="label mt-1">Khám trong 30 ngày</div>
         </div>
       </div>
 
@@ -357,7 +391,7 @@ export default function VeterinarianPatientsPage() {
 
       {/* Patients Table - Premium Style */}
       <div className="space-y-6">
-        <div className="vet-glass-card rounded-2xl p-6">
+        <div className="vet-glass-card rounded-2xl p-6 shadow-xl">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
@@ -374,80 +408,113 @@ export default function VeterinarianPatientsPage() {
             </div>
           </div>
 
-        <div className="rounded-md border">
+        <div className="rounded-xl border-2 border-gray-100 overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[8%]">Mã</TableHead>
-                <TableHead className="w-[18%]">Thú cưng</TableHead>
-                <TableHead className="w-[12%]">Giống</TableHead>
-                <TableHead className="w-[10%]">Tuổi</TableHead>
-                <TableHead className="w-[15%]">Chủ nuôi</TableHead>
-                <TableHead className="w-[12%]">Lần khám gần nhất</TableHead>
-                <TableHead className="w-[10%]">Tổng lần khám</TableHead>
-                <TableHead className="w-[10%]">Thao tác</TableHead>
+              <TableRow className="bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100">
+                <TableHead className="w-[8%] font-bold text-purple-700">Mã</TableHead>
+                <TableHead className="w-[18%] font-bold text-purple-700">Thú cưng</TableHead>
+                <TableHead className="w-[12%] font-bold text-purple-700">Giống</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Tuổi</TableHead>
+                <TableHead className="w-[15%] font-bold text-purple-700">Chủ nuôi</TableHead>
+                <TableHead className="w-[12%] font-bold text-purple-700">Lần khám gần nhất</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700">Tổng lần khám</TableHead>
+                <TableHead className="w-[10%] font-bold text-purple-700 text-center">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPatients.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <div className="text-5xl mb-2">🐾</div>
-                    Không có bệnh nhân nào
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="text-6xl mb-3">🐾</div>
+                      <p className="text-lg font-semibold text-gray-600">Không có bệnh nhân nào</p>
+                      <p className="text-sm text-gray-400 mt-1">Thử điều chỉnh bộ lọc hoặc thêm bệnh nhân mới</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredPatients.map((patient) => {
+                filteredPatients.map((patient, index) => {
                   return (
-                    <TableRow key={patient.id}>
+                    <TableRow 
+                      key={patient.id}
+                      className="hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 transition-all duration-200 border-b border-gray-100"
+                    >
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">{patient.code}</Badge>
+                        <Badge variant="secondary" className="font-mono text-xs bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200">{patient.code}</Badge>
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-50 text-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-pink-100 to-rose-100 text-2xl shadow-md ring-2 ring-pink-200 ring-offset-1">
                             {patient.icon || '🐾'}
                           </div>
                           <div>
-                            <p className="font-semibold">{patient.name}</p>
-                            <p className="text-xs text-muted-foreground">{patient.gender} - {patient.color}</p>
+                            <p className="font-bold text-gray-800">{patient.name}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                                {patient.gender === 'male' ? '♂ Đực' : patient.gender === 'female' ? '♀ Cái' : patient.gender}
+                              </span>
+                              <span>•</span>
+                              <span>{patient.color}</span>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <span className="text-sm">{patient.breed}</span>
+                        <span className="text-sm font-medium text-gray-700">{patient.breed}</span>
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-full border border-amber-200 w-fit">
                           <span className="text-base">🎂</span>
-                          <span className="text-sm">{patient.age}</span>
+                          <span className="text-sm font-semibold text-amber-700">{patient.age}</span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <div>
-                          <p className="font-semibold">{patient.ownerName}</p>
-                          <p className="text-sm text-muted-foreground">{patient.ownerPhone}</p>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">👤</span>
+                            <p className="font-bold text-gray-800 text-sm">{patient.ownerName}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">📞</span>
+                            <p className="text-xs text-gray-600 font-medium">{patient.ownerPhone}</p>
+                          </div>
+                          {patient.ownerEmail && patient.ownerEmail !== 'N/A' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs">📧</span>
+                              <p className="text-xs text-gray-500 truncate max-w-[150px]" title={patient.ownerEmail}>{patient.ownerEmail}</p>
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full border border-green-200 w-fit">
                           <span className="text-base">📅</span>
-                          <span className="text-sm">{patient.lastVisit}</span>
+                          <span className="text-sm font-semibold text-green-700">{patient.lastVisit}</span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <Badge variant="secondary">{patient.totalVisits} lần</Badge>
+                        <Badge variant="secondary" className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 font-bold">
+                          {patient.totalVisits} lần
+                        </Badge>
                       </TableCell>
                       
-                      <TableCell>
-                        <Button variant="outline" size="icon" onClick={() => handleViewDetail(patient)} title="Xem chi tiết">
-                          <span className="text-lg">👁️</span>
+                      <TableCell className="text-center">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewDetail(patient)} 
+                          className="hover:bg-gradient-to-r hover:from-purple-500 hover:to-pink-500 hover:text-white hover:border-transparent transition-all duration-200 shadow-sm hover:shadow-md"
+                          title="Xem chi tiết"
+                        >
+                          <span className="text-base mr-1">👁️</span>
+                          <span className="text-xs font-semibold">Chi tiết</span>
                         </Button>
                       </TableCell>
                     </TableRow>
