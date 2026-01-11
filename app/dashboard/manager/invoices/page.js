@@ -29,6 +29,7 @@ import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 import Pagination from "@/components/ui/Pagination";
 import usePagination from "@/components/ui/usePagination";
+import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
 export default function InvoicesPage() {
   const router = useRouter();
@@ -40,6 +41,9 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  
+  // DateRangeFilter state
+  const [dateRange, setDateRange] = useState({ start: null, end: null, preset: "all" });
 
   // Pagination
   const {
@@ -126,23 +130,33 @@ export default function InvoicesPage() {
       });
     }
 
-    // Filter by date
+    // Filter by date - either single date or date range
     if (dateFilter) {
       filtered = filtered.filter(inv => {
         const invoiceDate = (inv.createdAt || inv.invoiceDate)?.split('T')[0];
         return invoiceDate === dateFilter;
       });
+    } else if (dateRange.start || dateRange.end) {
+      filtered = filtered.filter(inv => {
+        const invoiceDate = new Date(inv.createdAt || inv.invoiceDate);
+        if (dateRange.start && invoiceDate < dateRange.start) return false;
+        if (dateRange.end && invoiceDate > dateRange.end) return false;
+        return true;
+      });
     }
 
-    // Filter by search
+    // Filter by search - Check all relevant fields
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(inv => 
-        inv.invoiceNumber?.toLowerCase().includes(term) ||
-        inv.customer?.fullName?.toLowerCase().includes(term) ||
-        inv.owner?.fullName?.toLowerCase().includes(term) ||
-        inv.pet?.name?.toLowerCase().includes(term)
-      );
+      filtered = filtered.filter(inv => {
+        const invoiceNum = (inv.invoiceNumber || inv.invoiceId || inv.id || '');
+        const customerName = (inv.customer?.fullName || inv.owner?.fullName || inv.petOwner?.fullName || '');
+        const petName = (inv.pet?.name || '');
+        
+        return invoiceNum.toString().toLowerCase().includes(term) ||
+               customerName.toLowerCase().includes(term) ||
+               petName.toLowerCase().includes(term);
+      });
     }
 
     setFilteredInvoices(filtered);
@@ -353,6 +367,21 @@ export default function InvoicesPage() {
           </Card>
         </div>
 
+        {/* Date Range Filter */}
+        <Card className="bg-white shadow-xl mb-6">
+          <CardContent className="p-4">
+            <DateRangeFilter
+              onChange={(start, end, preset) => setDateRange({ start, end, preset })}
+              defaultPreset="all"
+              showCustomRange={true}
+              theme="pink"
+              size="sm"
+              showLabel={true}
+              compact={false}
+            />
+          </CardContent>
+        </Card>
+
         {/* Filters */}
         <Card className="bg-white shadow-xl mb-6">
           <CardContent className="p-4">
@@ -369,7 +398,7 @@ export default function InvoicesPage() {
                 />
               </div>
 
-              {/* Date Filter */}
+              {/* Date Filter (single date) - Optional alongside date range */}
               <div className="flex items-center gap-2">
                 <span className="text-gray-500">📅</span>
                 <Input
@@ -466,7 +495,11 @@ export default function InvoicesPage() {
                           {formatCurrency(invoice.totalAmount || invoice.total)}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {invoice.items?.length || invoice.invoiceItems?.length || 0} dịch vụ
+                          {/* Show service count: 1 if service exists, otherwise check items array */}
+                          {(invoice.service || invoice.appointment?.service) ? 
+                            '1 dịch vụ' : 
+                            `${invoice.items?.length || invoice.invoiceItems?.length || 0} dịch vụ`
+                          }
                         </p>
                       </div>
 
