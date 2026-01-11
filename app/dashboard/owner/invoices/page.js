@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
-import { invoiceApi } from "@/lib/api";
+import { invoiceApi, paymentApi } from "@/lib/api";
 
 export default function InvoicesPage() {
   const { showToast } = useToast();
@@ -81,10 +81,16 @@ export default function InvoicesPage() {
     try {
       setProcessingPayment(invoiceId);
       
-      const response = await apiClient.post('/payments/online/initiate', {
+      // Build return URL for VNPay callback
+      const baseUrl = window.location.origin;
+      const returnUrl = `${baseUrl}/dashboard/owner/payments/vnpay-return`;
+      
+      console.log("Initiating payment with return URL:", returnUrl);
+      
+      const response = await paymentApi.initiateOnline({
         invoiceId: invoiceId,
         paymentMethod: 'VNPAY',
-        returnUrl: window.location.href,
+        returnUrl: returnUrl,
         locale: 'vi'
       });
 
@@ -92,14 +98,15 @@ export default function InvoicesPage() {
       
       if (data.paymentUrl) {
         showToast("Đang chuyển đến VNPay...", "success");
+        // Redirect to VNPay payment page
         window.location.href = data.paymentUrl;
       } else {
         showToast("Không thể khởi tạo thanh toán", "error");
+        setProcessingPayment(null);
       }
     } catch (error) {
       console.error("Error initiating payment:", error);
       showToast(error.response?.data?.message || "Không thể thanh toán", "error");
-    } finally {
       setProcessingPayment(null);
     }
   };
@@ -278,7 +285,7 @@ export default function InvoicesPage() {
           <div className="space-y-4">
             {filteredInvoices.map((invoice, idx) => {
               const status = getStatusBadge(invoice.status);
-              const isPending = invoice.status === 'PENDING' || invoice.status === 'UNPAID';
+              const isPending = invoice.status === 'PENDING' || invoice.status === 'UNPAID' || invoice.status === 'PROCESSING_ONLINE';
               const invoiceDate = new Date(invoice.createdAt || invoice.invoiceDate);
               
               return (
