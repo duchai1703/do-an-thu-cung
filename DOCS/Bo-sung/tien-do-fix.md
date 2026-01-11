@@ -45,5 +45,5 @@
 
 ## Pet Owner Issues
 
-- [ ] Thêm thú cưng: Thêm mục ghi chú khi chọn loài "khác"
-- [ ] Lịch đặt: Thêm chức năng hủy lịch
+- [x] Thêm thú cưng: Thêm mục ghi chú khi chọn loài "khác" ✅ Required breed field with validation
+- [x] Lịch đặt: Thêm chức năng hủy lịch ✅ Cancel modal with reason input

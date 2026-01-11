@@ -60,6 +60,10 @@ export default function AddPetModal({ isOpen, onClose, onSuccess }) {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = "Vui lòng nhập tên thú cưng";
     if (!formData.type) newErrors.type = "Vui lòng chọn loại thú cưng";
+    // Require breed description when "Other" is selected
+    if (formData.type === "Other" && !formData.breed.trim()) {
+      newErrors.breed = "Vui lòng mô tả loài của bé";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -230,6 +234,28 @@ export default function AddPetModal({ isOpen, onClose, onSuccess }) {
                 </div>
                 {errors.type && <p className="text-sm text-red-500">{errors.type}</p>}
               </div>
+
+              {/* Show description field when "Other" is selected */}
+              {formData.type === "Other" && (
+                <div className="space-y-2 animate-fade-in">
+                  <Label className="flex items-center gap-2 font-semibold text-purple-700">
+                    📝 Bé thuộc loài gì? <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    name="breed"
+                    type="text"
+                    value={formData.breed}
+                    onChange={handleChange}
+                    placeholder="VD: Rồng Nam Mỹ, Chuột lang, Nhím, Sóc..."
+                    className={cn(
+                      "h-12 rounded-xl border-2",
+                      errors.breed ? "border-red-400" : "border-purple-200 focus:border-purple-500"
+                    )}
+                  />
+                  {errors.breed && <p className="text-sm text-red-500">{errors.breed}</p>}
+                  <p className="text-xs text-gray-500 italic">💡 Vui lòng mô tả cụ thể loài của bé để chúng tôi có thể chăm sóc tốt hơn</p>
+                </div>
+              )}
             </div>
           )}
 

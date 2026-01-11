@@ -36,6 +36,10 @@ export default function AppointmentsPage() {
   const [filter, setFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: null, end: null });
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   
   // For booking form
   const [pets, setPets] = useState([]);
@@ -230,6 +234,43 @@ export default function AppointmentsPage() {
     if (s.includes('mèo') || s.includes('cat')) return '🐈';
     if (s.includes('thỏ') || s.includes('rabbit')) return '🐰';
     return '🐾';
+  };
+
+  const handleOpenCancelModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    setCancelReason("");
+    setIsCancelModalOpen(true);
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!cancelReason.trim()) {
+      showToast("Vui lòng nhập lý do hủy lịch", "error");
+      return;
+    }
+
+    if (!selectedAppointment) return;
+
+    try {
+      setCancelling(true);
+      const appointmentId = selectedAppointment.appointmentId || selectedAppointment.id;
+      
+      await appointmentApi.cancel(appointmentId, cancelReason.trim());
+      
+      showToast("Đã hủy lịch hẹn thành công!", "success");
+      setIsCancelModalOpen(false);
+      setSelectedAppointment(null);
+      setCancelReason("");
+      loadAppointments();
+    } catch (error) {
+      console.error("Error cancelling appointment:", error);
+      showToast(error.response?.data?.message || "Không thể hủy lịch hẹn", "error");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const canCancelAppointment = (appointment) => {
+    return appointment.status === 'PENDING' || appointment.status === 'CONFIRMED';
   };
 
   const stats = getStats();
@@ -516,7 +557,18 @@ export default function AppointmentsPage() {
                               </p>
                             </div>
                           )}
-                        </div>
+                        {/* Cancel Button for pending/confirmed appointments */}
+                        {canCancelAppointment(apt) && (
+                          <Button
+                            onClick={() => handleOpenCancelModal(apt)}
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Hủy lịch
+                          </Button>
+                        )}                        </div>
                       </div>
                     </CardContent>
                   </div>
@@ -731,6 +783,94 @@ export default function AppointmentsPage() {
         </div>
       )}
 
+      {/* Cancel Appointment Modal */}
+      {isCancelModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md shadow-2xl border-0 animate-scale-in">
+            <div className="p-6 border-b bg-gradient-to-r from-red-500 to-pink-500">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <XCircle className="h-6 w-6" />
+                Hủy lịch hẹn
+              </h2>
+              <p className="text-white/90 text-sm mt-1">
+                Vui lòng cho chúng tôi biết lý do hủy lịch
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {selectedAppointment && (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-3xl">{getPetIcon(selectedAppointment.pet?.species)}</span>
+                    <div>
+                      <p className="font-bold text-gray-800">{selectedAppointment.pet?.name}</p>
+                      <p className="text-sm text-gray-500">{selectedAppointment.service?.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>📅 {new Date(selectedAppointment.appointmentDate).toLocaleDateString('vi-VN')}</p>
+                    <p>🕐 {selectedAppointment.startTime}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-base font-semibold flex items-center gap-2">
+                  📝 Lý do hủy <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="VD: Có việc bận đột xuất, Bé không khỏe, Muốn đổi lịch khác..."
+                  rows={4}
+                  className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-red-500 transition-colors resize-none"
+                  disabled={cancelling}
+                />
+                <p className="text-xs text-gray-500">
+                  💡 Lý do hủy sẽ giúp chúng tôi cải thiện dịch vụ tốt hơn
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t bg-gray-50 flex justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCancelModalOpen(false);
+                  setSelectedAppointment(null);
+                  setCancelReason("");
+                }}
+                disabled={cancelling}
+                className="rounded-xl flex-1"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Đóng
+              </Button>
+
+              <Button
+                type="button"
+                onClick={handleCancelAppointment}
+                disabled={cancelling || !cancelReason.trim()}
+                className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-xl shadow-lg flex-1"
+              >
+                {cancelling ? (
+                  <>
+                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                    Đang hủy...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Xác nhận hủy
+                  </>
+                )}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* CSS Animation */}
       <style jsx>{`
         @keyframes float {
@@ -739,6 +879,13 @@ export default function AppointmentsPage() {
         }
         .animate-float {
           animation: float 4s ease-in-out infinite;
+        }
+        @keyframes scale-in {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-in {
+          animation: scale-in 0.2s ease-out;
         }
       `}</style>
     </div>
