@@ -285,7 +285,8 @@ export default function InvoicesPage() {
           <div className="space-y-4">
             {filteredInvoices.map((invoice, idx) => {
               const status = getStatusBadge(invoice.status);
-              const isPending = invoice.status === 'PENDING' || invoice.status === 'UNPAID' || invoice.status === 'PROCESSING_ONLINE';
+              const isPending = invoice.status === 'PENDING' || invoice.status === 'UNPAID' || 
+                                invoice.status === 'PROCESSING_ONLINE' || invoice.status === 'FAILED';
               const invoiceDate = new Date(invoice.createdAt || invoice.invoiceDate);
               
               return (
