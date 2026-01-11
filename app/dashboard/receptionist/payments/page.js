@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/layout/DashboardHeader";
+import { CreateInvoiceModal } from "@/components/receptionist";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,42 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { DollarSign, Clock, CheckCircle2, CreditCard, Search, Calendar, Phone, Stethoscope, Bath, Scissors, ClipboardList, Banknote, Building2, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  DollarSign, 
+  Clock, 
+  CheckCircle2, 
+  CreditCard, 
+  Search, 
+  Calendar, 
+  Phone, 
+  Stethoscope, 
+  Bath, 
+  Scissors, 
+  ClipboardList, 
+  Banknote, 
+  Building2, 
+  Loader2,
+  Filter,
+  TrendingUp,
+  Wallet,
+  Receipt,
+  Sparkles,
+  ArrowUpRight,
+  RefreshCw,
+  MoreHorizontal,
+  EyeIcon,
+  Printer,
+  FileText,
+  Plus,
+  Smartphone
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invoiceApi, paymentApi, getToken } from "@/lib/api";
 
@@ -22,6 +58,8 @@ export default function PaymentsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
 
   useEffect(() => {
     loadPayments();
@@ -41,7 +79,6 @@ export default function PaymentsPage() {
 
       if (response.success && response.data) {
         const formattedPayments = response.data.map(invoice => {
-          // Check if invoice has payment
           const isPaid = invoice.status === 'PAID';
           const paymentMethod = invoice.payments && invoice.payments.length > 0
             ? (invoice.payments[0].paymentMethod === 'CASH' ? 'Tiền mặt' :
@@ -52,13 +89,16 @@ export default function PaymentsPage() {
           return {
             id: invoice.invoiceId || invoice.id,
             invoiceId: invoice.invoiceId || invoice.id,
-            customerName: invoice.customer?.name || invoice.petOwner?.name || 'N/A',
-            phone: invoice.customer?.phone || invoice.petOwner?.phone || 'N/A',
+            invoiceNumber: invoice.invoiceNumber || `INV-${invoice.invoiceId}`,
+            customerName: invoice.customer?.name || invoice.petOwner?.fullName || invoice.petOwner?.name || 'N/A',
+            phone: invoice.customer?.phone || invoice.petOwner?.phoneNumber || invoice.petOwner?.phone || 'N/A',
             email: invoice.customer?.email || invoice.petOwner?.email || 'N/A',
             service: invoice.appointment?.service?.serviceName || 'N/A',
             serviceIcon: '📋',
             amount: invoice.totalAmount || 0,
-            date: invoice.issueDate ? new Date(invoice.issueDate).toISOString().split('T')[0] : 'N/A',
+            date: invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString('vi-VN') : 'N/A',
+            dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
+            dueDateFormatted: invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('vi-VN') : 'N/A',
             time: invoice.createdAt ? new Date(invoice.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
             status: isPaid ? 'paid' : 'pending',
             paymentMethod: paymentMethod,
@@ -78,7 +118,7 @@ export default function PaymentsPage() {
     const matchFilter = filter === "all" || payment.status === filter;
     const matchSearch = payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.phone.includes(searchTerm) ||
-      payment.id.toLowerCase().includes(searchTerm.toLowerCase());
+      payment.id.toString().toLowerCase().includes(searchTerm.toLowerCase());
     return matchFilter && matchSearch;
   });
 
@@ -100,18 +140,6 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleOpenPaymentModal = (payment) => {
-    setSelectedPayment(payment);
-    setSelectedMethod("");
-    setShowPaymentModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowPaymentModal(false);
-    setSelectedPayment(null);
-    setSelectedMethod("");
-  };
-
   const handleConfirmPayment = async () => {
     if (!selectedMethod) {
       alert("⚠️ Vui lòng chọn phương thức thanh toán!");
@@ -119,13 +147,35 @@ export default function PaymentsPage() {
     }
 
     try {
-      // Map payment method to backend format
+      setProcessing(true);
+      
+      // Handle VNPay separately
+      if (selectedMethod === "VNPay") {
+        const vnpayData = {
+          invoiceId: selectedPayment.invoiceId,
+          returnUrl: `${window.location.origin}/dashboard/receptionist/payments?success=true`,
+          cancelUrl: `${window.location.origin}/dashboard/receptionist/payments?cancelled=true`
+        };
+        
+        const response = await paymentApi.initiateOnline?.(vnpayData);
+        if (response?.success && response?.data?.paymentUrl) {
+          window.open(response.data.paymentUrl, '_blank');
+          alert('Đã mở trang thanh toán VNPay. Vui lòng hoàn tất thanh toán.');
+          setShowPaymentModal(false);
+          setSelectedPayment(null);
+          setSelectedMethod("");
+          return;
+        } else {
+          alert('Lỗi khi khởi tạo thanh toán VNPay');
+          return;
+        }
+      }
+      
       const methodMap = {
         "Tiền mặt": "CASH",
         "Chuyển khoản": "BANK_TRANSFER"
       };
 
-      // Create payment record
       const paymentData = {
         invoiceId: selectedPayment.invoiceId,
         amount: selectedPayment.amount,
@@ -136,176 +186,342 @@ export default function PaymentsPage() {
       const response = await paymentApi.create(paymentData);
 
       if (response.success) {
-        alert(`✅ Đã xác nhận thanh toán ${selectedPayment.id} qua ${selectedMethod}`);
+        alert(`✅ Đã xác nhận thanh toán ${formatCurrency(selectedPayment.amount)} qua ${selectedMethod}`);
         await loadPayments();
-        handleCloseModal();
+        setShowPaymentModal(false);
+        setSelectedPayment(null);
+        setSelectedMethod("");
       } else {
         alert('Lỗi khi xác nhận thanh toán: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error confirming payment:', error);
       alert('Lỗi khi xác nhận thanh toán');
+    } finally {
+      setProcessing(false);
     }
   };
 
-  return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Quản lý thanh toán"
-        subtitle="Theo dõi và xác nhận thanh toán từ khách hàng"
-      />
-
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 animate-pulse mx-auto mb-4 flex items-center justify-center">
+              <CreditCard className="w-10 h-10 text-white animate-bounce" />
+            </div>
+          </div>
+          <p className="text-lg font-medium text-gray-600 animate-pulse">Đang tải thanh toán...</p>
         </div>
-      ) : (
-        <>
-          {/* Stats Row */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Tổng doanh thu</CardTitle>
-                <DollarSign className="h-4 w-4 text-white/90" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
-                <p className="text-xs text-white/80 mt-2">✅ {paidCount} đơn đã thanh toán</p>
-              </CardContent>
-            </Card>
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-yellow-700">Chờ thanh toán</CardTitle>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">{formatCurrency(pendingAmount)}</div>
-                <p className="text-xs text-yellow-700 mt-2">⏳ {pendingCount} đơn chờ xử lý</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Tổng đơn hàng</CardTitle>
-                <ClipboardList className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{payments.length}</div>
-                <p className="text-xs text-muted-foreground mt-2">📅 Hôm nay</p>
-              </CardContent>
-            </Card>
-          </div>
+      </div>
+    );
+  }
 
-          {/* Filters & Search */}
-          <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4">
-            <Tabs value={filter} onValueChange={setFilter} className="w-full md:w-auto">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="all">Tất cả</TabsTrigger>
-                <TabsTrigger value="pending">Chờ thanh toán</TabsTrigger>
-                <TabsTrigger value="paid">Đã thanh toán</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="relative flex-1 max-w-sm w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Tìm theo tên, SĐT, mã hóa đơn..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+  return (
+    <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30">
+      {/* Decorative Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-emerald-200/40 to-teal-200/40 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-200/40 to-cyan-200/40 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10 space-y-6 p-8">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-xl shadow-emerald-500/30">
+              <Wallet className="w-7 h-7" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Quản lý thanh toán</h1>
+              <p className="text-gray-500">Theo dõi và xác nhận thanh toán từ khách hàng</p>
             </div>
           </div>
+          
+          <Button 
+            onClick={() => loadPayments()}
+            className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" /> Làm mới
+          </Button>
+        </div>
 
-          {/* Payments Table */}
-          <div className="space-y-6">
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Tổng doanh thu</p>
+                  <p className="text-3xl font-bold mt-1">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-white/70 text-xs mt-2 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> {paidCount} đơn đã thanh toán
+                  </p>
+                </div>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <TrendingUp className="w-8 h-8" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xl shadow-orange-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Chờ thanh toán</p>
+                  <p className="text-3xl font-bold mt-1">{formatCurrency(pendingAmount)}</p>
+                  <p className="text-white/70 text-xs mt-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {pendingCount} đơn chờ xử lý
+                  </p>
+                </div>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <Clock className="w-8 h-8" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-xl shadow-purple-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Tổng hóa đơn</p>
+                  <p className="text-4xl font-bold mt-1">{payments.length}</p>
+                  <p className="text-white/70 text-xs mt-2">📅 Hôm nay</p>
+                </div>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <Receipt className="w-8 h-8" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters & Search */}
+        <Card className="border-0 bg-white/80 backdrop-blur-sm shadow-xl shadow-gray-100/50">
+          <CardContent className="p-6">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Filter className="w-5 h-5" />
+                  <span className="font-medium">Lọc:</span>
+                </div>
+                <Tabs value={filter} onValueChange={setFilter} className="w-full lg:w-auto">
+                  <TabsList className="grid w-full grid-cols-3 bg-gray-100/80">
+                    <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      Tất cả
+                    </TabsTrigger>
+                    <TabsTrigger value="pending" className="data-[state=active]:bg-amber-500 data-[state=active]:text-white">
+                      Chờ thanh toán
+                    </TabsTrigger>
+                    <TabsTrigger value="paid" className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
+                      Đã thanh toán
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              
+              <div className="relative w-full lg:w-80">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Tìm theo tên, SĐT, mã hóa đơn..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 bg-white rounded-xl"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payments Table */}
+        <Card className="border-0 bg-white/90 backdrop-blur-sm shadow-xl shadow-gray-100/50 overflow-hidden">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <CreditCard className="h-6 w-6 text-primary" />
-                Danh sách thanh toán
-              </h2>
-              <Badge variant="secondary">{filteredPayments.length} hóa đơn</Badge>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <CardTitle className="text-xl font-bold text-gray-800">Danh sách thanh toán</CardTitle>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => setShowCreateInvoiceModal(true)}
+                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tạo hóa đơn
+                </Button>
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-sm px-4 py-1">
+                  {filteredPayments.length} hóa đơn
+                </Badge>
+              </div>
             </div>
-
-            <div className="rounded-md border">
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Mã HĐ</TableHead>
-                    <TableHead>Khách hàng</TableHead>
-                    <TableHead>Dịch vụ</TableHead>
-                    <TableHead>Ngày & Giờ</TableHead>
-                    <TableHead className="text-right">Số tiền</TableHead>
-                    <TableHead className="text-center">Trạng thái</TableHead>
-                    <TableHead className="text-center">Thao tác</TableHead>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="font-bold text-gray-700">Số HĐ</TableHead>
+                    <TableHead className="font-bold text-gray-700">Khách hàng</TableHead>
+                    <TableHead className="font-bold text-gray-700">Dịch vụ</TableHead>
+                    <TableHead className="font-bold text-gray-700">Ngày lập</TableHead>
+                    <TableHead className="font-bold text-gray-700">Hạn thanh toán</TableHead>
+                    <TableHead className="font-bold text-gray-700 text-right">Số tiền</TableHead>
+                    <TableHead className="font-bold text-gray-700 text-center">Trạng thái</TableHead>
+                    <TableHead className="font-bold text-gray-700 text-center">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPayments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                        <CreditCard className="mx-auto h-8 w-8 mb-2" />
-                        Không tìm thấy hóa đơn
+                      <TableCell colSpan={7} className="h-40">
+                        <div className="flex flex-col items-center justify-center text-gray-400">
+                          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                            <CreditCard className="w-8 h-8" />
+                          </div>
+                          <p className="text-lg font-medium">Không tìm thấy hóa đơn</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredPayments.map((payment) => {
-                      const statusBadge = payment.status === 'pending'
-                        ? { label: 'Chờ thanh toán', variant: 'warning', icon: Clock }
-                        : { label: 'Đã thanh toán', variant: 'success', icon: CheckCircle2 };
                       const ServiceIcon = getServiceIcon(payment.serviceIcon);
                       return (
-                        <TableRow key={payment.id}>
+                        <TableRow 
+                          key={payment.id} 
+                          className="group hover:bg-gradient-to-r hover:from-emerald-50/50 hover:to-teal-50/50 transition-all"
+                        >
                           <TableCell>
-                            <Badge variant="secondary" className="font-mono">{payment.id}</Badge>
+                            <Badge className="font-mono bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 shadow-md">
+                              {payment.invoiceNumber}
+                            </Badge>
                           </TableCell>
                           <TableCell>
-                            <div>
-                              <p className="font-medium">{payment.customerName}</p>
-                              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {payment.phone}
-                              </p>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center text-emerald-600 font-bold">
+                                {(payment.customerName || 'N')[0]}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-800">{payment.customerName}</p>
+                                <p className="text-sm text-gray-500 flex items-center gap-1">
+                                  <Phone className="w-3 h-3" /> {payment.phone}
+                                </p>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-                              <span>{payment.service}</span>
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <ServiceIcon className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <span className="font-medium text-gray-700">{payment.service}</span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium flex items-center gap-1">
-                                <Calendar className="h-4 w-4" /> {payment.date}
-                              </p>
-                              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> {payment.time}
+                              <p className="font-semibold text-gray-800 flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-gray-400" /> {payment.date}
                               </p>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            {payment.status === 'paid' ? (
+                              <span className="text-gray-400 text-sm">--</span>
+                            ) : (
+                              <div>
+                                <p className={cn(
+                                  "font-semibold flex items-center gap-1",
+                                  payment.dueDate && payment.dueDate < new Date() 
+                                    ? "text-rose-600" 
+                                    : "text-gray-800"
+                                )}>
+                                  <Clock className="w-4 h-4" /> {payment.dueDateFormatted}
+                                </p>
+                                {payment.dueDate && payment.dueDate < new Date() && (
+                                  <span className="text-xs text-rose-500 font-medium">⚠️ Quá hạn</span>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <span className="text-lg font-bold text-green-600 font-mono">
+                            <span className="text-xl font-bold text-emerald-600 font-mono">
                               {formatCurrency(payment.amount)}
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <div className="flex justify-center">
-                              <Badge variant={statusBadge.variant} className="inline-flex items-center gap-1 px-3 py-1">
-                                <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                              </Badge>
-                            </div>
+                            <Badge className={cn(
+                              "shadow-lg border-0",
+                              payment.status === 'paid' 
+                                ? "bg-gradient-to-r from-emerald-400 to-green-500 text-white"
+                                : "bg-gradient-to-r from-amber-400 to-orange-500 text-white"
+                            )}>
+                              {payment.status === 'paid' ? (
+                                <><CheckCircle2 className="w-3 h-3 mr-1" /> Đã thanh toán</>
+                              ) : (
+                                <><Clock className="w-3 h-3 mr-1" /> Chờ thanh toán</>
+                              )}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            {payment.status === 'pending' ? (
-                              <Button size="sm" onClick={() => handleOpenPaymentModal(payment)}>
-                                <CheckCircle2 className="h-4 w-4 mr-2" /> Xác nhận
-                              </Button>
-                            ) : (
-                              <div className="flex justify-center">
-                                <Badge variant="success" className="inline-flex items-center gap-1 px-3 py-1">
-                                  <CreditCard className="h-3 w-3" /> {payment.paymentMethod}
-                                </Badge>
-                              </div>
-                            )}
+                            <div className="flex justify-center items-center gap-2">
+                              {payment.status === 'pending' && (
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setSelectedPayment(payment);
+                                    setShowPaymentModal(true);
+                                  }}
+                                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25 border-0"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 mr-1" /> Xác nhận
+                                </Button>
+                              )}
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 hover:bg-gray-100"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    onClick={() => alert(`Xem chi tiết hóa đơn #${payment.invoiceNumber}`)}
+                                  >
+                                    <EyeIcon className="mr-2 h-4 w-4 text-blue-500" />
+                                    <span>Xem chi tiết</span>
+                                  </DropdownMenuItem>
+                                  
+                                  {payment.status === 'paid' && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer"
+                                        onClick={() => alert(`In biên nhận #${payment.invoiceNumber}`)}
+                                      >
+                                        <Printer className="mr-2 h-4 w-4 text-gray-600" />
+                                        <span>In biên nhận</span>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer"
+                                        onClick={() => alert(`Xuất PDF #${payment.invoiceNumber}`)}
+                                      >
+                                        <FileText className="mr-2 h-4 w-4 text-violet-500" />
+                                        <span>Xuất PDF</span>
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -314,130 +530,161 @@ export default function PaymentsPage() {
                 </TableBody>
               </Table>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Payment Method Modal */}
-          <Dialog open={showPaymentModal} onOpenChange={handleCloseModal}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Chọn phương thức thanh toán
-                </DialogTitle>
-              </DialogHeader>
+        {/* Payment Method Modal */}
+        <Dialog open={showPaymentModal} onOpenChange={() => {
+          setShowPaymentModal(false);
+          setSelectedPayment(null);
+          setSelectedMethod("");
+        }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <DialogTitle className="text-xl font-bold">Xác nhận thanh toán</DialogTitle>
+              </div>
+            </DialogHeader>
 
-              {selectedPayment && (
-                <>
-                  {/* Payment Info */}
-                  <Card className="bg-blue-50 border-blue-200">
-                    <CardContent className="pt-6">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-blue-700 font-medium">Mã hóa đơn</span>
-                          <span className="text-sm font-bold text-blue-700 font-mono">{selectedPayment.id}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-blue-700 font-medium">Khách hàng</span>
-                          <span className="text-sm font-bold text-blue-700">{selectedPayment.customerName}</span>
-                        </div>
-                        <div className="pt-3 border-t border-blue-300 flex justify-between items-center">
-                          <span className="text-sm font-bold text-blue-700">Số tiền thanh toán</span>
-                          <span className="text-2xl font-bold text-blue-700">{formatCurrency(selectedPayment.amount)}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Payment Methods */}
+            {selectedPayment && (
+              <div className="space-y-6">
+                {/* Payment Summary */}
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold">
-                      Chọn phương thức thanh toán: <span className="text-red-500">*</span>
-                    </p>
-
-                    <Button
-                      variant={selectedMethod === "Tiền mặt" ? "default" : "outline"}
-                      className={cn(
-                        "w-full justify-start h-auto py-4",
-                        selectedMethod === "Tiền mặt" && "bg-green-50 border-green-300"
-                      )}
-                      onClick={() => setSelectedMethod("Tiền mặt")}
-                    >
-                      <div className="flex items-center gap-4 w-full">
-                        <div className={cn(
-                          "flex items-center justify-center w-12 h-12 rounded-lg",
-                          selectedMethod === "Tiền mặt" ? "bg-green-500" : "bg-secondary"
-                        )}>
-                          <Banknote className={cn(
-                            "h-6 w-6",
-                            selectedMethod === "Tiền mặt" ? "text-white" : "text-muted-foreground"
-                          )} />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <p className={cn(
-                            "font-semibold",
-                            selectedMethod === "Tiền mặt" ? "text-green-700" : ""
-                          )}>Tiền mặt</p>
-                          <p className={cn(
-                            "text-xs",
-                            selectedMethod === "Tiền mặt" ? "text-green-600" : "text-muted-foreground"
-                          )}>Thanh toán bằng tiền mặt trực tiếp</p>
-                        </div>
-                        {selectedMethod === "Tiền mặt" && (
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-emerald-700 font-medium">Mã hóa đơn</span>
+                      <Badge variant="outline" className="font-mono bg-white">{selectedPayment.id}</Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-emerald-700 font-medium">Khách hàng</span>
+                      <span className="font-bold text-gray-800">{selectedPayment.customerName}</span>
+                    </div>
+                    <div className="pt-3 border-t border-emerald-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-emerald-700 font-bold">Tổng thanh toán</span>
+                        <span className="text-3xl font-bold text-emerald-600">{formatCurrency(selectedPayment.amount)}</span>
                       </div>
-                    </Button>
-
-                    <Button
-                      variant={selectedMethod === "Chuyển khoản" ? "default" : "outline"}
-                      className={cn(
-                        "w-full justify-start h-auto py-4",
-                        selectedMethod === "Chuyển khoản" && "bg-blue-50 border-blue-300"
-                      )}
-                      onClick={() => setSelectedMethod("Chuyển khoản")}
-                    >
-                      <div className="flex items-center gap-4 w-full">
-                        <div className={cn(
-                          "flex items-center justify-center w-12 h-12 rounded-lg",
-                          selectedMethod === "Chuyển khoản" ? "bg-blue-500" : "bg-secondary"
-                        )}>
-                          <Building2 className={cn(
-                            "h-6 w-6",
-                            selectedMethod === "Chuyển khoản" ? "text-white" : "text-muted-foreground"
-                          )} />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <p className={cn(
-                            "font-semibold",
-                            selectedMethod === "Chuyển khoản" ? "text-blue-700" : ""
-                          )}>Chuyển khoản</p>
-                          <p className={cn(
-                            "text-xs",
-                            selectedMethod === "Chuyển khoản" ? "text-blue-600" : "text-muted-foreground"
-                          )}>Thanh toán qua ngân hàng/ví điện tử</p>
-                        </div>
-                        {selectedMethod === "Chuyển khoản" && (
-                          <CheckCircle2 className="h-5 w-5 text-blue-500" />
-                        )}
-                      </div>
-                    </Button>
+                    </div>
                   </div>
+                </div>
 
-                  {/* Actions */}
-                  <DialogFooter>
-                    <Button variant="outline" onClick={handleCloseModal}>
-                      Hủy
-                    </Button>
-                    <Button onClick={handleConfirmPayment} disabled={!selectedMethod}>
-                      <CheckCircle2 className="h-4 w-4 mr-2" /> Xác nhận thanh toán
-                    </Button>
-                  </DialogFooter>
-                </>
-              )}
-            </DialogContent>
-          </Dialog>
-        </>
-      )}
+                {/* Payment Methods */}
+                <div className="space-y-3">
+                  <p className="font-bold text-gray-700">
+                    Chọn phương thức thanh toán <span className="text-red-500">*</span>
+                  </p>
+
+                  <button
+                    onClick={() => setSelectedMethod("Tiền mặt")}
+                    className={cn(
+                      "w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4",
+                      selectedMethod === "Tiền mặt" 
+                        ? "border-emerald-500 bg-emerald-50" 
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-14 h-14 rounded-xl flex items-center justify-center",
+                      selectedMethod === "Tiền mặt" ? "bg-emerald-500 text-white" : "bg-gray-100"
+                    )}>
+                      <Banknote className="w-7 h-7" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-gray-800">Tiền mặt</p>
+                      <p className="text-sm text-gray-500">Thanh toán trực tiếp tại quầy</p>
+                    </div>
+                    {selectedMethod === "Tiền mặt" && (
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedMethod("Chuyển khoản")}
+                    className={cn(
+                      "w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4",
+                      selectedMethod === "Chuyển khoản" 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-14 h-14 rounded-xl flex items-center justify-center",
+                      selectedMethod === "Chuyển khoản" ? "bg-blue-500 text-white" : "bg-gray-100"
+                    )}>
+                      <Building2 className="w-7 h-7" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-gray-800">Chuyển khoản</p>
+                      <p className="text-sm text-gray-500">Thanh toán qua ngân hàng / ví điện tử</p>
+                    </div>
+                    {selectedMethod === "Chuyển khoản" && (
+                      <CheckCircle2 className="w-6 h-6 text-blue-500" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedMethod("VNPay")}
+                    className={cn(
+                      "w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4",
+                      selectedMethod === "VNPay" 
+                        ? "border-rose-500 bg-rose-50" 
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-14 h-14 rounded-xl flex items-center justify-center",
+                      selectedMethod === "VNPay" ? "bg-rose-500 text-white" : "bg-gray-100"
+                    )}>
+                      <Smartphone className="w-7 h-7" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-bold text-gray-800">VNPay</p>
+                      <p className="text-sm text-gray-500">Thanh toán online qua VNPay</p>
+                    </div>
+                    {selectedMethod === "VNPay" && (
+                      <CheckCircle2 className="w-6 h-6 text-rose-500" />
+                    )}
+                  </button>
+                </div>
+
+                <DialogFooter className="gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setSelectedPayment(null);
+                      setSelectedMethod("");
+                    }}
+                  >
+                    Hủy
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmPayment} 
+                    disabled={!selectedMethod || processing}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg"
+                  >
+                    {processing ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    Xác nhận thanh toán
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <CreateInvoiceModal
+          isOpen={showCreateInvoiceModal}
+          onClose={() => setShowCreateInvoiceModal(false)}
+          onSuccess={loadPayments}
+        />
+      </div>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { petApi, medicalRecordApi, authApi, getToken } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
+import apiClient from "@/lib/api/client";
 import VetFilterBar from "@/components/ui/VetFilterBar";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 
@@ -33,6 +34,8 @@ export default function VeterinarianVaccinationsPage() {
   const [vaccineTypeFilter, setVaccineTypeFilter] = useState("all");
   const [hasReactionsFilter, setHasReactionsFilter] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
+  const [expandedRows, setExpandedRows] = useState({});
+  const [vetMap, setVetMap] = useState({});
   
   // Date range filter state
   const [dateRange, setDateRange] = useState({ start: null, end: null });
@@ -64,6 +67,19 @@ export default function VeterinarianVaccinationsPage() {
       if (!token) {
         router.push('/login');
         return;
+      }
+
+      // Load veterinarians for name lookup
+      try {
+        const vetsRes = await apiClient.get('/employees/veterinarians');
+        const vets = vetsRes.data || vetsRes || [];
+        const map = {};
+        vets.forEach(vet => {
+          map[vet.employeeId] = vet.fullName;
+        });
+        setVetMap(map);
+      } catch (err) {
+        console.log('Could not load veterinarians for name lookup');
       }
 
       // Load all pets
@@ -110,7 +126,9 @@ export default function VeterinarianVaccinationsPage() {
                   reactions: vac.reactions || '',
                   isDue: vac.isDue,
                   daysUntilDue: vac.daysUntilDue,
-                  notes: vac.notes || ''
+                  notes: vac.notes || '',
+                  administeredBy: vac.administeredBy || null,
+                  createdAt: vac.createdAt || null
                 });
               });
             }
@@ -140,6 +158,14 @@ export default function VeterinarianVaccinationsPage() {
     if (diffDays < 0) return 'overdue';
     if (diffDays <= 14) return 'upcoming';
     return 'completed';
+  };
+
+  // Toggle expanded row to show full vaccination details
+  const toggleRow = (vacId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [vacId]: !prev[vacId]
+    }));
   };
 
   const handleOpenModal = () => {
@@ -429,7 +455,15 @@ export default function VeterinarianVaccinationsPage() {
                 const statusBadge = getStatusBadge(status);
                 const PetIcon = vac.petIcon === '🐕' ? PawPrint : Cat;
                 return (
-                  <TableRow key={vac.id}>
+                  <>
+                  <TableRow 
+                    key={vac.id} 
+                    className={cn(
+                      "cursor-pointer hover:bg-blue-50 transition-colors",
+                      expandedRows[vac.id] && "bg-blue-50/50 border-l-4 border-blue-400"
+                    )} 
+                    onClick={() => toggleRow(vac.id)}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-secondary">
@@ -513,6 +547,57 @@ export default function VeterinarianVaccinationsPage() {
                       </span>
                     </TableCell>
                   </TableRow>
+                  
+                  {/* Expandable Detail Row */}
+                  {expandedRows[vac.id] && (
+                    <TableRow className="bg-gradient-to-r from-blue-50 to-cyan-50">
+                      <TableCell colSpan={10} className="p-0">
+                        <div className="p-4 space-y-3 animate-in slide-in-from-top-2">
+                          <div className="flex items-center gap-2 pb-2 border-b border-blue-200">
+                            <Syringe className="h-4 w-4 text-blue-600" />
+                            <span className="font-bold text-blue-800">Chi tiết tiêm phòng #{vac.id}</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-3">
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">👨‍⚕️ Bác sĩ tiêm</p>
+                              <p className="font-semibold">{vac.administeredBy ? (vetMap[vac.administeredBy] || `BS #${vac.administeredBy}`) : 'Chưa ghi nhận'}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">📅 Ngày tiêm</p>
+                              <p className="font-semibold">{vac.dateAdministered ? new Date(vac.dateAdministered).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">🔄 Hạn tiếp theo</p>
+                              <p className={cn("font-semibold", vac.daysUntilDue < 0 && "text-red-600")}>{vac.nextDueDate ? new Date(vac.nextDueDate).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">🏷️ Mã lô</p>
+                              <p className="font-semibold font-mono">{vac.batchNumber}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">📍 Vị trí tiêm</p>
+                              <p className="font-semibold">{vac.site || 'Không ghi nhận'}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm">
+                              <p className="text-xs text-gray-500">🕐 Ngày tạo</p>
+                              <p className="font-semibold">{vac.createdAt ? new Date(vac.createdAt).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border text-sm col-span-2">
+                              <p className="text-xs text-gray-500">⚠️ Phản ứng</p>
+                              <p className={cn("font-semibold", vac.reactions ? "text-red-600" : "text-green-600")}>{vac.reactions || '✅ Không có'}</p>
+                            </div>
+                          </div>
+                          {vac.notes && (
+                            <div className="bg-amber-50 p-2 rounded border border-amber-200 text-sm">
+                              <p className="text-xs text-amber-600 font-semibold">📝 Ghi chú</p>
+                              <p className="text-gray-700">{vac.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </>
                 );
               })
             )}

@@ -7,7 +7,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Calendar, Clock, CheckCircle2, Send, Bell, Search, PawPrint, Cat, Stethoscope, Bath, Scissors, ClipboardList, Phone, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Calendar, 
+  Clock, 
+  CheckCircle2, 
+  Send, 
+  Bell, 
+  Search, 
+  PawPrint, 
+  Cat, 
+  Stethoscope, 
+  Bath, 
+  Scissors, 
+  ClipboardList, 
+  Phone, 
+  Loader2,
+  MessageCircle,
+  Zap,
+  RefreshCw,
+  AlertTriangle,
+  Sparkles,
+  MoreHorizontal,
+  EyeIcon,
+  Mail,
+  PhoneCall
+} from "lucide-react";
 import { cn, formatAppointmentId } from "@/lib/utils";
 import { appointmentApi, getToken } from "@/lib/api";
 
@@ -16,6 +47,8 @@ export default function RemindersPage() {
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sendingAll, setSendingAll] = useState(false);
+  const [sendingId, setSendingId] = useState(null);
 
   useEffect(() => {
     loadReminders();
@@ -31,7 +64,6 @@ export default function RemindersPage() {
         return;
       }
 
-      // Get appointments that are upcoming (in the next 3 days)
       const response = await appointmentApi.getAll();
       
       if (response.success && response.data) {
@@ -39,7 +71,6 @@ export default function RemindersPage() {
         const threeDaysLater = new Date();
         threeDaysLater.setDate(now.getDate() + 3);
 
-        // TODO: Fix this. Don't filter on client side.
         const upcomingAppointments = response.data.filter(apt => {
           const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate) : null;
           return aptDate && aptDate >= now && aptDate <= threeDaysLater && 
@@ -79,37 +110,42 @@ export default function RemindersPage() {
     }
   };
 
+  const getDaysUntil = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   const pendingCount = reminders.filter(r => !r.reminderSent).length;
   const sentCount = reminders.filter(r => r.reminderSent).length;
 
   const handleSendReminder = async (appointmentId) => {
     try {
+      setSendingId(appointmentId);
       const reminder = reminders.find(r => r.appointmentId === appointmentId);
-      // In a real implementation, this would send an email/SMS
-      // For now, we'll just update the appointment to mark reminder as sent
-      const response = await appointmentApi.update(appointmentId, {
-        status: 'PENDING',
-        // lastReminderDate: new Date().toISOString()
+      
+      await appointmentApi.update(appointmentId, {
+        status: 'PENDING'
       });
 
-      if (response.success) {
-        alert(`✅ Đã gửi nhắc lịch cho ${reminder.pet?.owner?.fullName || 'khách hàng'}`);
-        await loadReminders();
-      } else {
-        alert('Lỗi khi gửi nhắc lịch: ' + (response.error || 'Unknown error'));
-      }
+      alert(`✅ Đã gửi nhắc lịch cho ${reminder.pet?.owner?.fullName || 'khách hàng'}`);
+      await loadReminders();
     } catch (error) {
       console.error('Error sending reminder:', error);
       alert('Lỗi khi gửi nhắc lịch');
+    } finally {
+      setSendingId(null);
     }
   };
 
   const handleSendAll = async () => {
     if (confirm(`Gửi nhắc lịch cho tất cả ${pendingCount} khách hàng?`)) {
       try {
+        setSendingAll(true);
         const pendingReminders = reminders.filter(r => !r.reminderSent);
         
-        // Send reminders for all pending appointments
         await Promise.all(
           pendingReminders.map(reminder => 
             appointmentApi.update(reminder.appointmentId, {
@@ -119,194 +155,342 @@ export default function RemindersPage() {
           )
         );
 
-        alert(`✅ Đã gửi ${pendingCount} nhắc lịch`);
+        alert(`✅ Đã gửi ${pendingCount} nhắc lịch thành công!`);
         await loadReminders();
       } catch (error) {
         console.error('Error sending all reminders:', error);
         alert('Lỗi khi gửi nhắc lịch');
+      } finally {
+        setSendingAll(false);
       }
     }
   };
 
-  return (
-    <div className="flex-1 space-y-8 p-8">
-      <DashboardHeader
-        title="Gửi nhắc lịch"
-        subtitle="Gửi thông báo nhắc lịch cho khách hàng trước giờ hẹn"
-      />
-
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50">
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 animate-pulse mx-auto mb-4 flex items-center justify-center">
+              <Bell className="w-10 h-10 text-white animate-bounce" />
+            </div>
+          </div>
+          <p className="text-lg font-medium text-gray-600 animate-pulse">Đang tải danh sách nhắc lịch...</p>
         </div>
-      ) : (
-        <>
-          {/* Stats Row */}
-          <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lịch sắp tới</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{reminders.length}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-yellow-700">Cần gửi nhắc</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">{pendingCount}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700">Đã gửi</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{sentCount}</div>
-          </CardContent>
-        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50/30">
+      {/* Decorative Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-amber-200/40 to-orange-200/40 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-yellow-200/40 to-amber-200/40 rounded-full blur-3xl" />
       </div>
 
-      {/* Action Bar */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
-                <Bell className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">Danh sách lịch sắp tới</h3>
-                <p className="text-sm text-muted-foreground">{filteredReminders.length} lịch hẹn cần nhắc</p>
-              </div>
+      <div className="relative z-10 space-y-6 p-8">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-xl shadow-amber-500/30">
+              <Bell className="w-7 h-7" />
             </div>
-            <div className="flex gap-3 w-full md:w-auto">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Gửi nhắc lịch</h1>
+              <p className="text-gray-500">Thông báo nhắc lịch hẹn cho khách hàng</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-3">
+            <Button 
+              onClick={() => loadReminders()}
+              variant="outline"
+              className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" /> Làm mới
+            </Button>
+            <Button 
+              onClick={handleSendAll} 
+              disabled={pendingCount === 0 || sendingAll}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 border-0"
+            >
+              {sendingAll ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              Gửi tất cả ({pendingCount})
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-xl shadow-purple-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Lịch sắp tới</p>
+                  <p className="text-4xl font-bold mt-1">{reminders.length}</p>
+                  <p className="text-white/70 text-xs mt-2">📅 Trong 3 ngày tới</p>
+                </div>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <Calendar className="w-8 h-8" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xl shadow-orange-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Cần gửi nhắc</p>
+                  <p className="text-4xl font-bold mt-1">{pendingCount}</p>
+                  <p className="text-white/70 text-xs mt-2 flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> Cần xử lý
+                  </p>
+                </div>
+                <div className="relative w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <MessageCircle className="w-8 h-8" />
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full animate-ping" />
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-xl shadow-green-500/25 hover:shadow-2xl transition-all duration-500 hover:-translate-y-1">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-sm font-medium">Đã gửi</p>
+                  <p className="text-4xl font-bold mt-1">{sentCount}</p>
+                  <p className="text-white/70 text-xs mt-2 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Hoàn thành
+                  </p>
+                </div>
+                <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search */}
+        <Card className="border-0 bg-white/80 backdrop-blur-sm shadow-xl shadow-gray-100/50">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 flex items-center justify-center">
+                  <Bell className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Danh sách lịch sắp tới</h3>
+                  <p className="text-sm text-gray-500">{filteredReminders.length} lịch hẹn cần nhắc</p>
+                </div>
+              </div>
+              
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   type="text"
                   placeholder="Tìm theo tên, SĐT, mã..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-12 h-12 border-gray-200 bg-white rounded-xl"
                 />
               </div>
-              <Button onClick={handleSendAll} disabled={pendingCount === 0}>
-                <Send className="h-4 w-4 mr-2" /> Gửi tất cả nhắc lịch
-              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Table */}
-      <div className="space-y-6">
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mã</TableHead>
-                <TableHead>Khách hàng</TableHead>
-                <TableHead>Thú cưng</TableHead>
-                <TableHead>Dịch vụ</TableHead>
-                <TableHead>Ngày & Giờ</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Lần gửi cuối</TableHead>
-                <TableHead className="text-center">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredReminders.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <Bell className="mx-auto h-8 w-8 mb-2" />
-                    Không có lịch hẹn nào
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredReminders.map((reminder) => {
-                  const statusBadge = reminder.status == 'PENDING'
-                    ? { label: 'Đã gửi', variant: 'success', icon: CheckCircle2 }
-                    : { label: 'Cần gửi', variant: 'warning', icon: Clock };
-                  const PetIcon = reminder.pet?.species === 'DOG' ? PawPrint : Cat;
-                  const serviceIcon = getServiceIconFromType(reminder.service?.serviceCategory?.categoryName);
-                  const ServiceIcon = getServiceIcon(serviceIcon);
-                  const customerName = reminder.pet?.owner?.fullName || 'N/A';
-                  const phone = reminder.pet?.owner?.phoneNumber || 'N/A';
-                  const petName = reminder.pet?.name || 'N/A';
-                  const serviceName = reminder.service?.serviceName || 'N/A';
-                  const date = reminder.appointmentDate ? new Date(reminder.appointmentDate).toISOString().split('T')[0] : 'N/A';
-                  const time = reminder.startTime || 'N/A';
-                  const lastReminder = reminder.status == 'PENDING' ? 'Chưa gửi': (reminder.lastReminderDate ? new Date(reminder.lastReminderDate).toLocaleString('vi-VN') : 'Đã gửi');
-                  
-                  return (
-                    <TableRow key={reminder.appointmentId}>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono">{formatAppointmentId(reminder.appointmentId)}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{customerName}</p>
-                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {phone}
-                          </p>
+        {/* Table */}
+        <Card className="border-0 bg-white/90 backdrop-blur-sm shadow-xl shadow-gray-100/50 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/50">
+                    <TableHead className="font-bold text-gray-700">Mã</TableHead>
+                    <TableHead className="font-bold text-gray-700">Khách hàng</TableHead>
+                    <TableHead className="font-bold text-gray-700">Thú cưng</TableHead>
+                    <TableHead className="font-bold text-gray-700">Dịch vụ</TableHead>
+                    <TableHead className="font-bold text-gray-700">Ngày hẹn</TableHead>
+                    <TableHead className="font-bold text-gray-700">Còn lại</TableHead>
+                    <TableHead className="font-bold text-gray-700">Trạng thái</TableHead>
+                    <TableHead className="font-bold text-gray-700 text-center">Thao tác</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredReminders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-40">
+                        <div className="flex flex-col items-center justify-center text-gray-400">
+                          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                            <Bell className="w-8 h-8" />
+                          </div>
+                          <p className="text-lg font-medium">Không có lịch hẹn nào</p>
+                          <p className="text-sm">Tất cả đã được nhắc hoặc không có lịch sắp tới</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <PetIcon className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">{petName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-                          <span>{serviceName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium flex items-center gap-1">
-                            <Calendar className="h-4 w-4" /> {date}
-                          </p>
-                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {time}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadge.variant} className="flex items-center gap-1 w-fit">
-                          <statusBadge.icon className="h-3 w-3" /> {statusBadge.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">{lastReminder}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          size="sm"
-                          onClick={() => handleSendReminder(reminder.appointmentId)}
-                          disabled={reminder.reminderSent}
-                          variant={!reminder.reminderSent ? 'default' : 'secondary'}
-                        >
-                          <Send className="h-4 w-4 mr-2" /> Gửi
-                        </Button>
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  ) : (
+                    filteredReminders.map((reminder) => {
+                      const PetIcon = reminder.pet?.species === 'DOG' ? PawPrint : Cat;
+                      const serviceIcon = getServiceIconFromType(reminder.service?.serviceCategory?.categoryName);
+                      const ServiceIcon = getServiceIcon(serviceIcon);
+                      const daysUntil = getDaysUntil(reminder.appointmentDate);
+                      
+                      return (
+                        <TableRow 
+                          key={reminder.appointmentId} 
+                          className="group hover:bg-gradient-to-r hover:from-amber-50/50 hover:to-orange-50/50 transition-all"
+                        >
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono bg-gray-50 border-gray-200">
+                              {formatAppointmentId(reminder.appointmentId)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 flex items-center justify-center text-amber-600 font-bold">
+                                {(reminder.pet?.owner?.fullName || 'N')[0]}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-800">{reminder.pet?.owner?.fullName || 'N/A'}</p>
+                                <p className="text-sm text-gray-500 flex items-center gap-1">
+                                  <Phone className="w-3 h-3" /> {reminder.pet?.owner?.phoneNumber || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                                <PetIcon className="w-4 h-4 text-amber-600" />
+                              </div>
+                              <span className="font-medium text-gray-700">{reminder.pet?.name || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <ServiceIcon className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <span className="font-medium text-gray-700">{reminder.service?.serviceName || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-semibold text-gray-800 flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                {reminder.appointmentDate ? new Date(reminder.appointmentDate).toLocaleDateString('vi-VN') : 'N/A'}
+                              </p>
+                              <p className="text-sm text-gray-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {reminder.startTime || 'N/A'}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn(
+                              "shadow-lg border-0",
+                              daysUntil <= 1 
+                                ? "bg-gradient-to-r from-rose-400 to-red-500 text-white"
+                                : daysUntil <= 2
+                                  ? "bg-gradient-to-r from-amber-400 to-orange-500 text-white"
+                                  : "bg-gradient-to-r from-emerald-400 to-green-500 text-white"
+                            )}>
+                              {daysUntil === 0 ? '🔥 Hôm nay' : daysUntil === 1 ? '⚡ Ngày mai' : `📅 ${daysUntil} ngày`}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn(
+                              "shadow-lg border-0",
+                              reminder.status === 'CONFIRMED' 
+                                ? "bg-gradient-to-r from-emerald-400 to-green-500 text-white"
+                                : "bg-gradient-to-r from-amber-400 to-orange-500 text-white"
+                            )}>
+                              {reminder.status === 'CONFIRMED' ? (
+                                <><CheckCircle2 className="w-3 h-3 mr-1" /> Đã xác nhận</>
+                              ) : (
+                                <><Clock className="w-3 h-3 mr-1" /> Chờ xác nhận</>
+                              )}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSendReminder(reminder.appointmentId)}
+                                disabled={sendingId === reminder.appointmentId}
+                                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 border-0"
+                              >
+                                {sendingId === reminder.appointmentId ? (
+                                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Send className="w-4 h-4 mr-1" />
+                                )}
+                                Gửi
+                              </Button>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 hover:bg-gray-100"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    onClick={() => alert(`Xem chi tiết lịch hẹn #${reminder.appointmentId}`)}
+                                  >
+                                    <EyeIcon className="mr-2 h-4 w-4 text-blue-500" />
+                                    <span>Xem chi tiết</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    onClick={() => alert(`Gọi điện: ${reminder.pet?.owner?.phoneNumber}`)}
+                                  >
+                                    <PhoneCall className="mr-2 h-4 w-4 text-emerald-500" />
+                                    <span>Gọi điện</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    onClick={() => alert(`Gửi SMS: ${reminder.pet?.owner?.phoneNumber}`)}
+                                  >
+                                    <MessageCircle className="mr-2 h-4 w-4 text-violet-500" />
+                                    <span>Gửi SMS</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="cursor-pointer"
+                                    onClick={() => alert(`Gửi Email`)}
+                                  >
+                                    <Mail className="mr-2 h-4 w-4 text-rose-500" />
+                                    <span>Gửi Email</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-        </>
-      )}
     </div>
   );
 }

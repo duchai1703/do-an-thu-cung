@@ -77,7 +77,8 @@ export default function PetDetailsPage() {
       }
 
       try {
-        const vaccinationsRes = await apiClient.get(`/medical-records/pet/${petId}/vaccinations`);
+        // Use correct endpoint: /pets/{id}/vaccinations
+        const vaccinationsRes = await apiClient.get(`/pets/${petId}/vaccinations`);
         setVaccinations(vaccinationsRes.data || vaccinationsRes || []);
       } catch (err) {
         console.log("No vaccinations yet");

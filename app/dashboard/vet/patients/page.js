@@ -176,8 +176,8 @@ export default function VeterinarianPatientsPage() {
   };
 
   const handleViewDetail = (patient) => {
-    setSelectedPatient(patient);
-    setIsDetailModalOpen(true);
+    // Navigate to comprehensive pet detail page instead of opening modal
+    router.push(`/dashboard/vet/patients/${patient.id}`);
   };
 
   const filteredPatients = patients.filter(patient => {
