@@ -19,7 +19,8 @@ import {
   FileText,
   CheckCircle2,
   X,
-  Sparkles
+  Sparkles,
+  Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { appointmentApi, petOwnerApi, serviceApi } from "@/lib/api";
@@ -49,10 +50,17 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     estimatedCost: 0
   });
   
-  // Selected objects
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedPet, setSelectedPet] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  // Mock employees data
+  const MOCK_EMPLOYEES = [
+    { employeeId: 1, fullName: "BS. Nguyễn Văn A", specialty: "Khám tổng quát" },
+    { employeeId: 2, fullName: "BS. Trần Thị B", specialty: "Nội khoa" },
+    { employeeId: 3, fullName: "BS. Lê Minh C", specialty: "Ngoại khoa" },
+  ];
 
   useEffect(() => {
     if (isOpen) {
@@ -167,7 +175,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
-  const canSubmit = formData.petId && formData.serviceId && formData.appointmentDate && formData.startTime && formData.endTime;
+  const canSubmit = formData.petId && formData.serviceId && formData.appointmentDate && formData.startTime && formData.endTime && formData.employeeId;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -437,6 +445,40 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                           className="h-12"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Employee Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Briefcase className="w-4 h-4 inline mr-1" /> Bác sĩ phụ trách *
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {MOCK_EMPLOYEES.map((emp) => (
+                        <div
+                          key={emp.employeeId}
+                          onClick={() => {
+                            setSelectedEmployee(emp);
+                            setFormData(prev => ({ ...prev, employeeId: emp.employeeId }));
+                          }}
+                          className={cn(
+                            "p-3 rounded-xl border-2 cursor-pointer transition-all",
+                            formData.employeeId === emp.employeeId
+                              ? "border-indigo-500 bg-indigo-50"
+                              : "border-gray-100 hover:border-indigo-200"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-100 to-blue-100 flex items-center justify-center text-indigo-600 font-bold">
+                              {emp.fullName.split(' ').pop()?.[0]}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-800 text-sm">{emp.fullName}</p>
+                              <p className="text-xs text-gray-500">{emp.specialty}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   

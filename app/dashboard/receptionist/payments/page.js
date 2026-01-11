@@ -46,6 +46,7 @@ import {
   Plus,
   Smartphone
 } from "lucide-react";
+import InvoiceDetailModal from "@/components/receptionist/InvoiceDetailModal";
 import { cn } from "@/lib/utils";
 import { invoiceApi, paymentApi, getToken } from "@/lib/api";
 
@@ -60,6 +61,10 @@ export default function PaymentsPage() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [processing, setProcessing] = useState(false);
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [methodFilter, setMethodFilter] = useState("all");
+  const [showInvoiceDetailModal, setShowInvoiceDetailModal] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
   useEffect(() => {
     loadPayments();
@@ -75,14 +80,25 @@ export default function PaymentsPage() {
         return;
       }
 
-      const response = await invoiceApi.getAll();
+      const response = await invoiceApi.getAll({
+        includePetOwner: true,
+        includeAppointment: true
+      });
 
       if (response.success && response.data) {
+        console.log("=== INVOICE API RESPONSE ===" );
+        console.log("Total invoices:", response.data.length);
+        if (response.data[0]) {
+          console.log("Sample invoice:", response.data[0]);
+          console.log("petOwner:", response.data[0].petOwner);
+          console.log("appointment:", response.data[0].appointment);
+        }
+        
         const formattedPayments = response.data.map(invoice => {
           const isPaid = invoice.status === 'PAID';
           const paymentMethod = invoice.payments && invoice.payments.length > 0
-            ? (invoice.payments[0].paymentMethod === 'CASH' ? 'Tiền mặt' :
-              invoice.payments[0].paymentMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' :
+            ? (invoice.payments[0].paymentMethod === 'CASH' ? 'CASH' :
+              invoice.payments[0].paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' :
                 invoice.payments[0].paymentMethod)
             : null;
 
@@ -90,9 +106,9 @@ export default function PaymentsPage() {
             id: invoice.invoiceId || invoice.id,
             invoiceId: invoice.invoiceId || invoice.id,
             invoiceNumber: invoice.invoiceNumber || `INV-${invoice.invoiceId}`,
-            customerName: invoice.customer?.name || invoice.petOwner?.fullName || invoice.petOwner?.name || 'N/A',
-            phone: invoice.customer?.phone || invoice.petOwner?.phoneNumber || invoice.petOwner?.phone || 'N/A',
-            email: invoice.customer?.email || invoice.petOwner?.email || 'N/A',
+            customerName: invoice.petOwner?.fullName || 'N/A',
+            phone: invoice.petOwner?.phoneNumber || 'N/A',
+            email: invoice.petOwner?.account?.email || 'N/A',
             service: invoice.appointment?.service?.serviceName || 'N/A',
             serviceIcon: '📋',
             amount: invoice.totalAmount || 0,
@@ -116,10 +132,11 @@ export default function PaymentsPage() {
 
   const filteredPayments = payments.filter(payment => {
     const matchFilter = filter === "all" || payment.status === filter;
-    const matchSearch = payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.phone.includes(searchTerm) ||
-      payment.id.toString().toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFilter && matchSearch;
+    const matchSearch = payment.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.phone?.includes(searchTerm) ||
+      payment.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchMethod = methodFilter === "all" || payment.paymentMethod === methodFilter;
+    return matchFilter && matchSearch && matchMethod;
   });
 
   const totalRevenue = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
@@ -153,6 +170,7 @@ export default function PaymentsPage() {
       if (selectedMethod === "VNPay") {
         const vnpayData = {
           invoiceId: selectedPayment.invoiceId,
+          paymentMethod: "VNPAY",
           returnUrl: `${window.location.origin}/dashboard/receptionist/payments?success=true`,
           cancelUrl: `${window.location.origin}/dashboard/receptionist/payments?cancelled=true`
         };
@@ -180,7 +198,7 @@ export default function PaymentsPage() {
         invoiceId: selectedPayment.invoiceId,
         amount: selectedPayment.amount,
         paymentMethod: methodMap[selectedMethod] || "CASH",
-        paymentDate: new Date().toISOString()
+        notes: paymentNotes || undefined
       };
 
       const response = await paymentApi.create(paymentData);
@@ -191,6 +209,7 @@ export default function PaymentsPage() {
         setShowPaymentModal(false);
         setSelectedPayment(null);
         setSelectedMethod("");
+        setPaymentNotes("");
       } else {
         alert('Lỗi khi xác nhận thanh toán: ' + (response.error || 'Unknown error'));
       }
@@ -333,6 +352,35 @@ export default function PaymentsPage() {
                 />
               </div>
             </div>
+            
+            {/* Method Filter */}
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              <span className="text-sm text-gray-500 font-medium">Phương thức:</span>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { value: 'all', label: 'Tất cả', color: 'gray' },
+                  { value: 'CASH', label: '💵 Tiền mặt', color: 'emerald' },
+                  { value: 'BANK_TRANSFER', label: '🏦 Chuyển khoản', color: 'blue' },
+                  { value: 'VNPAY', label: '📱 VNPay', color: 'rose' },
+                ].map((method) => (
+                  <button
+                    key={method.value}
+                    onClick={() => setMethodFilter(method.value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+                      methodFilter === method.value
+                        ? method.value === 'CASH' ? "bg-emerald-500 text-white" :
+                          method.value === 'BANK_TRANSFER' ? "bg-blue-500 text-white" :
+                          method.value === 'VNPAY' ? "bg-rose-500 text-white" :
+                          "bg-gray-800 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    {method.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -367,9 +415,7 @@ export default function PaymentsPage() {
                   <TableRow className="bg-gray-50/50">
                     <TableHead className="font-bold text-gray-700">Số HĐ</TableHead>
                     <TableHead className="font-bold text-gray-700">Khách hàng</TableHead>
-                    <TableHead className="font-bold text-gray-700">Dịch vụ</TableHead>
                     <TableHead className="font-bold text-gray-700">Ngày lập</TableHead>
-                    <TableHead className="font-bold text-gray-700">Hạn thanh toán</TableHead>
                     <TableHead className="font-bold text-gray-700 text-right">Số tiền</TableHead>
                     <TableHead className="font-bold text-gray-700 text-center">Trạng thái</TableHead>
                     <TableHead className="font-bold text-gray-700 text-center">Thao tác</TableHead>
@@ -378,7 +424,7 @@ export default function PaymentsPage() {
                 <TableBody>
                   {filteredPayments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-40">
+                      <TableCell colSpan={6} className="h-40">
                         <div className="flex flex-col items-center justify-center text-gray-400">
                           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                             <CreditCard className="w-8 h-8" />
@@ -413,14 +459,7 @@ export default function PaymentsPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <ServiceIcon className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <span className="font-medium text-gray-700">{payment.service}</span>
-                            </div>
-                          </TableCell>
+
                           <TableCell>
                             <div>
                               <p className="font-semibold text-gray-800 flex items-center gap-1">
@@ -428,25 +467,7 @@ export default function PaymentsPage() {
                               </p>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            {payment.status === 'paid' ? (
-                              <span className="text-gray-400 text-sm">--</span>
-                            ) : (
-                              <div>
-                                <p className={cn(
-                                  "font-semibold flex items-center gap-1",
-                                  payment.dueDate && payment.dueDate < new Date() 
-                                    ? "text-rose-600" 
-                                    : "text-gray-800"
-                                )}>
-                                  <Clock className="w-4 h-4" /> {payment.dueDateFormatted}
-                                </p>
-                                {payment.dueDate && payment.dueDate < new Date() && (
-                                  <span className="text-xs text-rose-500 font-medium">⚠️ Quá hạn</span>
-                                )}
-                              </div>
-                            )}
-                          </TableCell>
+
                           <TableCell className="text-right">
                             <span className="text-xl font-bold text-emerald-600 font-mono">
                               {formatCurrency(payment.amount)}
@@ -494,7 +515,10 @@ export default function PaymentsPage() {
                                 <DropdownMenuContent align="end" className="w-48">
                                   <DropdownMenuItem 
                                     className="cursor-pointer"
-                                    onClick={() => alert(`Xem chi tiết hóa đơn #${payment.invoiceNumber}`)}
+                                    onClick={() => {
+                                      setSelectedInvoiceId(payment.invoiceId);
+                                      setShowInvoiceDetailModal(true);
+                                    }}
                                   >
                                     <EyeIcon className="mr-2 h-4 w-4 text-blue-500" />
                                     <span>Xem chi tiết</span>
@@ -505,14 +529,52 @@ export default function PaymentsPage() {
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem 
                                         className="cursor-pointer"
-                                        onClick={() => alert(`In biên nhận #${payment.invoiceNumber}`)}
+                                        onClick={async () => {
+                                          try {
+                                            // Find payment ID from invoice
+                                            if (payment.rawData?.payments?.[0]?.paymentId) {
+                                              const paymentId = payment.rawData.payments[0].paymentId;
+                                              const receiptResponse = await paymentApi.generateReceipt?.(paymentId);
+                                              if (receiptResponse?.success) {
+                                                alert('✅ Biên nhận đã được tạo');
+                                                // Can trigger print dialog or download
+                                                window.print();
+                                              }
+                                            } else {
+                                              alert('⚠️ Chưa có thông tin thanh toán');
+                                            }
+                                          } catch (error) {
+                                            console.error(error);
+                                            alert('❌ Lỗi khi in biên nhận');
+                                          }
+                                        }}
                                       >
                                         <Printer className="mr-2 h-4 w-4 text-gray-600" />
                                         <span>In biên nhận</span>
                                       </DropdownMenuItem>
                                       <DropdownMenuItem 
                                         className="cursor-pointer"
-                                        onClick={() => alert(`Xuất PDF #${payment.invoiceNumber}`)}
+                                        onClick={async () => {
+                                          try {
+                                            const pdfResponse = await invoiceApi.generatePdf?.(payment.invoiceId);
+                                            if (pdfResponse?.success && pdfResponse?.data) {
+                                              // Create blob URL and download
+                                              const url = window.URL.createObjectURL(new Blob([pdfResponse.data]));
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.setAttribute('download', `${payment.invoiceNumber}.pdf`);
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              link.remove();
+                                              alert('✅ Đã xuất PDF');
+                                            } else {
+                                              alert('⚠️ Không thể xuất PDF');
+                                            }
+                                          } catch (error) {
+                                            console.error(error);
+                                            alert('❌ Lỗi khi xuất PDF');
+                                          }
+                                        }}
                                       >
                                         <FileText className="mr-2 h-4 w-4 text-violet-500" />
                                         <span>Xuất PDF</span>
@@ -650,6 +712,17 @@ export default function PaymentsPage() {
                   </button>
                 </div>
 
+                {/* Payment Notes */}
+                <div className="space-y-2">
+                  <label className="font-medium text-gray-700">Ghi chú thanh toán</label>
+                  <textarea 
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    placeholder="Nhập ghi chú cho thanh toán..."
+                    className="w-full h-20 px-4 py-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
                 <DialogFooter className="gap-3">
                   <Button 
                     variant="outline" 
@@ -683,6 +756,12 @@ export default function PaymentsPage() {
           isOpen={showCreateInvoiceModal}
           onClose={() => setShowCreateInvoiceModal(false)}
           onSuccess={loadPayments}
+        />
+
+        <InvoiceDetailModal
+          isOpen={showInvoiceDetailModal}
+          onClose={() => setShowInvoiceDetailModal(false)}
+          invoiceId={selectedInvoiceId}
         />
       </div>
     </div>
