@@ -213,11 +213,12 @@ export default function ServicesPage() {
 
   const handleToggleAvailability = async (service) => {
     const id = service.serviceId || service.id;
-    const isCurrentlyActive = service.isActive !== false;
+    const isCurrentlyAvailable = service.isAvailable !== false;
     
     try {
-      await apiClient.put(`/services/${id}/availability`, { isActive: !isCurrentlyActive });
-      showToast(isCurrentlyActive ? "Đã tắt dịch vụ 🔴" : "Đã bật dịch vụ 🟢", "success");
+      // Backend expects { isAvailable: boolean } not { isActive: boolean }
+      await apiClient.put(`/services/${id}/availability`, { isAvailable: !isCurrentlyAvailable });
+      showToast(isCurrentlyAvailable ? "Đã tắt dịch vụ 🔴" : "Đã bật dịch vụ 🟢", "success");
       loadData();
     } catch (error) {
       showToast("Không thể cập nhật trạng thái", "error");

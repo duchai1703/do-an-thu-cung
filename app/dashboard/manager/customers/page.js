@@ -1,81 +1,109 @@
+/**
+ * Customers Management - SUPER CUTE Premium UI 🎀
+ * 
+ * Route: /dashboard/manager/customers
+ * 
+ * Features:
+ * - Adorable gradient header with cute emojis
+ * - Pastel color scheme
+ * - Cute pet badges with emojis
+ * - Smooth animations and hover effects
+ * - Premium card design with glassmorphism
+ */
+
 "use client";
 import { useState, useEffect } from "react";
-import {
-  Search, Eye, RefreshCw, User, Phone, Mail,
-  MapPin, PawPrint, Calendar, CreditCard
-} from "lucide-react";
-import DashboardHeader from "@/components/layout/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import StatsCard from "@/components/dashboard/StatsCard";
-import { petOwnerApi, getToken } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 
-export default function ManagerCustomersPage() {
-  const router = useRouter();
+export default function CustomersPage() {
   const { showToast } = useToast();
-  const [customers, setCustomers] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState([]);
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    loadCustomers();
+    loadData();
   }, []);
 
-  const loadCustomers = async () => {
+  useEffect(() => {
+    filterCustomers();
+  }, [customers, searchTerm]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      const response = await petOwnerApi.getAll();
-
-      if (response.success && response.data) {
-        setCustomers(response.data);
-      } else {
-        showToast("Không thể tải danh sách khách hàng", "error");
-      }
+      const res = await apiClient.get('/pet-owners');
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setCustomers(data);
     } catch (error) {
       console.error("Error loading customers:", error);
-      showToast("Lỗi khi tải dữ liệu", "error");
+      showToast("Không thể tải danh sách khách hàng", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewDetail = async (customer) => {
+  const filterCustomers = () => {
+    if (!searchTerm) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const term = searchTerm.toLowerCase();
+    const filtered = customers.filter(c =>
+      c.fullName?.toLowerCase().includes(term) ||
+      c.phoneNumber?.includes(term) ||
+      c.email?.toLowerCase().includes(term)
+    );
+    setFilteredCustomers(filtered);
+  };
+
+  const handleViewDetail = (customer) => {
     setSelectedCustomer(customer);
     setIsDetailModalOpen(true);
   };
 
-  const getPetIcon = (species) => {
-    const s = species?.toUpperCase();
-    if (s === 'DOG') return "🐕";
-    if (s === 'CAT') return "🐈";
-    return "🐾";
+  const handleCloseModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedCustomer(null);
   };
 
-  // Filter customers
-  const filteredCustomers = customers.filter(customer => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      customer.fullName?.toLowerCase().includes(search) ||
-      customer.name?.toLowerCase().includes(search) ||
-      customer.phoneNumber?.includes(search) ||
-      customer.email?.toLowerCase().includes(search)
-    );
-  });
+  const getPetEmoji = (species) => {
+    const emojiMap = {
+      'Dog': '🐕', 'Chó': '🐕', 'DOG': '🐕',
+      'Cat': '🐈', 'Mèo': '🐈', 'CAT': '🐈',
+      'Bird': '🐦', 'Chim': '🐦', 'BIRD': '🐦',
+      'Rabbit': '🐇', 'Thỏ': '🐇', 'RABBIT': '🐇',
+      'Hamster': '🐹', 'HAMSTER': '🐹',
+      'Turtle': '🐢', 'Rùa': '🐢', 'TURTLE': '🐢',
+      'Fish': '🐟', 'Cá': '🐟', 'FISH': '🐟'
+    };
+    return emojiMap[species] || '🐾';
+  };
+
+  // Cute pastel colors for avatars
+  const getAvatarGradient = (index) => {
+    const gradients = [
+      'from-pink-400 to-rose-400',
+      'from-purple-400 to-pink-400',
+      'from-blue-400 to-cyan-400',
+      'from-green-400 to-emerald-400',
+      'from-yellow-400 to-orange-400',
+      'from-indigo-400 to-purple-400',
+      'from-teal-400 to-green-400',
+      'from-rose-400 to-pink-400'
+    ];
+    return gradients[index % gradients.length];
+  };
 
   // Stats
   const stats = {
@@ -84,200 +112,275 @@ export default function ManagerCustomersPage() {
     totalPets: customers.reduce((sum, c) => sum + (c.pets?.length || 0), 0)
   };
 
-  return (
-    <div className="p-6 space-y-6">
-      <DashboardHeader
-        title="Quản lý khách hàng"
-        subtitle="Xem thông tin và quản lý chủ nuôi thú cưng"
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard icon={User} title="Tổng khách hàng" value={stats.total} color="primary" />
-        <StatsCard icon={PawPrint} title="Có thú cưng" value={stats.withPets} color="success" />
-        <StatsCard icon={PawPrint} title="Tổng thú cưng" value={stats.totalPets} color="info" />
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-8xl mb-4 animate-bounce">🐾</div>
+          <p className="text-gray-500 text-lg font-medium">Đang tải khách hàng yêu quý...</p>
+        </div>
       </div>
+    );
+  }
 
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[300px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm theo tên, SĐT, email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+      {/* 🌈 Super Cute Gradient Header */}
+      <div className="bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 text-white p-8 pb-32 shadow-xl rounded-b-[3rem] relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24"></div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-3 flex items-center gap-3 drop-shadow-lg">
+                <span className="text-5xl animate-bounce">🐾</span>
+                Khách Hàng Yêu Quý
+              </h1>
+              <p className="text-white/95 text-lg font-medium drop-shadow">
+                Quản lý thông tin chủ nuôi và thú cưng đáng yêu
+              </p>
+            </div>
+            <div className="hidden md:flex gap-3">
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3 text-center">
+                <p className="text-3xl font-bold">{stats.total}</p>
+                <p className="text-sm text-white/90">Khách hàng</p>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3 text-center">
+                <p className="text-3xl font-bold">{stats.totalPets}</p>
+                <p className="text-sm text-white/90">Thú cưng</p>
               </div>
             </div>
-            <Button variant="outline" onClick={loadCustomers}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Làm mới
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Customers Table */}
-      {loading ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <RefreshCw className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-            <p className="text-muted-foreground">Đang tải...</p>
+      <div className="max-w-7xl mx-auto px-6 -mt-24 pb-8">
+        {/* Cute Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0 hover:shadow-2xl transition-all hover:-translate-y-1">
+            <CardContent className="p-6 text-center">
+              <div className="text-5xl mb-3">👥</div>
+              <p className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{stats.total}</p>
+              <p className="text-sm text-gray-600 font-medium mt-1">Tổng khách hàng</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0 hover:shadow-2xl transition-all hover:-translate-y-1">
+            <CardContent className="p-6 text-center">
+              <div className="text-5xl mb-3">🐾</div>
+              <p className="text-3xl font-bold bg-gradient-to-r from-purple-500 to-blue-500 bg-clip-text text-transparent">{stats.withPets}</p>
+              <p className="text-sm text-gray-600 font-medium mt-1">Có thú cưng</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0 hover:shadow-2xl transition-all hover:-translate-y-1">
+            <CardContent className="p-6 text-center">
+              <div className="text-5xl mb-3">🐕</div>
+              <p className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{stats.totalPets}</p>
+              <p className="text-sm text-gray-600 font-medium mt-1">Tổng thú cưng</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Cute Search Bar */}
+        <Card className="bg-white/80 backdrop-blur-sm shadow-xl mb-6 border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl">🔍</span>
+                <Input
+                  type="text"
+                  placeholder="Tìm kiếm khách hàng yêu quý..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-14 h-12 text-base border-2 border-purple-200 focus:border-purple-400 rounded-xl"
+                />
+              </div>
+              <Button onClick={loadData} className="h-12 px-6 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl hover:shadow-lg transition-all">
+                🔄 Làm mới
+              </Button>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Khách hàng</TableHead>
-                  <TableHead>Liên hệ</TableHead>
-                  <TableHead>Địa chỉ</TableHead>
-                  <TableHead>Thú cưng</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.length > 0 ? filteredCustomers.map(customer => (
-                  <TableRow key={customer.petOwnerId || customer.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{customer.fullName || customer.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            ID: {customer.petOwnerId || customer.id}
+
+        {/* Count */}
+        <p className="text-sm text-gray-600 mb-4 font-medium">
+          ✨ Hiển thị {filteredCustomers.length} / {customers.length} khách hàng
+        </p>
+
+        {/* Cute Customers Grid */}
+        {filteredCustomers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCustomers.map((customer, index) => {
+              const customerId = customer.petOwnerId || customer.id;
+              
+              return (
+                <Card 
+                  key={customerId} 
+                  className="bg-white/80 backdrop-blur-sm shadow-xl border-0 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer group overflow-hidden"
+                  onClick={() => handleViewDetail(customer)}
+                >
+                  <CardContent className="p-6">
+                    {/* Decorative top bar */}
+                    <div className={`h-2 bg-gradient-to-r ${getAvatarGradient(index)} rounded-full mb-4 group-hover:h-3 transition-all`}></div>
+                    
+                    <div className="flex items-start gap-4">
+                      {/* Cute Avatar */}
+                      <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getAvatarGradient(index)} text-white flex items-center justify-center text-3xl font-bold shrink-0 shadow-lg group-hover:scale-110 transition-transform`}>
+                        {customer.fullName?.charAt(0) || '👤'}
+                      </div>
+                      
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-gray-900 text-lg truncate mb-1">
+                          {customer.fullName || 'N/A'}
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-3">ID: {customerId}</p>
+                        
+                        <div className="space-y-2 text-sm">
+                          <p className="text-gray-700 truncate flex items-center gap-2">
+                            <span className="text-lg">📱</span>
+                            <span className="font-medium">{customer.phoneNumber || 'N/A'}</span>
                           </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <p className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          {customer.phoneNumber || 'N/A'}
-                        </p>
-                        <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {customer.email || 'N/A'}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm truncate max-w-[200px]">
-                        {customer.address || 'N/A'}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      {customer.pets && customer.pets.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {customer.pets.slice(0, 3).map((pet, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {getPetIcon(pet.species)} {pet.name}
-                            </Badge>
-                          ))}
-                          {customer.pets.length > 3 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{customer.pets.length - 3}
-                            </Badge>
+                          <p className="text-gray-700 truncate flex items-center gap-2">
+                            <span className="text-lg">📧</span>
+                            <span className="font-medium">{customer.email || 'N/A'}</span>
+                          </p>
+                          {customer.address && (
+                            <p className="text-gray-700 truncate flex items-center gap-2">
+                              <span className="text-lg">📍</span>
+                              <span className="font-medium">{customer.address}</span>
+                            </p>
                           )}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Cute Pets Section */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      {customer.pets && customer.pets.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-gray-500 font-semibold mb-2">🐾 Thú cưng ({customer.pets.length})</p>
+                          <div className="flex flex-wrap gap-2">
+                            {customer.pets.slice(0, 3).map((pet, idx) => (
+                              <span key={idx} className="px-3 py-1.5 bg-gradient-to-r from-pink-100 to-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center gap-1 shadow-sm">
+                                <span className="text-base">{getPetEmoji(pet.species)}</span>
+                                {pet.name}
+                              </span>
+                            ))}
+                            {customer.pets.length > 3 && (
+                              <span className="px-3 py-1.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-full text-xs font-medium shadow-sm">
+                                +{customer.pets.length - 3} nữa
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-muted-foreground text-sm">Chưa có</span>
+                        <p className="text-gray-400 text-sm text-center py-2">
+                          <span className="text-2xl block mb-1">🐾</span>
+                          Chưa có thú cưng
+                        </p>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleViewDetail(customer)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      {searchTerm ? "Không tìm thấy khách hàng phù hợp" : "Chưa có khách hàng nào"}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                    </div>
 
-      {/* Detail Modal */}
-      <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              Thông tin khách hàng
-            </DialogTitle>
-          </DialogHeader>
-          {selectedCustomer && (
-            <div className="space-y-6">
+                    {/* Hover effect indicator */}
+                    <div className="mt-4 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-xs text-purple-600 font-semibold">👁️ Nhấn để xem chi tiết</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
+            <CardContent className="py-20 text-center">
+              <span className="text-9xl block mb-6">🔍</span>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Không tìm thấy khách hàng</h3>
+              <p className="text-gray-500 text-lg">
+                {searchTerm ? 'Thử thay đổi từ khóa tìm kiếm nhé! 💫' : 'Chưa có khách hàng nào trong hệ thống 🌟'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Cute Detail Modal */}
+      {isDetailModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+            <div className="p-6 border-b bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
+                  <span className="text-3xl">👤</span>
+                  Thông Tin Khách Hàng
+                </h2>
+                <button 
+                  onClick={handleCloseModal}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <span className="text-2xl">✖️</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6">
               {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Họ tên</Label>
-                  <p className="font-medium text-lg">
-                    {selectedCustomer.fullName || selectedCustomer.name}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Mã khách hàng</Label>
-                  <p className="font-medium">
-                    #{selectedCustomer.petOwnerId || selectedCustomer.id}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+              <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-6">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-muted-foreground text-xs">Số điện thoại</Label>
-                    <p className="font-medium">{selectedCustomer.phoneNumber || 'N/A'}</p>
+                    <Label className="text-gray-600 text-sm font-semibold">Họ tên</Label>
+                    <p className="font-bold text-xl text-gray-900 mt-1">
+                      {selectedCustomer.fullName || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600 text-sm font-semibold">Mã khách hàng</Label>
+                    <p className="font-bold text-lg text-purple-600 mt-1">
+                      #{selectedCustomer.petOwnerId || selectedCustomer.id}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <Label className="text-muted-foreground text-xs">Email</Label>
-                    <p className="font-medium">{selectedCustomer.email || 'N/A'}</p>
+                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
+                      <span className="text-lg">📱</span> Số điện thoại
+                    </Label>
+                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.phoneNumber || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
+                      <span className="text-lg">📧</span> Email
+                    </Label>
+                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.email || 'N/A'}</p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                <div>
-                  <Label className="text-muted-foreground text-xs">Địa chỉ</Label>
-                  <p className="font-medium">{selectedCustomer.address || 'N/A'}</p>
-                </div>
+                {selectedCustomer.address && (
+                  <div className="mt-4">
+                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
+                      <span className="text-lg">📍</span> Địa chỉ
+                    </Label>
+                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.address}</p>
+                  </div>
+                )}
               </div>
 
               {/* Pets */}
-              <div className="border-t pt-4">
-                <h4 className="font-semibold flex items-center gap-2 mb-3">
-                  <PawPrint className="h-4 w-4 text-primary" />
+              <div className="border-t pt-6">
+                <h4 className="font-bold text-xl flex items-center gap-2 mb-4">
+                  <span className="text-2xl">🐾</span>
                   Thú cưng ({selectedCustomer.pets?.length || 0})
                 </h4>
                 {selectedCustomer.pets && selectedCustomer.pets.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {selectedCustomer.pets.map((pet, idx) => (
-                      <div key={idx} className="p-3 bg-muted rounded-lg flex items-center gap-3">
-                        <span className="text-2xl">{getPetIcon(pet.species)}</span>
+                      <div key={idx} className="p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl flex items-center gap-4 hover:shadow-lg transition-shadow">
+                        <span className="text-4xl">{getPetEmoji(pet.species)}</span>
                         <div>
-                          <p className="font-medium">{pet.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-bold text-lg text-gray-900">{pet.name}</p>
+                          <p className="text-sm text-gray-600 font-medium">
                             {pet.breed || pet.species || 'N/A'}
                           </p>
                         </div>
@@ -285,37 +388,22 @@ export default function ManagerCustomersPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-sm">Chưa có thú cưng nào</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-2xl">
+                    <span className="text-6xl block mb-3">🐾</span>
+                    <p className="text-gray-500 font-medium">Chưa có thú cưng nào</p>
+                  </div>
                 )}
               </div>
-
-              {/* Account Info */}
-              {selectedCustomer.account && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-3">Thông tin tài khoản</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Email đăng nhập</Label>
-                      <p>{selectedCustomer.account.email}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Trạng thái</Label>
-                      <Badge variant={selectedCustomer.account.isActive ? "success" : "destructive"}>
-                        {selectedCustomer.account.isActive ? "Hoạt động" : "Khóa"}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+            <div className="p-6 border-t flex justify-end bg-gray-50 rounded-b-3xl">
+              <Button onClick={handleCloseModal} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 rounded-xl hover:shadow-lg transition-all">
+                Đóng
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

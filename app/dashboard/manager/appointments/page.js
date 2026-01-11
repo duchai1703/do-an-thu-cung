@@ -524,16 +524,6 @@ export default function AppointmentsPage() {
                             ❌ Hủy
                           </Button>
                         )}
-                        {(appointment.status === 'COMPLETED' || appointment.status === 'CANCELLED') && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDelete(appointment)}
-                            className="text-gray-600"
-                          >
-                            🗑️ Xóa
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </CardContent>

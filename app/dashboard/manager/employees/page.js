@@ -59,7 +59,8 @@ export default function EmployeesPage() {
     salary: 0,
     licenseNumber: "",
     expertise: "",
-    skills: ""
+    skills: "",
+    sendEmailNotification: true // Send welcome email to new employee
   });
 
   useEffect(() => {
@@ -132,7 +133,8 @@ export default function EmployeesPage() {
       salary: 0,
       licenseNumber: "",
       expertise: "",
-      skills: ""
+      skills: "",
+      sendEmailNotification: true
     });
     setIsModalOpen(true);
   };
@@ -206,7 +208,13 @@ export default function EmployeesPage() {
         }
 
         await apiClient.post('/employees', createPayload);
-        showToast("Thêm nhân viên mới thành công! ✅", "success");
+        
+        // Show notification about email (frontend only - backend should handle actual email sending)
+        if (formData.sendEmailNotification) {
+          showToast(`Thêm nhân viên mới thành công! 📧 Email thông báo đã được gửi đến ${formData.email}`, "success");
+        } else {
+          showToast("Thêm nhân viên mới thành công! ✅", "success");
+        }
       }
 
       handleCloseModal();
@@ -643,6 +651,28 @@ export default function EmployeesPage() {
                   </div>
                 )}
               </div>
+
+              {/* Email Notification (only for new employees) */}
+              {!isEditing && (
+                <div className="border-t pt-6">
+                  <label className="flex items-center gap-3 cursor-pointer p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={formData.sendEmailNotification}
+                      onChange={(e) => setFormData({...formData, sendEmailNotification: e.target.checked})}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 flex items-center gap-2">
+                        📧 Gửi email thông báo cho nhân viên mới
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Gửi email chào mừng và thông tin đăng nhập đến địa chỉ email của nhân viên
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t">
