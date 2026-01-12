@@ -65,7 +65,16 @@ export default function VetPetDetailPage() {
       // Owner should be included in pet response from backend
       // If not, it means the pet doesn't have an owner assigned yet
       if (!petData.owner && petData.ownerId) {
-        console.warn(`Pet ${petId} has ownerId but no owner data included`);
+        console.warn(`Pet ${petId} has ownerId but no owner data included. Fetching owner data...`);
+        try {
+          const ownerRes = await apiClient.get(`/pet-owners/${petData.ownerId}`);
+          if (ownerRes.data || ownerRes) {
+            petData.owner = ownerRes.data || ownerRes;
+            console.log('Owner data fetched successfully:', petData.owner);
+          }
+        } catch (ownerErr) {
+          console.error("Could not fetch owner data:", ownerErr);
+        }
       }
       
       setPet(petData);
@@ -185,7 +194,22 @@ export default function VetPetDetailPage() {
     );
   }
 
-  const owner = pet.owner || {};
+  // Enhanced owner resolution strategy
+  let owner = pet.owner || {};
+  
+  // If owner data is missing but we have appointments, try to find owner info there
+  if ((!owner.fullName || owner.fullName === 'Unknown') && appointments.length > 0) {
+     const aptWithOwner = appointments.find(a => a.pet?.owner?.fullName);
+     if (aptWithOwner?.pet?.owner) {
+       console.log("Found owner info in appointments:", aptWithOwner.pet.owner);
+       owner = { ...owner, ...aptWithOwner.pet.owner };
+     }
+  }
+
+  // If still missing name but have account, try email
+  if (!owner.fullName && owner.account?.email) {
+    owner.fullName = owner.account.email.split('@')[0];
+  }
 
   return (
     <div className="flex-1 space-y-6">
@@ -315,7 +339,7 @@ export default function VetPetDetailPage() {
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Họ và tên</p>
-                        <p className="font-bold text-gray-800">{pet.owner?.fullName || 'Chưa cập nhật'}</p>
+                        <p className="font-bold text-gray-800">{owner.fullName || 'Chưa cập nhật'}</p>
                       </div>
                     </div>
                     
@@ -325,7 +349,7 @@ export default function VetPetDetailPage() {
                       </div>
                       <div>
                         <p className="text-xs text-gray-500">Số điện thoại</p>
-                        <p className="font-bold text-gray-800">{pet.owner?.phoneNumber || 'N/A'}</p>
+                        <p className="font-bold text-gray-800">{owner.phoneNumber || 'N/A'}</p>
                       </div>
                     </div>
                     
@@ -335,8 +359,8 @@ export default function VetPetDetailPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500">Địa chỉ</p>
-                        <p className="font-bold text-gray-800 truncate" title={pet.owner?.address}>
-                          {pet.owner?.address || 'Chưa cập nhật'}
+                        <p className="font-bold text-gray-800 truncate" title={owner.address}>
+                          {owner.address || 'Chưa cập nhật'}
                         </p>
                       </div>
                     </div>

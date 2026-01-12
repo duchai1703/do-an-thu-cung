@@ -15,9 +15,11 @@ import {
   Download,
   PawPrint,
   Calendar,
-  Loader2
+  Loader2,
+  MapPin,
+  Receipt
 } from "lucide-react";
-import { invoiceApi, paymentApi } from "@/lib/api";
+import { invoiceApi, paymentApi, appointmentApi, petOwnerApi, petApi } from "@/lib/api";
 
 export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
   const [invoice, setInvoice] = useState(null);
@@ -32,14 +34,38 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
   const loadInvoiceDetail = async () => {
     try {
       setLoading(true);
-      const response = await invoiceApi.getById(invoiceId, {
-        includePetOwner: true,
-        includeAppointment: true,
-        includePayments: true
-      });
+      const invoiceResponse = await invoiceApi.getById(invoiceId);
       
-      if (response.success) {
-        setInvoice(response.data);
+      if (invoiceResponse.success) {
+        let invoiceData = invoiceResponse.data;
+
+        // Manually fetch related data since backend doesn't support generic inclusion
+        if (invoiceData.appointmentId) {
+            try {
+                const apptResponse = await appointmentApi.getById(invoiceData.appointmentId);
+                // console.log("FETCHED APPT:", apptResponse);
+
+                if (apptResponse.success && apptResponse.data) {
+                    invoiceData.appointment = apptResponse.data;
+
+                    // Data Mapping: Use nested owner data from appointment if available
+                    // Note: AppointmentService relations include 'pet.owner' and 'pet.owner.account'
+                    if (invoiceData.appointment.pet?.owner) {
+                        invoiceData.petOwner = invoiceData.appointment.pet.owner;
+                        // Map account if available (for email)
+                        if (invoiceData.appointment.pet.owner.account) {
+                            if (!invoiceData.petOwner.account) {
+                                invoiceData.petOwner.account = invoiceData.appointment.pet.owner.account;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching related appointment/owner:", err);
+            }
+        }
+
+        setInvoice(invoiceData);
       }
     } catch (error) {
       console.error("Error loading invoice:", error);
@@ -89,6 +115,13 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
   };
 
   const isPaid = invoice?.status === 'PAID';
+  const otherFees = (Number(invoice?.totalAmount) || 0) - (Number(invoice?.subtotal) || 0) + (Number(invoice?.discount) || 0) - (Number(invoice?.tax) || 0);
+  const displayedTax = (Number(invoice?.tax) || 0);
+  const showOtherFees = otherFees > 1000; // threshold for float errors
+  
+  const isValidDate = (date) => {
+    return date && new Date(date).toString() !== 'Invalid Date' && new Date(date).getFullYear() > 1970;
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -129,13 +162,14 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                     <p className="text-sm text-gray-500">Mã hóa đơn</p>
                     <p className="font-mono font-bold text-lg">{invoice.invoiceNumber}</p>
                   </div>
-                  <Badge className={`text-base px-4 py-1.5 ${
+                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
                     isPaid 
-                      ? 'bg-gradient-to-r from-emerald-400 to-green-500 text-white' 
-                      : 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                      : 'bg-amber-50 border-amber-200 text-amber-700'
                   }`}>
-                    {isPaid ? <><CheckCircle2 className="w-4 h-4 mr-1" /> Đã thanh toán</> : <><Clock className="w-4 h-4 mr-1" /> Chờ thanh toán</>}
-                  </Badge>
+                    {isPaid ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                    <span className="text-sm font-medium">{isPaid ? 'Đã thanh toán' : 'Chờ thanh toán'}</span>
+                  </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-500">Tổng tiền</p>
                     <p className="text-2xl font-bold text-emerald-600">{formatCurrency(invoice.totalAmount)}</p>
@@ -175,6 +209,15 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                     <div>
                       <p className="text-xs text-gray-500">Email</p>
                       <p className="font-semibold text-sm">{invoice.petOwner?.account?.email || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Địa chỉ</p>
+                      <p className="font-semibold text-sm truncate max-w-[150px]" title={invoice.petOwner?.address}>
+                        {invoice.petOwner?.address || 'N/A'}
+                      </p>
                     </div>
                   </div>
                   {invoice.appointment?.pet && (
@@ -220,6 +263,54 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
               </Card>
             )}
 
+            {/* Service & Cost Details Breakdown */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Receipt className="w-4 h-4" />
+                  Chi tiết dịch vụ & Thanh toán
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {/* Table Header */}
+                <div className="flex justify-between text-sm font-medium text-gray-500 mb-2 border-b pb-2">
+                    <span>Hạng mục</span>
+                    <span>Thành tiền</span>
+                </div>
+                
+                {/* Item Row 1: The Service */}
+                <div className="flex justify-between items-center py-2">
+                    <div>
+                        <p className="font-semibold text-gray-800">{invoice.appointment?.service?.serviceName || 'Dịch vụ'}</p>
+                        <p className="text-xs text-gray-500">Phí dịch vụ</p>
+                    </div>
+                    <p className="font-medium">{formatCurrency(invoice.subtotal)}</p>
+                </div>
+
+                {/* Discount Row */}
+                {Number(invoice.discount) > 0 && (
+                    <div className="flex justify-between items-center py-2 text-amber-600 bg-amber-50/50 px-2 rounded-lg">
+                        <span className="flex items-center gap-1">🏷️ Giảm giá</span>
+                        <span>-{formatCurrency(invoice.discount)}</span>
+                    </div>
+                )}
+
+                {/* Tax & Other Fees Row */}
+                {(displayedTax > 0 || showOtherFees) && (
+                    <div className="flex justify-between items-center py-2 text-gray-600">
+                        <span>Thuế & Phí khác</span>
+                        <span>+{formatCurrency(displayedTax + (showOtherFees ? otherFees : 0))}</span>
+                    </div>
+                )}
+
+                {/* Total Row */}
+                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-dashed border-gray-200">
+                    <span className="font-bold text-lg text-emerald-700">Tổng thanh toán</span>
+                    <span className="font-bold text-xl text-emerald-600">{formatCurrency(invoice.totalAmount)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Invoice Info */}
             <Card className="border-0 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 pb-3">
@@ -236,7 +327,7 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Hạn thanh toán</p>
-                    <p className="font-semibold">{formatDate(invoice.dueDate)}</p>
+                    <p className="font-semibold">{isValidDate(invoice.dueDate) ? formatDate(invoice.dueDate) : '---'}</p>
                   </div>
                   {isPaid && invoice.paidDate && (
                     <div>

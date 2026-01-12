@@ -129,26 +129,43 @@ export default function VeterinarianVaccinationsPage() {
             const vacResponse = await petApi.getVaccinations(pet.id);
             if (vacResponse.success && vacResponse.data && Array.isArray(vacResponse.data)) {
               vacResponse.data.forEach(vac => {
-                allVaccinations.push({
-                  id: vac.vaccinationId || vac.id,
-                  petId: pet.id,
-                  petName: pet.name,
-                  petIcon: pet.icon,
-                  ownerName: pet.ownerName,
-                  ownerPhone: pet.ownerPhone,
-                  ownerEmail: pet.ownerEmail,
-                  vaccineTypeId: vac.vaccineTypeId,
-                  dateAdministered: vac.administrationDate || vac.createdAt,
-                  nextDueDate: vac.nextDueDate,
-                  batchNumber: vac.batchNumber || 'N/A',
-                  site: vac.site || '',
-                  reactions: vac.reactions || '',
-                  isDue: vac.isDue,
-                  daysUntilDue: vac.daysUntilDue,
-                  notes: vac.notes || '',
-                  administeredBy: vac.administeredBy || null,
-                  createdAt: vac.createdAt || null
-                });
+                  // Calculate status
+                  let status = 'completed';
+                  const daysByBackend = vac.daysUntilDue;
+                  
+                  if (daysByBackend !== undefined && daysByBackend !== null) {
+                    if (daysByBackend < 0) status = 'overdue';
+                    else if (daysByBackend <= 14) status = 'upcoming';
+                  } else if (vac.nextDueDate) {
+                     const today = new Date();
+                     const dueDate = new Date(vac.nextDueDate);
+                     const diffDays = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
+                     if (diffDays < 0) status = 'overdue';
+                     else if (diffDays <= 14) status = 'upcoming';
+                  }
+
+                  allVaccinations.push({
+                    id: vac.vaccinationId || vac.id,
+                    petId: pet.id,
+                    petName: pet.name,
+                    petIcon: pet.icon,
+                    ownerName: pet.ownerName,
+                    ownerPhone: pet.ownerPhone,
+                    ownerEmail: pet.ownerEmail,
+                    vaccineTypeId: vac.vaccineTypeId,
+                    vaccineName: vac.vaccineType?.name || 'Vaccine', // Add vaccineName if available or default
+                    dateAdministered: vac.administrationDate || vac.createdAt,
+                    nextDueDate: vac.nextDueDate,
+                    batchNumber: vac.batchNumber || 'N/A',
+                    site: vac.site || '',
+                    reactions: vac.reactions || '',
+                    isDue: vac.isDue,
+                    daysUntilDue: vac.daysUntilDue,
+                    notes: vac.notes || '',
+                    administeredBy: vac.administeredBy || null,
+                    createdAt: vac.createdAt || null,
+                    status: status // Add calculated status
+                  });
               });
             }
           } catch (e) {
@@ -547,12 +564,8 @@ export default function VeterinarianVaccinationsPage() {
                 </TableRow>
               ) : (
                 filteredVaccinations.map((vac) => {
-                  // Calculate status from isDue and daysUntilDue
-                  let status = 'completed';
-                  if (vac.daysUntilDue !== null) {
-                    if (vac.daysUntilDue < 0) status = 'overdue';
-                    else if (vac.daysUntilDue <= 14) status = 'upcoming';
-                  }
+                  // Use pre-calculated status
+                  const status = vac.status || 'completed';
                   const statusBadge = getStatusBadge(status);
                   const PetIcon = vac.petIcon === '🐕' ? PawPrint : Cat;
                   return (
@@ -613,11 +626,15 @@ export default function VeterinarianVaccinationsPage() {
                       
                       <TableCell>
                         {vac.reactions ? (
-                          <Badge variant="warning" className="text-xs bg-orange-100 text-orange-700">
-                            ⚠️ {vac.reactions.length > 20 ? vac.reactions.slice(0, 20) + '...' : vac.reactions}
+                          <Badge 
+                            variant="warning" 
+                            className="text-xs bg-orange-100 text-orange-700 flex items-center justify-center max-w-[140px] px-2 py-0.5 mx-auto cursor-help"
+                            title={vac.reactions}
+                          >
+                             <div className="truncate w-full text-center">⚠️ {vac.reactions}</div>
                           </Badge>
                         ) : (
-                          <span className="text-sm text-muted-foreground">Không có</span>
+                          <span className="text-sm text-muted-foreground block text-center">--</span>
                         )}
                       </TableCell>
                       

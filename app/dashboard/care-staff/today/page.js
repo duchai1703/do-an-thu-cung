@@ -280,26 +280,7 @@ export default function CareStaffTodayPage() {
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-gray-800">{task.title}</h3>
-                      <div className="flex items-center gap-2">
-                        {isPending && (
-                          <Badge className="bg-amber-500 text-white flex items-center gap-1 px-3 py-1">
-                            <span>⌚</span>
-                            <span>Chưa làm</span>
-                          </Badge>
-                        )}
-                        {isInProgress && (
-                          <Badge className="bg-purple-500 text-white flex items-center gap-1 px-3 py-1">
-                            <span>🔄</span>
-                            <span>Đang làm</span>
-                          </Badge>
-                        )}
-                        {isCompleted && (
-                          <Badge className="bg-green-500 text-white flex items-center gap-1 px-3 py-1">
-                            <span>✅</span>
-                            <span>Hoàn thành</span>
-                          </Badge>
-                        )}
-                      </div>
+
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -322,7 +303,27 @@ export default function CareStaffTodayPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
+                  {/* Actions & Status */}
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex gap-2 items-center">
+                    {isPending && (
+                       <Badge className="bg-amber-500 text-white flex items-center justify-center gap-1 px-3 py-1 min-w-[100px]">
+                         <span>⌚</span>
+                         <span>Chưa làm</span>
+                       </Badge>
+                     )}
+                     {isInProgress && (
+                       <Badge className="bg-purple-500 text-white flex items-center justify-center gap-1 px-3 py-1 min-w-[100px]">
+                         <span>🔄</span>
+                         <span>Đang làm</span>
+                       </Badge>
+                     )}
+                     {isCompleted && (
+                       <Badge className="bg-green-500 text-white flex items-center justify-center gap-1 px-3 py-1 min-w-[100px]">
+                         <span>✅</span>
+                         <span>Hoàn thành</span>
+                       </Badge>
+                     )}
                     {isPending && (
                       <Button
                         onClick={() => handleStartTask(task.id)}
@@ -340,6 +341,7 @@ export default function CareStaffTodayPage() {
                         <span className="mr-1">✅</span> Hoàn thành
                       </Button>
                     )}
+                  </div>
                   </div>
                 </div>
               );

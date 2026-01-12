@@ -37,10 +37,23 @@ export default function VeterinarianRecordsPage() {
   
   // Date range filter state
   const [dateRange, setDateRange] = useState({ start: null, end: null });
+  
+  // Expand/Collapse state
+  const [expandedRecords, setExpandedRecords] = useState(new Set());
 
   // Helper function
   const formatMedicalRecordId = (id) => {
     return `MR${String(id).padStart(4, '0')}`;
+  };
+
+  const toggleRecord = (id) => {
+    const newExpanded = new Set(expandedRecords);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRecords(newExpanded);
   };
 
   useEffect(() => {
@@ -419,150 +432,353 @@ export default function VeterinarianRecordsPage() {
 
       {/* Records Table */}
       {/* Records Table - Premium Style */}
-      <div className="space-y-4">
-        {/* Table Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-400 text-white text-2xl shadow-lg">
-              📋
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">Danh sách hồ sơ bệnh án</h2>
-              <p className="text-sm text-gray-500">Quản lý và tra cứu hồ sơ khám bệnh</p>
-            </div>
+      {/* Records Listing - Responsive */}
+      
+      {/* 📱 Mobile View - Cards */}
+      {/* 📱 Mobile View - Cards */}
+      <div className="grid gap-4 md:hidden">
+        {filteredRecords.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground bg-white/50 rounded-2xl border-2 border-dashed border-pink-200">
+             <span className="text-4xl block mb-2">📋</span>
+             <p>Không tìm thấy hồ sơ nào</p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-400 text-white font-bold shadow-lg">
-            <span className="text-2xl">{filteredRecords.length}</span>
-            <span className="text-sm opacity-90">hồ sơ</span>
-          </div>
-        </div>
+        ) : (
+          filteredRecords.map((record) => (
+            <Card key={record.id} className="border-pink-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+              <CardHeader className="p-4 bg-gradient-to-r from-pink-50 to-white border-b border-pink-50 pb-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex gap-3">
+                    <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-xl border border-pink-100">
+                      {record.petIcon || '🐾'}
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-bold text-gray-800 flex items-center gap-2">
+                        {record.petName}
+                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-pink-100 text-pink-700 hover:bg-pink-200">
+                          {record.code}
+                        </Badge>
+                      </CardTitle>
+                      <p className="text-xs text-gray-500">{record.petType}</p>
+                    </div>
+                  </div>
+                  {/* Status Indicator */}
+                  {record.isFollowUpOverdue ? (
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Quá hạn" />
+                  ) : record.needsFollowUp ? (
+                    <div className="w-2 h-2 rounded-full bg-amber-500" title="Cần tái khám" />
+                  ) : (
+                    <div className="w-2 h-2 rounded-full bg-green-400" title="Bình thường" />
+                  )}
+                </div>
+              </CardHeader>
+              
+              <CardContent className="p-4 space-y-3 pt-3">
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-gray-50 p-2 rounded-lg">
+                    <span className="text-gray-400 block mb-0.5">Chủ nuôi</span>
+                    <span className="font-medium text-gray-700 block truncate">{record.ownerName}</span>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded-lg">
+                    <span className="text-gray-400 block mb-0.5">Ngày khám</span>
+                    <span className="font-medium text-gray-700">
+                       {record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A'}
+                    </span>
+                  </div>
+                </div>
 
-        {/* Table */}
-        <div className="rounded-xl border border-pink-100 overflow-hidden bg-white shadow-sm">
+                {/* Diagnosis */}
+                <div className="bg-pink-50/50 p-2.5 rounded-lg border border-pink-100/50">
+                  <span className="text-pink-400 text-[10px] uppercase font-bold tracking-wider block mb-1">Chẩn đoán</span>
+                  <p className="text-sm font-medium text-gray-700 line-clamp-2">
+                    {record.diagnosis || "Chưa có chẩn đoán"}
+                  </p>
+                </div>
+                
+                {/* Collapsible Content */}
+                {expandedRecords.has(record.id) && (
+                  <div className="space-y-3 pt-2 border-t border-pink-50 animate-in slide-in-from-top-2 duration-200">
+                    {/* Symptoms */}
+                    <div>
+                         <span className="text-xs text-gray-400 block mb-1">Triệu chứng</span>
+                         <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">{record.symptoms}</p>
+                    </div>
+                    {/* Treatment */}
+                     <div>
+                         <span className="text-xs text-gray-400 block mb-1">Điều trị</span>
+                         <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">{record.treatment}</p>
+                    </div>
+                    {/* Notes */}
+                    {record.notes && (
+                      <div>
+                          <span className="text-xs text-gray-400 block mb-1">Ghi chú</span>
+                          <p className="text-sm text-gray-500 italic p-2">{record.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-2">
+                  <div className="flex gap-2">
+                     {record.invoiceCreated ? (
+                        <Badge variant="outline" className="text-emerald-600 bg-emerald-50 border-emerald-100">
+                          <span className="text-xs mr-1">💰</span> Đã TT
+                        </Badge>
+                     ) : (
+                        <Badge variant="outline" className="text-amber-600 bg-amber-50 border-amber-100">
+                           <span className="text-xs mr-1">⏰</span> Chờ TT
+                        </Badge>
+                     )}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className={cn("h-8 w-8 p-0 rounded-full hover:bg-pink-50 hover:text-pink-600 transition-transform duration-200", expandedRecords.has(record.id) && "rotate-180 bg-pink-50 text-pink-600")}
+                      onClick={() => toggleRecord(record.id)}
+                      title="Mở rộng"
+                    >
+                      <span className="text-lg">⌄</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0 rounded-full hover:bg-pink-50 hover:text-pink-600"
+                      onClick={() => handleViewDetail(record)}
+                    >
+                      <span className="text-lg">👁️</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0 rounded-full hover:bg-pink-50 hover:text-pink-600"
+                      onClick={() => handleEditRecord(record)}
+                    >
+                      <span className="text-lg">✏️</span>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* 🖥️ Desktop View - Styled Table */}
+      <div className="hidden md:block rounded-2xl border border-pink-100 overflow-hidden bg-white shadow-sm ring-1 ring-pink-50">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[8%]">Mã</TableHead>
-                <TableHead className="w-[10%]">Ngày khám</TableHead>
-                <TableHead className="w-[15%]">Thú cưng</TableHead>
-                <TableHead className="w-[13%]">Chủ nuôi</TableHead>
-                <TableHead className="w-[20%]">Chẩn đoán</TableHead>
-                <TableHead className="w-[12%]">Tái khám</TableHead>
-                <TableHead className="w-[10%]">Hóa đơn</TableHead>
-                <TableHead className="w-[12%]">Thao tác</TableHead>
+            <TableHeader className="bg-pink-50/50">
+              <TableRow className="hover:bg-pink-50/80 border-b-pink-100">
+                <TableHead className="w-[8%] font-bold text-pink-700/80">Mã</TableHead>
+                <TableHead className="w-[10%] font-bold text-pink-700/80">Ngày khám</TableHead>
+                <TableHead className="w-[15%] font-bold text-pink-700/80">Thú cưng</TableHead>
+                <TableHead className="w-[13%] font-bold text-pink-700/80">Chủ nuôi</TableHead>
+                <TableHead className="w-[20%] font-bold text-pink-700/80">Chẩn đoán</TableHead>
+                <TableHead className="w-[12%] font-bold text-pink-700/80">Tái khám</TableHead>
+                <TableHead className="w-[10%] font-bold text-pink-700/80">Hóa đơn</TableHead>
+                <TableHead className="w-[12%] text-right font-bold text-pink-700/80 pr-6">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRecords.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center">
-                      <span className="text-4xl mb-2">📋</span>
-                      Không có hồ sơ nào
+                  <TableCell colSpan={9} className="h-64 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+                      <div className="w-20 h-20 bg-pink-50 rounded-full flex items-center justify-center mb-4 text-4xl">
+                        📋
+                      </div>
+                      <p className="text-lg font-medium text-gray-600">Không có hồ sơ nào</p>
+                      <p className="text-sm text-gray-400">Thử thay đổi bộ lọc hoặc tìm kiếm nhé!</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredRecords.map((record) => {
+                  const isExpanded = expandedRecords.has(record.id);
                   return (
-                    <TableRow key={record.id}>
+                    <>
+                    <TableRow key={record.id} className={cn("group hover:bg-pink-50/30 transition-colors border-b-pink-50", isExpanded && "bg-pink-50/20")}>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">{record.code}</Badge>
+                        <Badge variant="outline" className="font-mono text-xs bg-white border-pink-200 text-pink-600 shadow-sm cursor-pointer hover:bg-pink-100 transition-colors" onClick={() => toggleRecord(record.id)}>
+                          {record.code}
+                        </Badge>
                       </TableCell>
                       
                       <TableCell>
                         <div className="flex flex-col">
-                          <div className="flex items-center gap-1">
-                            <span className="text-base">📅</span>
-                            <span className="text-sm font-medium">
-                              {record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground pl-5">
-                            {record.date ? new Date(record.date).toLocaleTimeString('vi-VN') : ''}
+                          <span className="font-medium text-gray-700">
+                            {record.date ? new Date(record.date).toLocaleDateString('vi-VN') : 'N/A'}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {record.date ? new Date(record.date).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : ''}
                           </span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-50 text-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-pink-100 to-white border border-pink-100 text-lg shadow-sm group-hover:scale-110 transition-transform">
                             {record.petIcon || '🐾'}
                           </div>
                           <div>
-                            <p className="font-semibold">{record.petName}</p>
-                            <p className="text-xs text-muted-foreground">{record.petType}</p>
+                            <p className="font-bold text-gray-800 text-sm">{record.petName}</p>
+                            <p className="text-[11px] text-gray-500 uppercase tracking-wide">{record.petType}</p>
                           </div>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <div>
-                          <p className="font-semibold">{record.ownerName}</p>
-                          <p className="text-sm text-muted-foreground">{record.ownerPhone}</p>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-700 text-sm">{record.ownerName}</span>
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                             📞 {record.ownerPhone}
+                          </span>
                         </div>
                       </TableCell>
                       
                       <TableCell>
-                        <p className="text-sm">{record.diagnosis}</p>
+                        <div className="bg-white px-3 py-1.5 rounded-lg border border-pink-100/50 shadow-sm group-hover:border-pink-200 transition-colors cursor-pointer" onClick={() => toggleRecord(record.id)}>
+                           <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+                             {record.diagnosis || "Chưa có chẩn đoán"}
+                           </p>
+                        </div>
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           {record.followUpDate ? (
                             <>
-                              <div className="flex items-center gap-1">
-                                <span className="text-base">🔄</span>
-                                <span className="text-sm">
+                              <div className="flex items-center gap-1.5 text-gray-600">
+                                <span className="text-xs">📅</span>
+                                <span className="text-sm font-medium">
                                   {new Date(record.followUpDate).toLocaleDateString('vi-VN')}
                                 </span>
                               </div>
                               {/* Follow-up status badges */}
                               {record.isFollowUpOverdue ? (
-                                <Badge variant="destructive" className="text-xs w-fit animate-pulse">
+                                <Badge variant="destructive" className="text-[10px] w-fit px-1.5 py-0 h-5 bg-red-100 text-red-600 hover:bg-red-200 border-0">
                                   ⚠️ Quá hạn
                                 </Badge>
                               ) : record.needsFollowUp ? (
-                                <Badge variant="warning" className="text-xs w-fit">
-                                  📅 Cần tái khám
+                                <Badge variant="warning" className="text-[10px] w-fit px-1.5 py-0 h-5 bg-amber-100 text-amber-600 hover:bg-amber-200 border-0">
+                                  🕒 Sắp tới
                                 </Badge>
                               ) : null}
                             </>
                           ) : (
-                            <span className="text-sm text-muted-foreground">Không có</span>
+                            <span className="text-xs text-gray-300 italic pl-1">--</span>
                           )}
                         </div>
                       </TableCell>
                       
                       <TableCell>
                         {record.invoiceCreated ? (
-                          <Badge variant="success" className="flex items-center gap-1 w-fit">
-                            <span className="text-sm">✅</span> {record.invoiceId}
-                          </Badge>
+                          <div className="flex flex-col items-start gap-0.5">
+                             <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm">
+                               Đã TT
+                             </Badge>
+                             <span className="text-[10px] text-emerald-400 font-mono">#{record.invoiceId}</span>
+                          </div>
                         ) : (
-                          <Badge variant="warning" className="flex items-center gap-1 w-fit">
-                            <span className="text-sm">⏰</span> Chưa có
+                          <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 shadow-sm">
+                            Chờ TT
                           </Badge>
                         )}
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="icon" onClick={() => handleViewDetail(record)} title="Xem chi tiết">
-                            <span className="text-lg">👁️</span>
+                        <div className="flex justify-end gap-2">
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className={cn("h-8 w-8 rounded-full hover:bg-pink-50 hover:text-pink-600 text-gray-400 transition-transform duration-200", isExpanded && "rotate-180 bg-pink-50 text-pink-600")}
+                             onClick={() => toggleRecord(record.id)}
+                           >
+                             <span className="text-lg">⌄</span>
+                           </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 rounded-full hover:bg-sky-50 hover:text-sky-600 text-gray-400"
+                            onClick={() => handleViewDetail(record)} 
+                            title="Xem chi tiết"
+                          >
+                            <span className="text-base">👁️</span>
                           </Button>
-                          <Button variant="outline" size="icon" onClick={() => handleEditRecord(record)} title="Chỉnh sửa">
-                            <span className="text-lg">✏️</span>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 rounded-full hover:bg-pink-50 hover:text-pink-600 text-gray-400"
+                            onClick={() => handleEditRecord(record)} 
+                            title="Chỉnh sửa"
+                          >
+                            <span className="text-base">✏️</span>
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
+                    
+                    {/* Expandable Content Row */}
+                    {isExpanded && (
+                      <TableRow className="bg-pink-50/10 hover:bg-pink-50/10 border-b border-pink-100 animate-in slide-in-from-top-2">
+                        <TableCell colSpan={8} className="p-0">
+                          <div className="p-4 pl-12 grid grid-cols-1 md:grid-cols-2 gap-6 bg-gradient-to-r from-pink-50/30 to-white shadow-inner">
+                            {/* Left Column: Symptoms & Diagnosis */}
+                            <div className="space-y-4">
+                               <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-sm">
+                                  <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <span>🌡️</span> Triệu chứng & Chẩn đoán
+                                  </h4>
+                                  <div className="space-y-3">
+                                      <div>
+                                        <span className="text-xs text-gray-400 block mb-0.5">Triệu chứng của {record.petName}:</span>
+                                        <p className="text-sm font-medium text-gray-700">{record.symptoms || "Không ghi nhận"}</p>
+                                      </div>
+                                      <div className="pt-2 border-t border-gray-100">
+                                        <span className="text-xs text-gray-400 block mb-0.5">Kết luận bác sĩ:</span>
+                                        <p className="text-sm text-gray-600 italic">{record.diagnosis}</p>
+                                      </div>
+                                  </div>
+                               </div>
+                            </div>
+                            
+                            {/* Right Column: Treatment & Prescription */}
+                            <div className="space-y-4">
+                               <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-sm">
+                                  <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <span>💊</span> Điều trị & Đơn thuốc
+                                  </h4>
+                                  <div className="space-y-3">
+                                      <div>
+                                        <span className="text-xs text-gray-400 block mb-0.5">Phác đồ điều trị:</span>
+                                        <p className="text-sm font-medium text-gray-700">{record.treatment || "Theo dõi thêm"}</p>
+                                      </div>
+                                      {record.prescription && record.prescription !== 'N/A' && (
+                                        <div className="pt-2 border-t border-gray-100">
+                                          <span className="text-xs text-gray-400 block mb-0.5">Đơn thuốc:</span>
+                                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{record.prescription}</p>
+                                        </div>
+                                      )}
+                                      {record.notes && (
+                                         <div className="pt-2 border-t border-gray-100">
+                                            <span className="text-xs text-amber-500 block mb-0.5 font-bold">⚠️ Lưu ý:</span>
+                                            <p className="text-sm text-gray-600">{record.notes}</p>
+                                         </div>
+                                      )}
+                                  </div>
+                               </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </>
                   );
                 })
               )}
             </TableBody>
           </Table>
-        </div>
       </div>
 
       {/* Modals */}
