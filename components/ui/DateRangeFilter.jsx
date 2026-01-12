@@ -123,7 +123,8 @@ export default function DateRangeFilter({
   size = "md",
   className = "",
   showLabel = true,
-  compact = false
+  compact = false,
+  excludePresets = []
 }) {
   const [selectedPreset, setSelectedPreset] = useState(defaultPreset);
   const [customStart, setCustomStart] = useState("");
@@ -220,7 +221,9 @@ export default function DateRangeFilter({
 
       {/* Preset Pills */}
       <div className={`flex flex-wrap gap-2 ${compact ? '' : 'mb-3'}`}>
-        {Object.entries(PRESETS).map(([key, preset]) => {
+        {Object.entries(PRESETS)
+          .filter(([key]) => !excludePresets.includes(key))
+          .map(([key, preset]) => {
           const isSelected = selectedPreset === key;
           return (
             <button

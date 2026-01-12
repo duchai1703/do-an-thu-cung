@@ -382,6 +382,7 @@ export default function ReportsPage() {
             theme="purple"
             size="md"
             showLabel={true}
+            excludePresets={['all']}
           />
         </div>
 
@@ -491,17 +492,17 @@ export default function ReportsPage() {
                     <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
                       <p className="text-4xl mb-2">📈</p>
                       <p className="text-xs text-green-600 mb-1 font-semibold">Thu Nhập</p>
-                      <p className="text-2xl font-black text-green-700">{formatCurrency(financialData.totalRevenue)}</p>
+                      <p className="text-2xl font-black text-green-700">{formatCurrency(financialData.revenue?.total || 0)}</p>
                     </div>
                     <div className="text-center p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border-2 border-red-200">
                       <p className="text-4xl mb-2">📉</p>
                       <p className="text-xs text-red-600 mb-1 font-semibold">Chi Phí</p>
-                      <p className="text-2xl font-black text-red-700">{formatCurrency(financialData.totalExpenses)}</p>
+                      <p className="text-2xl font-black text-red-700">{formatCurrency(0)}</p>
                     </div>
                     <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200">
                       <p className="text-4xl mb-2">💎</p>
                       <p className="text-xs text-blue-600 mb-1 font-semibold">Lợi Nhuận</p>
-                      <p className="text-2xl font-black text-blue-700">{formatCurrency(financialData.profit)}</p>
+                      <p className="text-2xl font-black text-blue-700">{formatCurrency(financialData.revenue?.total || 0)}</p>
                     </div>
                   </div>
                   
@@ -509,10 +510,10 @@ export default function ReportsPage() {
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
                     <p className="text-sm font-bold text-gray-700 mb-3">📊 Tỷ Lệ Lợi Nhuận</p>
                     <ProgressBar 
-                      value={financialData.profit} 
-                      max={financialData.totalRevenue} 
+                      value={financialData.revenue?.total || 0} 
+                      max={financialData.revenue?.total || 0} 
                       color="purple"
-                      label={`${((financialData.profit / financialData.totalRevenue) * 100).toFixed(1)}% lợi nhuận`}
+                      label="100% lợi nhuận (Chưa tính chi phí)"
                     />
                   </div>
 
