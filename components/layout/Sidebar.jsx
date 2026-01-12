@@ -18,7 +18,6 @@ const menuItems = {
     { emoji: "👤", label: "Khách hàng", path: "/dashboard/manager/customers" },
     { emoji: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
     { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
-    { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
     { emoji: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
     { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/manager/profile" },
   ],
@@ -139,7 +138,7 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
 
       {/* Mobile overlay */}
       {isMobile && mobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-[999] backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
@@ -243,7 +242,7 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
                     <span className="text-[10px] animate-bounce" style={{ animationDelay: '200ms' }}>🐾</span>
                   </div>
                 )}
-                
+
                 <span className={cn(
                   "text-3xl shrink-0 transition-all duration-300",
                   "group-hover:scale-125 group-hover:rotate-6",
@@ -256,7 +255,7 @@ export default function Sidebar({ role, userInfo, onCollapsedChange }) {
                     {item.label}
                   </span>
                 )}
-                
+
                 {/* Active indicator with glow */}
                 {isActive && !isCollapsed && (
                   <div className="ml-auto flex items-center gap-1">
