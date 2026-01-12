@@ -335,103 +335,300 @@ export default function CustomersPage() {
 
       {/* Cute Detail Modal */}
       {isDetailModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
-            <div className="p-6 border-b bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-t-3xl">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-3">
-                  <span className="text-3xl">👤</span>
-                  Thông Tin Khách Hàng
-                </h2>
-                <button 
-                  onClick={handleCloseModal}
-                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
-                >
-                  <span className="text-2xl">✖️</span>
-                </button>
-              </div>
-            </div>
+        <CustomerDetailModal 
+          customer={selectedCustomer} 
+          onClose={handleCloseModal} 
+          getPetEmoji={getPetEmoji}
+        />
+      )}
+    </div>
+  );
+}
 
-            <div className="p-8 space-y-6">
+function CustomerDetailModal({ customer, onClose, getPetEmoji }) {
+  const [activeTab, setActiveTab] = useState("info");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [appointments, setAppointments] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+
+  useEffect(() => {
+    if (activeTab !== "info") {
+      loadHistory();
+    }
+  }, [activeTab]);
+
+  const loadHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const customerId = customer.petOwnerId || customer.id;
+      
+      const [appointmentsRes, invoicesRes] = await Promise.all([
+        apiClient.get(`/pet-owners/${customerId}/appointments`),
+        apiClient.get(`/pet-owners/${customerId}/invoices`)
+      ]);
+
+      setAppointments(appointmentsRes.data || []);
+      setInvoices(invoicesRes.data || []);
+    } catch (error) {
+      console.error("Error loading history:", error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const getStatusBadge = (status, type) => {
+    const styles = {
+      // Appointment statuses
+      'PENDING': 'bg-yellow-100 text-yellow-700',
+      'CONFIRMED': 'bg-blue-100 text-blue-700',
+      'IN_PROGRESS': 'bg-purple-100 text-purple-700',
+      'COMPLETED': 'bg-green-100 text-green-700',
+      'CANCELLED': 'bg-red-100 text-red-700',
+      // Invoice statuses
+      'PAID': 'bg-green-100 text-green-700',
+      'UNPAID': 'bg-red-100 text-red-700',
+      'PROCESSING': 'bg-blue-100 text-blue-700'
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-bold ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+        {status}
+      </span>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
+        
+        {/* Header */}
+        <div className="p-6 border-b bg-gradient-to-r from-pink-400 to-purple-400 text-white flex justify-between items-center shrink-0">
+          <h2 className="text-2xl font-bold flex items-center gap-3">
+            <span className="text-3xl">👤</span>
+            Thông Tin Khách Hàng
+          </h2>
+          <button 
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+          >
+            <span className="text-2xl">✖️</span>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Tabs Navigation */}
+          <div className="flex gap-2 mb-6 border-b pb-2">
+            <button
+              onClick={() => setActiveTab("info")}
+              className={`px-6 py-2 rounded-xl font-bold transition-all ${
+                activeTab === "info" 
+                  ? "bg-purple-100 text-purple-700 shadow-sm" 
+                  : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              ℹ️ Thông tin chung
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`px-6 py-2 rounded-xl font-bold transition-all ${
+                activeTab === "history" 
+                  ? "bg-blue-100 text-blue-700 shadow-sm" 
+                  : "text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              📜 Lịch sử hoạt động
+            </button>
+          </div>
+
+          {activeTab === "info" ? (
+            <div className="space-y-6 animate-in fade-in duration-300">
               {/* Customer Info */}
-              <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-6 shadow-sm border border-purple-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-gray-600 text-sm font-semibold">Họ tên</Label>
+                    <Label className="text-gray-500 text-xs uppercase font-bold tracking-wider">Họ tên</Label>
                     <p className="font-bold text-xl text-gray-900 mt-1">
-                      {selectedCustomer.fullName || 'N/A'}
+                      {customer.fullName || 'N/A'}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-gray-600 text-sm font-semibold">Mã khách hàng</Label>
-                    <p className="font-bold text-lg text-purple-600 mt-1">
-                      #{selectedCustomer.petOwnerId || selectedCustomer.id}
+                    <Label className="text-gray-500 text-xs uppercase font-bold tracking-wider">Mã khách hàng</Label>
+                    <p className="font-bold text-lg text-purple-600 mt-1 font-mono">
+                      #{customer.petOwnerId || customer.id}
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
-                      <span className="text-lg">📱</span> Số điện thoại
+                    <Label className="text-gray-500 text-xs uppercase font-bold tracking-wider flex items-center gap-1">
+                      <span>📱</span> Số điện thoại
                     </Label>
-                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.phoneNumber || 'N/A'}</p>
+                    <p className="font-semibold text-gray-900 mt-1">{customer.phoneNumber || 'N/A'}</p>
                   </div>
                   <div>
-                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
-                      <span className="text-lg">📧</span> Email
+                    <Label className="text-gray-500 text-xs uppercase font-bold tracking-wider flex items-center gap-1">
+                      <span>📧</span> Email
                     </Label>
-                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.email || 'N/A'}</p>
+                    <p className="font-semibold text-gray-900 mt-1">
+                      {customer.email || customer.account?.email || 'N/A'}
+                    </p>
                   </div>
+                  {customer.address && (
+                    <div className="md:col-span-2">
+                      <Label className="text-gray-500 text-xs uppercase font-bold tracking-wider flex items-center gap-1">
+                        <span>📍</span> Địa chỉ
+                      </Label>
+                      <p className="font-semibold text-gray-900 mt-1">{customer.address}</p>
+                    </div>
+                  )}
                 </div>
-
-                {selectedCustomer.address && (
-                  <div className="mt-4">
-                    <Label className="text-gray-600 text-sm font-semibold flex items-center gap-2">
-                      <span className="text-lg">📍</span> Địa chỉ
-                    </Label>
-                    <p className="font-semibold text-gray-900 mt-1">{selectedCustomer.address}</p>
-                  </div>
-                )}
               </div>
 
               {/* Pets */}
-              <div className="border-t pt-6">
-                <h4 className="font-bold text-xl flex items-center gap-2 mb-4">
+              <div>
+                <h4 className="font-bold text-xl flex items-center gap-2 mb-4 text-gray-800">
                   <span className="text-2xl">🐾</span>
-                  Thú cưng ({selectedCustomer.pets?.length || 0})
+                  Thú cưng ({customer.pets?.length || 0})
                 </h4>
-                {selectedCustomer.pets && selectedCustomer.pets.length > 0 ? (
+                {customer.pets && customer.pets.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedCustomer.pets.map((pet, idx) => (
-                      <div key={idx} className="p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl flex items-center gap-4 hover:shadow-lg transition-shadow">
-                        <span className="text-4xl">{getPetEmoji(pet.species)}</span>
+                    {customer.pets.map((pet, idx) => (
+                      <div key={idx} className="p-4 bg-white border border-gray-100 rounded-2xl flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+                        <span className="text-4xl bg-gray-50 p-2 rounded-xl">{getPetEmoji(pet.species)}</span>
                         <div>
                           <p className="font-bold text-lg text-gray-900">{pet.name}</p>
                           <p className="text-sm text-gray-600 font-medium">
                             {pet.breed || pet.species || 'N/A'}
                           </p>
+                          <div className="flex gap-2 mt-1">
+                            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                              {pet.gender === 'MALE' ? '♂️ Đực' : pet.gender === 'FEMALE' ? '♀️ Cái' : 'Unknown'}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                              {pet.weight ? `${pet.weight} kg` : 'N/A'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 bg-gray-50 rounded-2xl">
-                    <span className="text-6xl block mb-3">🐾</span>
+                  <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+                    <span className="text-4xl block mb-2 opacity-50">🐾</span>
                     <p className="text-gray-500 font-medium">Chưa có thú cưng nào</p>
                   </div>
                 )}
               </div>
             </div>
+          ) : (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {historyLoading ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin text-4xl mb-4">⏳</div>
+                  <p className="text-gray-500">Đang tải lịch sử...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Appointments History */}
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                       📅 Lịch sử cuộc hẹn ({appointments.length})
+                    </h3>
+                    <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-gray-50 text-gray-600 font-semibold sticky top-0">
+                            <tr>
+                              <th className="p-4">Ngày giờ</th>
+                              <th className="p-4">Dịch vụ</th>
+                              <th className="p-4">Thú cưng</th>
+                              <th className="p-4">Bác sĩ</th>
+                              <th className="p-4">Trạng thái</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {appointments.length > 0 ? appointments.map((apt) => (
+                              <tr key={apt.appointmentId} className="hover:bg-gray-50 transition-colors">
+                                <td className="p-4">{formatDate(apt.appointmentDate)}</td>
+                                <td className="p-4 font-medium text-gray-900">{apt.serviceName || apt.service?.serviceName}</td>
+                                <td className="p-4 flex items-center gap-2">
+                                  <span>{getPetEmoji(apt.pet?.species)}</span>
+                                  {apt.petName || apt.pet?.name}
+                                </td>
+                                <td className="p-4">{apt.vetName || apt.employee?.fullName || 'N/A'}</td>
+                                <td className="p-4">{getStatusBadge(apt.status, 'appointment')}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan="5" className="p-8 text-center text-gray-500">Chưa có cuộc hẹn nào</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="p-6 border-t flex justify-end bg-gray-50 rounded-b-3xl">
-              <Button onClick={handleCloseModal} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 rounded-xl hover:shadow-lg transition-all">
-                Đóng
-              </Button>
+                  {/* Invoices History */}
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                       💰 Lịch sử hóa đơn ({invoices.length})
+                    </h3>
+                    <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+                       <div className="max-h-[300px] overflow-y-auto">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-gray-50 text-gray-600 font-semibold sticky top-0">
+                            <tr>
+                              <th className="p-4">Mã HĐ</th>
+                              <th className="p-4">Ngày tạo</th>
+                              <th className="p-4">Tổng tiền</th>
+                              <th className="p-4">Phương thức</th>
+                              <th className="p-4">Trạng thái</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {invoices.length > 0 ? invoices.map((inv) => (
+                              <tr key={inv.invoiceId} className="hover:bg-gray-50 transition-colors">
+                                <td className="p-4 font-mono text-purple-600">#{inv.invoiceId}</td>
+                                <td className="p-4">{formatDate(inv.createdAt)}</td>
+                                <td className="p-4 font-bold text-gray-900">{formatCurrency(inv.totalAmount)}</td>
+                                <td className="p-4">{inv.paymentMethod}</td>
+                                <td className="p-4">{getStatusBadge(inv.status, 'invoice')}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan="5" className="p-8 text-center text-gray-500">Chưa có hóa đơn nào</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Footer */}
+        <div className="p-6 border-t bg-gray-50 flex justify-end shrink-0">
+          <Button onClick={onClose} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 rounded-xl hover:shadow-lg transition-all">
+            Đóng
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
