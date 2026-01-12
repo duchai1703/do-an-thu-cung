@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils.js";
 const menuItems = {
   manager: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/manager" },
+    { emoji: "🔐", label: "Tài khoản", path: "/dashboard/manager/accounts" },
     { emoji: "👥", label: "Nhân viên", path: "/dashboard/manager/employees" },
     { emoji: "📆", label: "Lịch làm việc", path: "/dashboard/manager/schedules" },
     { emoji: "✨", label: "Dịch vụ", path: "/dashboard/manager/services" },
@@ -17,7 +18,9 @@ const menuItems = {
     { emoji: "👤", label: "Khách hàng", path: "/dashboard/manager/customers" },
     { emoji: "🏠", label: "Chuồng nuôi", path: "/dashboard/manager/cages" },
     { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
+    { emoji: "💰", label: "Hóa đơn", path: "/dashboard/manager/invoices" },
     { emoji: "📊", label: "Báo cáo", path: "/dashboard/manager/reports" },
+    { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/manager/profile" },
   ],
   veterinarian: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/vet" },
@@ -26,12 +29,14 @@ const menuItems = {
     { emoji: "💉", label: "Tiêm phòng", path: "/dashboard/vet/vaccinations" },
     { emoji: "🐾", label: "Bệnh nhân", path: "/dashboard/vet/patients" },
     { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/vet/boarding" },
+    { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/vet/profile" },
   ],
   care_staff: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/care-staff" },
     { emoji: "📅", label: "Lịch làm việc", path: "/dashboard/care-staff/schedule" },
     { emoji: "📋", label: "Công việc hôm nay", path: "/dashboard/care-staff/today" },
     { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/care-staff/cages" },
+    { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/care-staff/profile" },
   ],
   receptionist: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/receptionist" },
@@ -39,6 +44,7 @@ const menuItems = {
     { emoji: "🏡", label: "Chuồng nuôi", path: "/dashboard/receptionist/cages" },
     { emoji: "💳", label: "Thanh toán", path: "/dashboard/receptionist/payments" },
     { emoji: "👥", label: "Khách hàng", path: "/dashboard/receptionist/customers" },
+    { emoji: "👤", label: "Hồ sơ cá nhân", path: "/dashboard/receptionist/profile" },
   ],
   pet_owner: [
     { emoji: "🏠", label: "Tổng quan", path: "/dashboard/owner" },
