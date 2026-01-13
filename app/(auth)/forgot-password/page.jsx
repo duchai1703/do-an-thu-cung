@@ -4,7 +4,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, CheckCircle2 } from 'lucide-react';
 import ForgotPasswordForm from '@/components/forms/ForgotPasswordForm';
@@ -12,7 +12,7 @@ import { useNotification } from '@/lib/contexts/NotificationContext';
 import { handleError } from '@/lib/utils/error-handler';
 import apiClient from '@/lib/utils/api-client';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { success, error } = useNotification();
@@ -173,5 +173,13 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Đang tải...</div>}>
+      <ForgotPasswordPageContent />
+    </Suspense>
   );
 }

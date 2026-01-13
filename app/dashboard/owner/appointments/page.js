@@ -201,8 +201,11 @@ export default function AppointmentsPage() {
       const [hours, minutes] = bookingForm.startTime.split(':');
       const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
       const endMinutes = startMinutes + totalDuration;
-      const endHour = Math.floor(endMinutes / 60);
-      const endMin = endMinutes % 60;
+      
+      // Cap endTime at 23:59 to avoid invalid time format
+      const cappedEndMinutes = Math.min(endMinutes, 23 * 60 + 59);
+      const endHour = Math.floor(cappedEndMinutes / 60);
+      const endMin = cappedEndMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
 
       const payload = {
@@ -214,6 +217,10 @@ export default function AppointmentsPage() {
         endTime: endTime,
         notes: bookingForm.notes || null
       };
+
+      console.log('📦 Booking payload:', payload);
+      console.log('📦 Selected services:', selectedServices);
+      console.log('📦 Services array:', servicesArray);
 
       await apiClient.post('/appointments', payload);
 

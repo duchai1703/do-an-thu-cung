@@ -219,7 +219,7 @@ export default function ProfilePage() {
                     <div className="relative">
                       <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <Input 
-                        type="password" 
+                        type="text" 
                         className="pl-9" 
                         value={passwords.oldPassword}
                         onChange={(e) => setPasswords({...passwords, oldPassword: e.target.value})}
@@ -231,7 +231,7 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label>Mật khẩu mới</Label>
                     <Input 
-                      type="password" 
+                      type="text" 
                       value={passwords.newPassword}
                       onChange={(e) => setPasswords({...passwords, newPassword: e.target.value})}
                       required
@@ -242,7 +242,7 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label>Xác nhận mật khẩu mới</Label>
                     <Input 
-                      type="password" 
+                      type="text" 
                       value={passwords.confirmPassword}
                       onChange={(e) => setPasswords({...passwords, confirmPassword: e.target.value})}
                       required

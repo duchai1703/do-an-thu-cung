@@ -278,13 +278,45 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                     <span>Thành tiền</span>
                 </div>
                 
-                {/* Item Row 1: The Service */}
-                <div className="flex justify-between items-center py-2">
-                    <div>
-                        <p className="font-semibold text-gray-800">{invoice.appointment?.service?.serviceName || 'Dịch vụ'}</p>
-                        <p className="text-xs text-gray-500">Phí dịch vụ</p>
-                    </div>
-                    <p className="font-medium">{formatCurrency(invoice.subtotal)}</p>
+                {/* Itemized Services List */}
+                {invoice.services && invoice.services.length > 0 ? (
+                  <div className="space-y-2 mb-3">
+                    {invoice.services.map((service, idx) => {
+                      const serviceName = service.serviceName || service.name || 'Dịch vụ';
+                      const price = Number(service.basePrice) || 0;
+                      
+                      return (
+                        <div key={idx} className="flex justify-between items-center py-2 px-2 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-semibold text-gray-800 flex items-center gap-2">
+                              💉 {serviceName}
+                            </p>
+                            {service.description && (
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                                {service.description}
+                              </p>
+                            )}
+                          </div>
+                          <p className="font-medium">{formatCurrency(price)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Fallback: Single service from appointment */
+                  <div className="flex justify-between items-center py-2">
+                      <div>
+                          <p className="font-semibold text-gray-800">{invoice.appointment?.service?.serviceName || 'Dịch vụ'}</p>
+                          <p className="text-xs text-gray-500">Phí dịch vụ</p>
+                      </div>
+                      <p className="font-medium">{formatCurrency(invoice.subtotal)}</p>
+                  </div>
+                )}
+
+                {/* Subtotal Row */}
+                <div className="flex justify-between items-center py-2 border-t">
+                    <span className="text-gray-600">Tạm tính</span>
+                    <span className="font-medium">{formatCurrency(invoice.subtotal)}</span>
                 </div>
 
                 {/* Discount Row */}
@@ -295,11 +327,19 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                     </div>
                 )}
 
-                {/* Tax & Other Fees Row */}
-                {(displayedTax > 0 || showOtherFees) && (
+                {/* Tax Row */}
+                {displayedTax > 0 && (
                     <div className="flex justify-between items-center py-2 text-gray-600">
-                        <span>Thuế & Phí khác</span>
-                        <span>+{formatCurrency(displayedTax + (showOtherFees ? otherFees : 0))}</span>
+                        <span>📋 Thuế (10%)</span>
+                        <span>+{formatCurrency(displayedTax)}</span>
+                    </div>
+                )}
+
+                {/* Other Fees Row */}
+                {showOtherFees && (
+                    <div className="flex justify-between items-center py-2 text-gray-600">
+                        <span>📦 Phí khác</span>
+                        <span>+{formatCurrency(otherFees)}</span>
                     </div>
                 )}
 

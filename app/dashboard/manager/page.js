@@ -71,8 +71,9 @@ export default function ManagerDashboard() {
       const cageAssignments = Array.isArray(cagesRes.data) ? cagesRes.data : 
                              (cagesRes.data?.data || cagesRes || []);
 
-      // Get today's date
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date using local time (avoid UTC timezone issues)
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       
       // Filter today's appointments
       const todayAppointments = appointments.filter(apt => {
@@ -357,7 +358,9 @@ export default function ManagerDashboard() {
                             </span>
                           </div>
                           <p className="text-sm text-gray-500 truncate">
-                            {apt.service?.serviceName || 'Dịch vụ'}
+                            {apt.appointmentServices && apt.appointmentServices.length > 0
+                              ? apt.appointmentServices.map(as => as.service?.serviceName || as.serviceName).join(', ')
+                              : (apt.service?.serviceName || apt.allServicesDisplay || 'Dịch vụ')}
                             {apt.employee && ` • ${apt.employee.fullName}`}
                           </p>
                         </div>

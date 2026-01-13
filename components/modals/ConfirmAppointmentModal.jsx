@@ -75,7 +75,14 @@ export default function ConfirmAppointmentModal({ isOpen, onClose, appointment, 
                 <span className="text-2xl">{serviceIcon}</span>
                 <div>
                   <p className="text-xs font-semibold text-green-800 uppercase">Dịch vụ</p>
-                  <p className="text-sm font-bold text-green-900">{appointment.service?.serviceName || 'N/A'}</p>
+                  <p className="text-sm font-bold text-green-900">
+                    {/* Use appointmentServices array if available, otherwise fall back to service */}
+                    {appointment.appointmentServices && appointment.appointmentServices.length > 0
+                      ? appointment.appointmentServices
+                          .map(as => as.service?.serviceName || as.serviceName || 'Dịch vụ')
+                          .join(', ')
+                      : (appointment.service?.serviceName || appointment.allServicesDisplay || 'N/A')}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

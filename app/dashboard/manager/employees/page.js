@@ -538,7 +538,7 @@ export default function EmployeesPage() {
                         🔒 Mật khẩu <span className="text-red-500">*</span>
                       </Label>
                       <Input
-                        type="password"
+                        type="text"
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                         placeholder="Tối thiểu 8 ký tự"

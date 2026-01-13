@@ -561,7 +561,11 @@ function CustomerDetailModal({ customer, onClose, getPetEmoji }) {
                             {appointments.length > 0 ? appointments.map((apt) => (
                               <tr key={apt.appointmentId} className="hover:bg-gray-50 transition-colors">
                                 <td className="p-4">{formatDate(apt.appointmentDate)}</td>
-                                <td className="p-4 font-medium text-gray-900">{apt.serviceName || apt.service?.serviceName}</td>
+                                <td className="p-4 font-medium text-gray-900">
+                                  {apt.appointmentServices && apt.appointmentServices.length > 0
+                                    ? apt.appointmentServices.map(as => as.service?.serviceName || as.serviceName).join(', ')
+                                    : (apt.serviceName || apt.service?.serviceName || 'N/A')}
+                                </td>
                                 <td className="p-4 flex items-center gap-2">
                                   <span>{getPetEmoji(apt.pet?.species)}</span>
                                   {apt.petName || apt.pet?.name}

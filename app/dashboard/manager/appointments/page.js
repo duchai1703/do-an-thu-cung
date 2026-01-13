@@ -61,6 +61,7 @@ export default function AppointmentsPage() {
   const [pets, setPets] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [services, setServices] = useState([]);
+  const [servicesMap, setServicesMap] = useState({});
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,7 +105,27 @@ export default function AppointmentsPage() {
       const employeesData = Array.isArray(employeesRes.data) ? employeesRes.data : (employeesRes.data?.data || []);
       const servicesData = Array.isArray(servicesRes.data) ? servicesRes.data : (servicesRes.data?.data || []);
 
-      setAppointments(appointmentsData);
+      // Create services map for quick lookup by ID
+      const svcMap = {};
+      servicesData.forEach(service => {
+        const serviceKey = service.id || service.serviceId;
+        svcMap[serviceKey] = service;
+      });
+      setServicesMap(svcMap);
+      console.log('=== DEBUG: Services Map ===', svcMap);
+
+      // Enrich appointments with service data
+      const enrichedAppointments = appointmentsData.map(apt => {
+        if (apt.appointmentServices && apt.appointmentServices.length > 0) {
+          apt.appointmentServices = apt.appointmentServices.map(as => ({
+            ...as,
+            service: as.service || svcMap[as.serviceId] || null
+          }));
+        }
+        return apt;
+      });
+
+      setAppointments(enrichedAppointments);
       setPets(petsData);
       setEmployees(employeesData);
       setServices(servicesData);
@@ -135,12 +156,13 @@ export default function AppointmentsPage() {
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(apt => 
-        apt.pet?.name?.toLowerCase().includes(term) ||
-        apt.service?.serviceName?.toLowerCase().includes(term) ||
-        apt.employee?.fullName?.toLowerCase().includes(term) ||
-        apt.petOwner?.fullName?.toLowerCase().includes(term)
-      );
+      filtered = filtered.filter(apt => {
+        const serviceNames = apt.appointmentServices?.map(as => as.service?.serviceName || as.serviceName).join(' ') || apt.allServicesDisplay || '';
+        return apt.pet?.name?.toLowerCase().includes(term) ||
+          serviceNames.toLowerCase().includes(term) ||
+          apt.employee?.fullName?.toLowerCase().includes(term) ||
+          apt.petOwner?.fullName?.toLowerCase().includes(term);
+      });
     }
 
     // Sort by date and time
@@ -293,12 +315,16 @@ export default function AppointmentsPage() {
   ];
 
   // Calculate stats
-  const stats = {
-    total: appointments.length,
-    pending: appointments.filter(a => a.status === 'PENDING').length,
-    confirmed: appointments.filter(a => a.status === 'CONFIRMED').length,
-    today: appointments.filter(a => a.appointmentDate?.split('T')[0] === new Date().toISOString().split('T')[0]).length
-  };
+  const stats = (() => {
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return {
+      total: appointments.length,
+      pending: appointments.filter(a => a.status === 'PENDING').length,
+      confirmed: appointments.filter(a => a.status === 'CONFIRMED').length,
+      today: appointments.filter(a => a.appointmentDate?.split('T')[0] === todayLocal).length
+    };
+  })();
 
   if (loading) {
     return (
@@ -495,7 +521,13 @@ export default function AppointmentsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                           <div>
                             <p className="text-gray-500">💼 Dịch vụ</p>
-                            <p className="font-medium text-gray-900">{appointment.service?.serviceName || 'N/A'}</p>
+                            <p className="font-medium text-gray-900">
+                              {appointment.appointmentServices && appointment.appointmentServices.length > 0
+                                ? appointment.appointmentServices.map(as => 
+                                    as.service?.serviceName || as.serviceName || servicesMap[as.serviceId]?.serviceName || 'Dịch vụ'
+                                  ).join(', ')
+                                : (appointment.service?.serviceName || appointment.allServicesDisplay || 'N/A')}
+                            </p>
                           </div>
                           <div>
                             <p className="text-gray-500">👨‍⚕️ Nhân viên</p>

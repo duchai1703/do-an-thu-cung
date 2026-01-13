@@ -45,7 +45,12 @@ export default function InvoicesPage() {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const response = await invoiceApi.getMyInvoices();
+      // Include appointment and pet relations for complete data display
+      const response = await invoiceApi.getMyInvoices({
+        includeAppointment: true,
+        includePet: true
+      });
+      console.log('📧 Invoices loaded:', response);
       const data = response.data || response || [];
       setInvoices(data);
     } catch (error) {
@@ -518,10 +523,41 @@ export default function InvoicesPage() {
                 </div>
               )}
 
-              {selectedInvoice.appointment?.service && (
+              {/* Services List - Itemized */}
+              {selectedInvoice.services && selectedInvoice.services.length > 0 ? (
+                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                  <p className="text-gray-700 font-semibold text-sm flex items-center gap-2">
+                    🧾 Chi tiết dịch vụ ({selectedInvoice.services.length} dịch vụ)
+                  </p>
+                  <div className="space-y-2">
+                    {selectedInvoice.services.map((service, idx) => {
+                      const serviceName = service.serviceName || service.name || 'Dịch vụ';
+                      const price = Number(service.basePrice) || 0;
+                      
+                      return (
+                        <div key={idx} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-200">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-800 flex items-center gap-2">
+                              💉 {serviceName}
+                            </p>
+                            {service.description && (
+                              <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                                {service.description}
+                              </p>
+                            )}
+                          </div>
+                          <span className="font-semibold text-gray-800">
+                            {price.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
                 <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                   <span className="text-gray-600">💉 Dịch vụ</span>
-                  <span className="font-semibold">{selectedInvoice.appointment.service.serviceName}</span>
+                  <span className="font-semibold text-gray-500">Không có thông tin</span>
                 </div>
               )}
 
@@ -554,7 +590,7 @@ export default function InvoicesPage() {
                 
                 {selectedInvoice.tax > 0 && (
                   <div className="flex justify-between items-center text-gray-600">
-                    <span>📋 Thuế</span>
+                    <span>📋 Thuế (10%)</span>
                     <span className="font-semibold">
                       +{(selectedInvoice.tax || 0).toLocaleString('vi-VN')} đ
                     </span>

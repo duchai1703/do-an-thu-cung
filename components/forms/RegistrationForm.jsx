@@ -130,7 +130,7 @@ export default function RegistrationForm() {
         <Input
           label="Mật khẩu"
           name="password"
-          type="password"
+          type="text"
           value={form.password}
           onChange={handleChange}
           onFocus={() => setIsPasswordFocused(true)}
@@ -144,7 +144,7 @@ export default function RegistrationForm() {
         <Input
           label="Xác nhận mật khẩu"
           name="confirmPassword"
-          type="password"
+          type="text"
           value={form.confirmPassword}
           onChange={handleChange}
           onFocus={() => setIsPasswordFocused(true)}

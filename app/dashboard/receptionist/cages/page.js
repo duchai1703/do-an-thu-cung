@@ -41,6 +41,8 @@ export default function ReceptionistCagesPage() {
   const [selectedCage, setSelectedCage] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadingPets, setLoadingPets] = useState(false);
+  const [petSearchTerm, setPetSearchTerm] = useState("");
+  const [showPetDropdown, setShowPetDropdown] = useState(false);
 
   // Assignment form
   const [assignForm, setAssignForm] = useState({
@@ -133,6 +135,30 @@ export default function ReceptionistCagesPage() {
   const handleCloseAssignModal = () => {
     setIsAssignModalOpen(false);
     setSelectedCage(null);
+    setPetSearchTerm("");
+    setShowPetDropdown(false);
+  };
+
+  // Filter pets by name, owner name, phone number
+  const filteredPets = pets.filter(pet => {
+    if (!petSearchTerm) return true;
+    const term = petSearchTerm.toLowerCase();
+    const petName = (pet.name || '').toLowerCase();
+    const ownerName = (pet.owner?.fullName || pet.petOwner?.fullName || '').toLowerCase();
+    const ownerPhone = (pet.owner?.phoneNumber || pet.petOwner?.phoneNumber || '');
+    return petName.includes(term) || ownerName.includes(term) || ownerPhone.includes(term);
+  });
+
+  const getSelectedPetDisplay = () => {
+    if (!assignForm.petId) return null;
+    const pet = pets.find(p => (p.petId || p.id)?.toString() === assignForm.petId);
+    if (!pet) return null;
+    return {
+      ...pet,
+      displayName: `${getPetEmoji(pet.species)} ${pet.name} - ${pet.species}`,
+      ownerDisplay: pet.owner?.fullName || pet.petOwner?.fullName || 'N/A',
+      phoneDisplay: pet.owner?.phoneNumber || pet.petOwner?.phoneNumber || ''
+    };
   };
 
   const handleSubmitAssign = async (e) => {
@@ -546,19 +572,91 @@ export default function ReceptionistCagesPage() {
                 <Label className="flex items-center gap-2 mb-2">
                   🐾 Chọn thú cưng <span className="text-red-500">*</span>
                 </Label>
-                <select
-                  value={assignForm.petId}
-                  onChange={(e) => setAssignForm({...assignForm, petId: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500"
-                  required
-                >
-                  <option value="">-- Chọn thú cưng --</option>
-                  {pets.map(pet => (
-                    <option key={pet.petId || pet.id} value={pet.petId || pet.id}>
-                      {getPetEmoji(pet.species)} {pet.name} - {pet.species} ({pet.owner?.fullName || 'N/A'})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  {/* Selected pet display or search input */}
+                  {assignForm.petId && !showPetDropdown ? (
+                    <div 
+                      onClick={() => setShowPetDropdown(true)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg cursor-pointer hover:border-violet-400 transition-colors bg-violet-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">{getSelectedPetDisplay()?.displayName}</span>
+                          <span className="text-sm text-gray-500 ml-2">({getSelectedPetDisplay()?.ownerDisplay})</span>
+                        </div>
+                        <span className="text-gray-400">✏️</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🔍</span>
+                      <input
+                        type="text"
+                        value={petSearchTerm}
+                        onChange={(e) => {
+                          setPetSearchTerm(e.target.value);
+                          setShowPetDropdown(true);
+                        }}
+                        onFocus={() => setShowPetDropdown(true)}
+                        placeholder="Tìm theo tên pet, chủ nuôi, SĐT..."
+                        className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Dropdown list */}
+                  {showPetDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                      {filteredPets.length > 0 ? (
+                        filteredPets.map(pet => {
+                          const petId = pet.petId || pet.id;
+                          const isSelected = assignForm.petId === petId?.toString();
+                          return (
+                            <div
+                              key={petId}
+                              onClick={() => {
+                                setAssignForm({...assignForm, petId: petId?.toString()});
+                                setShowPetDropdown(false);
+                                setPetSearchTerm("");
+                              }}
+                              className={`px-3 py-2 cursor-pointer transition-colors border-b border-gray-100 last:border-0 ${
+                                isSelected ? 'bg-violet-100' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{getPetEmoji(pet.species)}</span>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">
+                                    {pet.name} - {pet.species}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    👤 {pet.owner?.fullName || pet.petOwner?.fullName || 'N/A'}
+                                    {(pet.owner?.phoneNumber || pet.petOwner?.phoneNumber) && (
+                                      <span className="ml-2">📞 {pet.owner?.phoneNumber || pet.petOwner?.phoneNumber}</span>
+                                    )}
+                                  </p>
+                                </div>
+                                {isSelected && <span className="text-violet-600">✓</span>}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="px-3 py-4 text-center text-gray-500">
+                          <span className="text-2xl block mb-1">🔍</span>
+                          Không tìm thấy thú cưng nào
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Click outside to close */}
+                {showPetDropdown && (
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowPetDropdown(false)}
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

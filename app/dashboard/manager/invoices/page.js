@@ -450,7 +450,10 @@ export default function InvoicesPage() {
               const status = getStatusConfig(invoice.paymentStatus || invoice.status);
               const customer = invoice.petOwner || invoice.customer || invoice.owner;
               const pet = invoice.pet;
-              const serviceName = invoice.service?.serviceName;
+              // Get service names from services array or fallback to single service
+              const serviceName = invoice.services && invoice.services.length > 0
+                ? invoice.services.map(s => s.serviceName).join(', ')
+                : (invoice.service?.serviceName || invoice.appointment?.service?.serviceName || null);
               
               return (
                 <Card 
@@ -772,7 +775,11 @@ export default function InvoicesPage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-semibold">
-                            🐾 {apt.pet?.name || 'N/A'} - {apt.service?.serviceName || apt.serviceName || 'Dịch vụ'}
+                            🐾 {apt.pet?.name || 'N/A'} - {
+                              apt.appointmentServices && apt.appointmentServices.length > 0
+                                ? apt.appointmentServices.map(as => as.service?.serviceName || as.serviceName).join(', ')
+                                : (apt.service?.serviceName || apt.serviceName || 'Dịch vụ')
+                            }
                           </p>
                           <p className="text-sm text-gray-500">
                             👤 {apt.pet?.owner?.fullName || apt.owner?.fullName || 'Chủ thú cưng'}

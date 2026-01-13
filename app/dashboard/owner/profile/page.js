@@ -469,7 +469,7 @@ export default function ProfilePage() {
                           <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                             <Input 
-                              type="password" 
+                              type="text" 
                               className="pl-10 h-11 bg-white" 
                               placeholder="••••••••"
                               value={passwords.oldPassword}

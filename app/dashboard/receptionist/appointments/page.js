@@ -46,10 +46,13 @@ import {
   User,
   EyeIcon,
   Trash2,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  FileText
 } from "lucide-react";
 import { cn, formatAppointmentId } from "@/lib/utils";
-import { appointmentApi, getToken } from "@/lib/api";
+import { appointmentApi, serviceApi, getToken } from "@/lib/api";
 
 export default function AppointmentsPage() {
   const router = useRouter();
@@ -65,6 +68,8 @@ export default function AppointmentsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailAppointment, setDetailAppointment] = useState(null);
+  const [expandedRows, setExpandedRows] = useState({});
+  const [allServicesMap, setAllServicesMap] = useState({});
 
   useEffect(() => {
     loadAppointments();
@@ -81,9 +86,46 @@ export default function AppointmentsPage() {
         return;
       }
 
-      const response = await appointmentApi.getAll();
-      if (response.success && response.data) {
-        setAppointments(response.data);
+      // Fetch appointments and services in parallel
+      const [appointmentsRes, servicesRes] = await Promise.all([
+        appointmentApi.getAll(),
+        serviceApi.getAll()
+      ]);
+
+      // Create services map for quick lookup
+      console.log('=== DEBUG: Services Response ===', servicesRes);
+      console.log('=== DEBUG: Appointments Response ===', appointmentsRes);
+      
+      if (servicesRes.success && servicesRes.data) {
+        const servicesMap = {};
+        servicesRes.data.forEach(service => {
+          // Map by both 'id' and 'serviceId' for compatibility
+          const serviceKey = service.id || service.serviceId;
+          servicesMap[serviceKey] = service;
+        });
+        setAllServicesMap(servicesMap);
+        console.log('=== DEBUG: Services Map ===', servicesMap);
+
+        // Enrich appointments with service data
+        if (appointmentsRes.success && appointmentsRes.data) {
+          const enrichedAppointments = appointmentsRes.data.map(apt => {
+            console.log('=== DEBUG: Appointment appointmentServices ===', apt.appointmentId, apt.appointmentServices);
+            if (apt.appointmentServices && apt.appointmentServices.length > 0) {
+              apt.appointmentServices = apt.appointmentServices.map(as => {
+                console.log('=== DEBUG: AppointmentService ===', as.serviceId, 'mapped to:', servicesMap[as.serviceId]);
+                return {
+                  ...as,
+                  service: as.service || servicesMap[as.serviceId] || null
+                };
+              });
+            }
+            return apt;
+          });
+          console.log('=== DEBUG: Enriched Appointments ===', enrichedAppointments);
+          setAppointments(enrichedAppointments);
+        }
+      } else if (appointmentsRes.success && appointmentsRes.data) {
+        setAppointments(appointmentsRes.data);
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
@@ -91,6 +133,13 @@ export default function AppointmentsPage() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const toggleExpandRow = (appointmentId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [appointmentId]: !prev[appointmentId]
+    }));
   };
 
   const getServiceIconFromType = (categoryName) => {
@@ -401,13 +450,11 @@ export default function AppointmentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+                    <TableHead className="w-[50px]"></TableHead>
                     <TableHead className="font-bold text-gray-700">Mã lịch</TableHead>
-                    <TableHead className="font-bold text-gray-700">Khách hàng</TableHead>
-                    <TableHead className="font-bold text-gray-700">Thú cưng</TableHead>
+                    <TableHead className="font-bold text-gray-700">Khách hàng & Thú cưng</TableHead>
                     <TableHead className="font-bold text-gray-700">Dịch vụ</TableHead>
-                    <TableHead className="font-bold text-gray-700">Nhân viên</TableHead>
                     <TableHead className="font-bold text-gray-700">Ngày & Giờ</TableHead>
-                    <TableHead className="font-bold text-gray-700">Chi phí</TableHead>
                     <TableHead className="font-bold text-gray-700">Trạng thái</TableHead>
                     <TableHead className="font-bold text-gray-700 text-center">Thao tác</TableHead>
                   </TableRow>
@@ -415,7 +462,7 @@ export default function AppointmentsPage() {
                 <TableBody>
                   {filteredAppointments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-40">
+                      <TableCell colSpan={7} className="h-40">
                         <div className="flex flex-col items-center justify-center text-gray-400">
                           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                             <Calendar className="w-8 h-8" />
@@ -431,143 +478,251 @@ export default function AppointmentsPage() {
                       const statusConfig = getStatusConfig(status);
                       const petSpecies = apt.pet?.species || '';
                       const PetIcon = petSpecies === 'DOG' ? PawPrint : petSpecies === 'CAT' ? Cat : PawPrint;
-                      const serviceIcon = getServiceIconFromType(apt.service?.serviceCategory?.categoryName);
-                      const ServiceIcon = getServiceIcon(serviceIcon);
                       const appointmentDate = apt.appointmentDate ? new Date(apt.appointmentDate).toLocaleDateString('vi-VN') : 'N/A';
+                      const isExpanded = expandedRows[apt.appointmentId];
+                      
+                      // Get all services from appointmentServices or fallback to single service
+                      const allServices = apt.appointmentServices && apt.appointmentServices.length > 0
+                        ? apt.appointmentServices.map(as => as.service).filter(s => s != null)
+                        : (apt.service ? [apt.service] : []);
+                      
+                      const totalCost = apt.appointmentServices && apt.appointmentServices.length > 0
+                        ? apt.appointmentServices.reduce((sum, as) => sum + ((as.unitPrice || as.service?.basePrice || 0) * (as.quantity || 1)), 0)
+                        : (apt.estimatedCost || 0);
                       
                       return (
-                        <TableRow 
-                          key={apt.appointmentId} 
-                          className="group hover:bg-gradient-to-r hover:from-violet-50/50 hover:to-purple-50/50 transition-all duration-300"
-                          style={{ animationDelay: `${index * 50}ms` }}
-                        >
-                          <TableCell>
-                            <Badge variant="outline" className="font-mono text-sm bg-gray-50 border-gray-200">
-                              {formatAppointmentId(apt.appointmentId)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-violet-100 to-purple-100 flex items-center justify-center text-violet-600 font-bold">
-                                {(apt.pet?.owner?.fullName || 'N')[0]}
+                        <>
+                          <TableRow 
+                            key={apt.appointmentId} 
+                            className="group hover:bg-gradient-to-r hover:from-violet-50/50 hover:to-purple-50/50 transition-all duration-300 cursor-pointer"
+                            style={{ animationDelay: `${index * 50}ms` }}
+                            onClick={() => toggleExpandRow(apt.appointmentId)}
+                          >
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpandRow(apt.appointmentId);
+                                }}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-mono text-sm bg-gray-50 border-gray-200">
+                                {formatAppointmentId(apt.appointmentId)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-violet-100 to-purple-100 flex items-center justify-center text-violet-600 font-bold">
+                                  {(apt.pet?.owner?.fullName || 'N')[0]}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-800">{apt.pet?.owner?.fullName || 'N/A'}</p>
+                                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <PetIcon className="w-3 h-3" />
+                                    <span>{apt.pet?.name || 'N/A'}</span>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-semibold text-gray-800">{apt.pet?.owner?.fullName || 'N/A'}</p>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <p className="font-medium text-gray-700">
+                                  {allServices.length > 0 ? allServices[0]?.serviceName : 'N/A'}
+                                </p>
+                                {allServices.length > 1 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    +{allServices.length - 1} dịch vụ khác
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <p className="font-semibold text-gray-800 flex items-center gap-1">
+                                  <Calendar className="w-4 h-4 text-gray-400" /> {appointmentDate}
+                                </p>
                                 <p className="text-sm text-gray-500 flex items-center gap-1">
-                                  <Phone className="w-3 h-3" /> {apt.pet?.owner?.phoneNumber || 'N/A'}
+                                  <Clock className="w-3 h-3" /> {apt.startTime || 'N/A'} - {apt.endTime || 'N/A'}
                                 </p>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                                <PetIcon className="w-4 h-4 text-amber-600" />
-                              </div>
-                              <span className="font-medium text-gray-700">{apt.pet?.name || 'N/A'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <ServiceIcon className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <span className="font-medium text-gray-700">{apt.service?.serviceName || 'N/A'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                                <User className="w-4 h-4 text-indigo-600" />
-                              </div>
-                              <span className="font-medium text-gray-700">{apt.employee?.fullName || 'Chưa phân công'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-semibold text-gray-800 flex items-center gap-1">
-                                <Calendar className="w-4 h-4 text-gray-400" /> {appointmentDate}
-                              </p>
-                              <p className="text-sm text-gray-500 flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> {apt.startTime || 'N/A'} - {apt.endTime || 'N/A'}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {apt.estimatedCost ? (
-                                <p className="font-semibold text-emerald-600 flex items-center gap-1">
-                                  <DollarSign className="w-4 h-4" />
-                                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(apt.estimatedCost)}
-                                </p>
-                              ) : (
-                                <span className="text-gray-400 text-sm">Chưa có</span>
-                              )}
-                              {apt.actualCost && (
-                                <p className="text-xs text-gray-500">Thực: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(apt.actualCost)}</p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={cn(
-                              "flex items-center gap-1.5 px-3 py-1.5 text-white border-0 shadow-lg whitespace-nowrap",
-                              statusConfig.badgeBg
-                            )}>
-                              <statusConfig.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="flex-shrink-0">{statusConfig.label}</span>
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-center items-center gap-2">
-                              {status === 'pending' && (
-                                <Button 
-                                  size="sm" 
-                                  onClick={() => handleConfirm(apt)}
-                                  className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg shadow-green-500/25 border-0"
-                                >
-                                  <CheckCircle2 className="w-4 h-4 mr-1" /> Xác nhận
-                                </Button>
-                              )}
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 text-white border-0 shadow-lg whitespace-nowrap",
+                                statusConfig.badgeBg
+                              )}>
+                                <statusConfig.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="flex-shrink-0">{statusConfig.label}</span>
+                              </Badge>
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-center items-center gap-2">
+                                {status === 'pending' && (
                                   <Button 
-                                    variant="ghost" 
                                     size="sm" 
-                                    className="h-8 w-8 p-0 hover:bg-gray-100"
+                                    onClick={() => handleConfirm(apt)}
+                                    className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg shadow-green-500/25 border-0"
                                   >
-                                    <MoreHorizontal className="h-4 w-4" />
+                                    <CheckCircle2 className="w-4 h-4 mr-1" /> Xác nhận
                                   </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
-                                  <DropdownMenuItem 
-                                    className="cursor-pointer"
-                                    onClick={() => {
-                                      setDetailAppointment(apt);
-                                      setShowDetailModal(true);
-                                    }}
-                                  >
-                                    <EyeIcon className="mr-2 h-4 w-4 text-blue-500" />
-                                    <span>Xem chi tiết</span>
-                                  </DropdownMenuItem>
+                                )}
+                                
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-8 w-8 p-0 hover:bg-gray-100"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuItem 
+                                      className="cursor-pointer"
+                                      onClick={() => {
+                                        setDetailAppointment(apt);
+                                        setShowDetailModal(true);
+                                      }}
+                                    >
+                                      <EyeIcon className="mr-2 h-4 w-4 text-blue-500" />
+                                      <span>Xem chi tiết</span>
+                                    </DropdownMenuItem>
+                                    
+                                    {status !== 'cancelled' && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem 
+                                          className="cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                                          onClick={() => handleCancel(apt)}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          <span>Hủy lịch hẹn</span>
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Expanded Row */}
+                          {isExpanded && (
+                            <TableRow className="bg-gradient-to-r from-violet-50/30 to-purple-50/30">
+                              <TableCell colSpan={7}>
+                                <div className="p-6 space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Services Detail */}
+                                    <div className="md:col-span-2 space-y-3">
+                                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                        <Stethoscope className="w-4 h-4" />
+                                        Chi tiết dịch vụ
+                                      </h4>
+                                      <div className="space-y-2">
+                                        {allServices.map((service, idx) => {
+                                          if (!service) return null; // Skip if service is null
+                                          
+                                          const appointmentService = apt.appointmentServices?.find(as => as.service?.serviceId === service.serviceId);
+                                          const quantity = appointmentService?.quantity || 1;
+                                          const price = appointmentService?.unitPrice || service.basePrice || 0;
+                                          const serviceIcon = getServiceIconFromType(service?.serviceCategory?.categoryName);
+                                          const ServiceIcon = getServiceIcon(serviceIcon);
+                                          
+                                          return (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100">
+                                              <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                                                  <ServiceIcon className="w-5 h-5 text-blue-600" />
+                                                </div>
+                                                <div>
+                                                  <p className="font-medium text-gray-800">{service?.serviceName || 'N/A'}</p>
+                                                  <p className="text-sm text-gray-500">{service?.serviceCategory?.categoryName || ''}</p>
+                                                  {appointmentService?.notes && (
+                                                    <p className="text-xs text-gray-400 mt-1">Ghi chú: {appointmentService.notes}</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <p className="font-semibold text-emerald-600">
+                                                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)}
+                                                </p>
+                                                <p className="text-sm text-gray-500">x{quantity}</p>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Additional Info */}
+                                    <div className="space-y-3">
+                                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                                        <ClipboardList className="w-4 h-4" />
+                                        Thông tin bổ sung
+                                      </h4>
+                                      
+                                      {/* Employee */}
+                                      <div className="p-3 bg-white rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-2 text-indigo-600 mb-1">
+                                          <Briefcase className="w-4 h-4" />
+                                          <span className="text-sm font-medium">Nhân viên</span>
+                                        </div>
+                                        <p className="text-gray-800 font-medium">{apt.employee?.fullName || 'Chưa phân công'}</p>
+                                      </div>
+                                      
+                                      {/* Contact */}
+                                      <div className="p-3 bg-white rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-2 text-violet-600 mb-1">
+                                          <Phone className="w-4 h-4" />
+                                          <span className="text-sm font-medium">Liên hệ</span>
+                                        </div>
+                                        <p className="text-gray-800 text-sm">{apt.pet?.owner?.phoneNumber || 'N/A'}</p>
+                                      </div>
+                                      
+                                      {/* Total Cost */}
+                                      <div className="p-3 bg-gradient-to-r from-emerald-500 to-green-600 rounded-lg text-white">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <DollarSign className="w-4 h-4" />
+                                          <span className="text-sm font-medium">Tổng chi phí</span>
+                                        </div>
+                                        <p className="text-2xl font-bold">
+                                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalCost)}
+                                        </p>
+                                        {apt.actualCost && apt.actualCost !== totalCost && (
+                                          <p className="text-xs opacity-90 mt-1">
+                                            Thực tế: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(apt.actualCost)}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                   
-                                  {status !== 'cancelled' && (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem 
-                                        className="cursor-pointer text-rose-600 focus:text-rose-600 focus:bg-rose-50"
-                                        onClick={() => handleCancel(apt)}
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        <span>Hủy lịch hẹn</span>
-                                      </DropdownMenuItem>
-                                    </>
+                                  {/* Notes */}
+                                  {apt.notes && (
+                                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                                      <div className="flex items-center gap-2 text-amber-600 mb-1">
+                                        <FileText className="w-4 h-4" />
+                                        <span className="text-sm font-medium">Ghi chú</span>
+                                      </div>
+                                      <p className="text-gray-700">{apt.notes}</p>
+                                    </div>
                                   )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
                       );
                     })
                   )}

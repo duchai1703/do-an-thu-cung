@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { appointmentApi, getToken } from "@/lib/api";
+import { appointmentApi, getToken, serviceApi } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 import { formatAppointmentId } from "@/lib/utils/id-formatter";
 import { authApi } from "@/lib/api";
@@ -21,7 +21,13 @@ import { authApi } from "@/lib/api";
 export default function VeterinarianSchedulePage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const getLocalDateString = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [appointments, setAppointments] = useState([]);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,45 +50,90 @@ export default function VeterinarianSchedulePage() {
         return;
       }
 
-      // Chỉ lấy appointments của bác sĩ này
-      const response = await appointmentApi.getMyAppointments();
-      console.log('📅 Loaded appointments:', response);
+      // Fetch both appointments and services in parallel
+      const [appointmentsResponse, servicesResponse] = await Promise.all([
+        appointmentApi.getMyAppointments(),
+        serviceApi.getAll()
+      ]);
       
-      if (response.success && response.data) {
+      console.log('📅 Loaded appointments:', appointmentsResponse);
+      console.log('📦 Loaded services:', servicesResponse);
+
+      // Build services map for quick lookup
+      let servicesMap = {};
+      if (servicesResponse.success && servicesResponse.data) {
+        servicesResponse.data.forEach(service => {
+          const serviceKey = service.id || service.serviceId;
+          servicesMap[serviceKey] = service;
+          // Also map by serviceId for compatibility
+          if (service.serviceId) {
+            servicesMap[service.serviceId] = service;
+          }
+        });
+      }
+      
+      if (appointmentsResponse.success && appointmentsResponse.data) {
         // Filter theo ngày đã chọn
-        const filteredByDate = response.data.filter(apt => {
-          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+        const filteredByDate = appointmentsResponse.data.filter(apt => {
+          const aptDate = apt.appointmentDate ? getLocalDateString(new Date(apt.appointmentDate)) : '';
           return aptDate === selectedDate;
         });
 
-        const mappedAppointments = filteredByDate.map(apt => ({
-          id: apt.appointmentId || apt.id,
-          code: formatAppointmentId(apt.appointmentId || apt.id),
-          time: apt.startTime || '',
-          petId: apt.pet?.petId || apt.pet?.id,
-          petName: apt.pet?.name || 'Unknown',
-          petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
-          petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
-          petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
-          petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
-          ownerId: apt.pet?.owner?.petOwnerId || apt.pet?.owner?.id,
-          ownerName: apt.pet?.owner?.fullName || apt.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
-          ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
-          serviceId: apt.service?.serviceId || apt.service?.id,
-          serviceName: apt.service?.serviceName || apt.service?.name || 'Unknown Service',
-          servicePrice: apt.service?.price || apt.service?.basePrice || null,
-          serviceDescription: apt.service?.description || null,
-          serviceIconName: apt.service?.serviceName || apt.service?.name || '',
-          status: mapStatus(apt.status),
-          symptoms: apt.notes || 'N/A',
-          notes: apt.notes || '',
-          previousRecords: []
-        }));
+        const mappedAppointments = filteredByDate.map(apt => {
+          // Extract services from appointmentServices array
+          let allServices = [];
+          if (apt.appointmentServices && apt.appointmentServices.length > 0) {
+            allServices = apt.appointmentServices.map(as => {
+              // Try to get service from appointmentService relation or from servicesMap
+              const serviceId = as.serviceId || as.service?.id || as.service?.serviceId;
+              const serviceFromMap = servicesMap[serviceId];
+              return {
+                ...as.service,
+                ...serviceFromMap,
+                appointmentServiceId: as.id,
+                quantity: as.quantity || 1,
+                unitPrice: as.unitPrice
+              };
+            }).filter(s => s != null);
+          }
+          
+          // Get first service for display (or fallback)
+          const primaryService = allServices[0];
+          const serviceNames = allServices.length > 0 
+            ? allServices.map(s => s.serviceName || s.name).filter(Boolean).join(', ')
+            : 'N/A';
+
+          return {
+            id: apt.appointmentId || apt.id,
+            code: formatAppointmentId(apt.appointmentId || apt.id),
+            time: apt.startTime || '',
+            petId: apt.pet?.petId || apt.pet?.id,
+            petName: apt.pet?.name || 'Unknown',
+            petIcon: apt.pet?.species?.toLowerCase() === 'dog' ? '🐕' : '🐈',
+            petType: `${apt.pet?.species || ''} ${apt.pet?.breed || ''}`.trim(),
+            petAge: apt.pet?.birthDate ? calculateAge(apt.pet.birthDate) : 'N/A',
+            petWeight: apt.pet?.weight ? `${apt.pet.weight} kg` : 'N/A',
+            ownerId: apt.pet?.owner?.petOwnerId || apt.pet?.owner?.id,
+            ownerName: apt.pet?.owner?.fullName || apt.pet?.owner?.account?.email?.split('@')[0] || 'Unknown',
+            ownerPhone: apt.pet?.owner?.phoneNumber || 'N/A',
+            // Updated service fields to support multiple services
+            services: allServices,
+            serviceId: primaryService?.id || primaryService?.serviceId,
+            serviceName: serviceNames,
+            servicePrice: primaryService?.price || primaryService?.basePrice || null,
+            serviceDescription: primaryService?.description || null,
+            serviceIconName: primaryService?.serviceName || primaryService?.name || '',
+            status: mapStatus(apt.status),
+            symptoms: apt.notes || 'N/A',
+            notes: apt.notes || '',
+            previousRecords: []
+          };
+        });
         
         setAppointments(mappedAppointments);
       }
       else {
-        throw new Error(response.error || 'Không thể tải lịch khám');
+        throw new Error(appointmentsResponse.error || 'Không thể tải lịch khám');
       }
     } catch (error) {
       showToast(error.message, "error");
@@ -269,7 +320,7 @@ export default function VeterinarianSchedulePage() {
                 onClick={() => {
                   const prevWeek = new Date(selectedDate);
                   prevWeek.setDate(prevWeek.getDate() - 7);
-                  setSelectedDate(prevWeek.toISOString().split('T')[0]);
+                  setSelectedDate(getLocalDateString(prevWeek));
                 }}
                 className="flex items-center gap-2 hover:bg-indigo-100"
               >
@@ -277,12 +328,12 @@ export default function VeterinarianSchedulePage() {
               </Button>
               
               <Button 
-                variant={selectedDate === new Date().toISOString().split('T')[0] ? "default" : "outline"}
+                variant={selectedDate === getLocalDateString() ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                onClick={() => setSelectedDate(getLocalDateString())}
                 className={cn(
                   "flex items-center gap-2",
-                  selectedDate === new Date().toISOString().split('T')[0] 
+                  selectedDate === getLocalDateString() 
                     ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white" 
                     : "hover:bg-indigo-100"
                 )}
@@ -296,7 +347,7 @@ export default function VeterinarianSchedulePage() {
                 onClick={() => {
                   const nextWeek = new Date(selectedDate);
                   nextWeek.setDate(nextWeek.getDate() + 7);
-                  setSelectedDate(nextWeek.toISOString().split('T')[0]);
+                  setSelectedDate(getLocalDateString(nextWeek));
                 }}
                 className="flex items-center gap-2 hover:bg-indigo-100"
               >
@@ -338,9 +389,9 @@ export default function VeterinarianSchedulePage() {
               const currentDay = day.getDay();
               const diff = i - currentDay;
               day.setDate(day.getDate() + diff);
-              const dayStr = day.toISOString().split('T')[0];
+              const dayStr = getLocalDateString(day);
               const isSelected = dayStr === selectedDate;
-              const isToday = dayStr === new Date().toISOString().split('T')[0];
+              const isToday = dayStr === getLocalDateString();
               
               return (
                 <button

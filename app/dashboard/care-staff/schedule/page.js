@@ -13,6 +13,15 @@ import apiClient from "@/lib/api/client";
 
 export default function CareStaffSchedulePage() {
   const { showToast } = useToast();
+  
+  // Helper function to get local date string (avoids UTC timezone issues)
+  const getLocalDateString = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [employeeId, setEmployeeId] = useState(null);
@@ -37,8 +46,8 @@ export default function CareStaffSchedulePage() {
     sunday.setDate(monday.getDate() + 6);
     
     return {
-      start: monday.toISOString().split('T')[0],
-      end: sunday.toISOString().split('T')[0],
+      start: getLocalDateString(monday),
+      end: getLocalDateString(sunday),
       monday,
       sunday
     };
@@ -177,7 +186,7 @@ export default function CareStaffSchedulePage() {
   };
 
   const isToday = (dateStr) => {
-    return dateStr === new Date().toISOString().split('T')[0];
+    return dateStr === getLocalDateString();
   };
 
   const weekLabel = () => {

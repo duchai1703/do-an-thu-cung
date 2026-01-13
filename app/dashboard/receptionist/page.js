@@ -65,9 +65,11 @@ export default function ReceptionistDashboardPage() {
       const appointmentsRes = await appointmentApi.getAll();
       
       if (appointmentsRes.success && appointmentsRes.data) {
-        const today = new Date().toISOString().split('T')[0];
+        // Use local date format to avoid timezone issues
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const todayAppointments = appointmentsRes.data.filter(apt => {
-          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          const aptDate = apt.appointmentDate?.split('T')[0] || '';
           return aptDate === today;
         });
 
@@ -77,7 +79,7 @@ export default function ReceptionistDashboardPage() {
 
         const customersRes = await petOwnerApi?.getAll ? await petOwnerApi.getAll() : { success: true, data: [] };
         const newCustomersToday = customersRes.success ? (customersRes.data?.filter(c => {
-          const createdDate = c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : '';
+          const createdDate = c.createdAt?.split('T')[0] || '';
           return createdDate === today;
         }).length || 0) : 0;
 

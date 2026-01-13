@@ -95,7 +95,7 @@ export default function LoginForm() {
         <Input
           label="Mật khẩu"
           name="password"
-          type="password"
+          type="text"
           value={form.password}
           onChange={handleChange}
           error={errors.password}

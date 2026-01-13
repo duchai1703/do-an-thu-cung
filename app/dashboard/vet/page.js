@@ -103,7 +103,14 @@ export default function VeterinarianDashboard() {
         console.error("Error loading user info:", e);
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      // Helper function for local date
+      const getLocalDateString = (date = new Date()) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      const today = getLocalDateString();
 
       // Chỉ lấy appointments của bác sĩ đang đăng nhập (theo employeeId)
       if (!currentEmployeeId) {
@@ -121,7 +128,7 @@ export default function VeterinarianDashboard() {
       if (appointmentsRes.success && appointmentsRes.data) {
         // Filter today's appointments
         const todayAppointments = appointmentsRes.data.filter(apt => {
-          const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : '';
+          const aptDate = apt.appointmentDate ? getLocalDateString(new Date(apt.appointmentDate)) : '';
           return aptDate === today;
         });
 
@@ -689,7 +696,10 @@ export default function VeterinarianDashboard() {
           <CardContent>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {myWorkSchedule.map((ws) => {
-                const isToday = ws.date === new Date().toISOString().split('T')[0];
+                // Use local date to avoid timezone issues
+                const now = new Date();
+                const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const isToday = ws.date === todayLocal;
                 return (
                   <div 
                     key={ws.id} 

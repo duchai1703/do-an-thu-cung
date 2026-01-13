@@ -150,14 +150,61 @@ export default function AppointmentDetailModal({ isOpen, onClose, appointment })
             </div>
           </div>
 
-          {/* Service */}
+          {/* Services Section - Support multiple services */}
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-            <div className="flex items-center gap-2 text-emerald-600 mb-2">
+            <div className="flex items-center gap-2 text-emerald-600 mb-3">
               <Stethoscope className="w-5 h-5" />
               <span className="font-medium">Dịch vụ</span>
             </div>
-            <p className="text-gray-800 font-semibold text-lg">{appointment.service?.serviceName || 'N/A'}</p>
-            <p className="text-gray-500 text-sm">{appointment.service?.serviceCategory?.categoryName || ''}</p>
+            {(() => {
+              const allServices = appointment.appointmentServices && appointment.appointmentServices.length > 0
+                ? appointment.appointmentServices
+                : (appointment.service ? [{ service: appointment.service, quantity: 1, price: appointment.service.price }] : []);
+              
+              return allServices.length > 0 ? (
+                <div className="space-y-3">
+                  {allServices.map((appointmentService, idx) => {
+                    const service = appointmentService.service;
+                    const quantity = appointmentService.quantity || 1;
+                    const price = appointmentService.price || service?.price || 0;
+                    
+                    return (
+                      <div key={idx} className="bg-white rounded-lg p-3 border border-emerald-200">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="text-gray-800 font-semibold text-lg">{service?.serviceName || 'N/A'}</p>
+                            <p className="text-gray-500 text-sm">{service?.serviceCategory?.categoryName || ''}</p>
+                            {appointmentService.notes && (
+                              <p className="text-gray-600 text-sm mt-1 italic">Ghi chú: {appointmentService.notes}</p>
+                            )}
+                          </div>
+                          <div className="text-right ml-4">
+                            <p className="text-emerald-700 font-bold">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)}
+                            </p>
+                            <p className="text-gray-500 text-sm">x{quantity}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {allServices.length > 1 && (
+                    <div className="bg-emerald-100 rounded-lg p-3 border-2 border-emerald-300">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-emerald-800">Tổng cộng:</span>
+                        <span className="font-bold text-xl text-emerald-700">
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                            allServices.reduce((sum, as) => sum + ((as.price || as.service?.price || 0) * (as.quantity || 1)), 0)
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-500">Không có dịch vụ</p>
+              );
+            })()}
           </div>
 
           {/* Cost */}
