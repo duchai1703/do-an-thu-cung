@@ -605,31 +605,86 @@ export default function InvoicesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {/* Display service info if available */}
-                      {(selectedInvoice.service || selectedInvoice.appointment?.service) && (
-                        <tr className="border-t">
-                          <td className="p-3">{selectedInvoice.service?.serviceName || selectedInvoice.appointment?.service?.serviceName}</td>
-                          <td className="text-center p-3">1</td>
-                          <td className="text-right p-3">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
-                          <td className="text-right p-3 font-medium">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
-                        </tr>
-                      )}
-                      {/* Fallback to items if no service */}
-                      {!(selectedInvoice.service || selectedInvoice.appointment?.service) && (selectedInvoice.items || selectedInvoice.invoiceItems || []).map((item, idx) => (
-                        <tr key={idx} className="border-t">
-                          <td className="p-3">{item.serviceName || item.service?.serviceName || item.description}</td>
-                          <td className="text-center p-3">{item.quantity || 1}</td>
-                          <td className="text-right p-3">{formatCurrency(item.unitPrice || item.price)}</td>
-                          <td className="text-right p-3 font-medium">{formatCurrency(item.amount || item.subtotal || (item.unitPrice * (item.quantity || 1)))}</td>
-                        </tr>
-                      ))}
-                      {!(selectedInvoice.service || selectedInvoice.appointment?.service) && (selectedInvoice.items || selectedInvoice.invoiceItems || []).length === 0 && (
-                        <tr className="border-t">
-                          <td colSpan="4" className="p-3 text-center text-gray-500">Không có chi tiết dịch vụ</td>
-                        </tr>
+                      {/* Display items from backend if available */}
+                      {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                        selectedInvoice.items.map((item, idx) => (
+                          <tr key={idx} className={`border-t ${item.itemType === 'ADDITIONAL' ? 'bg-blue-50' : ''}`}>
+                            <td className="p-3">
+                              {item.itemType === 'ADDITIONAL' && '💡 '}
+                              {item.description}
+                            </td>
+                            <td className="text-center p-3">{item.quantity}</td>
+                            <td className="text-right p-3">{formatCurrency(item.unitPrice)}</td>
+                            <td className="text-right p-3 font-medium">{formatCurrency(item.amount)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <>
+                          {/* Fallback: Display service info if available but no items */}
+                          {(selectedInvoice.service || selectedInvoice.appointment?.service) && (
+                            <tr className="border-t">
+                              <td className="p-3">{selectedInvoice.service?.serviceName || selectedInvoice.appointment?.service?.serviceName}</td>
+                              <td className="text-center p-3">1</td>
+                              <td className="text-right p-3">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
+                              <td className="text-right p-3 font-medium">{formatCurrency(selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice)}</td>
+                            </tr>
+                          )}
+                          {/* No items and no service */}
+                          {!(selectedInvoice.service || selectedInvoice.appointment?.service) && (
+                            <tr className="border-t">
+                              <td colSpan="4" className="p-3 text-center text-gray-500">Không có chi tiết dịch vụ</td>
+                            </tr>
+                          )}
+                        </>
                       )}
                     </tbody>
                     <tfoot className="bg-gray-50">
+                      {/* Subtotal */}
+                      <tr className="border-t">
+                        <td colSpan="3" className="p-3 text-right text-gray-600">Tạm tính:</td>
+                        <td className="p-3 text-right">
+                          {formatCurrency(selectedInvoice.subtotal || (selectedInvoice.service?.basePrice || selectedInvoice.appointment?.service?.basePrice || 0))}
+                        </td>
+                      </tr>
+                      {/* Additional services - show calculated difference if exists */}
+                      {(() => {
+                        const additionalAmount = (selectedInvoice.totalAmount || selectedInvoice.total || 0) - 
+                          (selectedInvoice.subtotal || 0) - 
+                          (selectedInvoice.tax || 0) + 
+                          (selectedInvoice.discount || 0);
+                        return additionalAmount > 0 && !selectedInvoice.notes?.includes('+') && (
+                          <tr>
+                            <td colSpan="3" className="p-3 text-right text-gray-600">
+                              <span className="flex items-center justify-end gap-1">
+                                Dịch vụ bổ sung:
+                                <span className="text-xs text-gray-400" title="Chi tiết trong ghi chú">ℹ️</span>
+                              </span>
+                            </td>
+                            <td className="p-3 text-right text-blue-600">
+                              {formatCurrency(additionalAmount)}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                      {/* Discount - only show if has discount */}
+                      {selectedInvoice.discount > 0 && (
+                        <tr>
+                          <td colSpan="3" className="p-3 text-right text-gray-600">Giảm giá:</td>
+                          <td className="p-3 text-right text-green-600">
+                            - {formatCurrency(selectedInvoice.discount)}
+                          </td>
+                        </tr>
+                      )}
+                      {/* Tax */}
+                      {selectedInvoice.tax > 0 && (
+                        <tr>
+                          <td colSpan="3" className="p-3 text-right text-gray-600">Thuế VAT:</td>
+                          <td className="p-3 text-right">
+                            {formatCurrency(selectedInvoice.tax || 0)}
+                          </td>
+                        </tr>
+                      )}
+                      {/* Total */}
                       <tr className="border-t font-bold">
                         <td colSpan="3" className="p-3 text-right">Tổng cộng:</td>
                         <td className="p-3 text-right text-rose-600 text-lg">

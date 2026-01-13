@@ -6,6 +6,7 @@ import ConfirmAppointmentModal from "@/components/modals/ConfirmAppointmentModal
 import CancelAppointmentModal from "@/components/modals/CancelAppointmentModal";
 import { CreateAppointmentModal, AppointmentDetailModal } from "@/components/receptionist";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNotification } from "@/lib/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ import { appointmentApi, getToken } from "@/lib/api";
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const { success, error: showError } = useNotification();
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -171,38 +173,37 @@ export default function AppointmentsPage() {
 
   const confirmAppointment = async () => {
     try {
-      const response = await appointmentApi.update(selectedAppointment.appointmentId, {
-        status: 'CONFIRMED'
-      });
+      const response = await appointmentApi.confirm(selectedAppointment.appointmentId);
 
       if (response.success) {
+        success('Lịch hẹn đã được xác nhận! Email thông báo đã được gửi đến khách hàng.');
         await loadAppointments(true);
         setShowConfirmModal(false);
+        setSelectedAppointment(null);
       } else {
-        alert('Lỗi khi xác nhận lịch hẹn: ' + (response.error || 'Unknown error'));
+        showError(response.error || 'Có lỗi xảy ra khi xác nhận lịch hẹn');
       }
-    } catch (error) {
-      console.error('Error confirming appointment:', error);
-      alert('Lỗi khi xác nhận lịch hẹn');
+    } catch (err) {
+      console.error('Error confirming appointment:', err);
+      showError('Không thể xác nhận lịch hẹn. Vui lòng thử lại.');
     }
   };
 
   const cancelAppointment = async (reason) => {
     try {
-      const response = await appointmentApi.update(selectedAppointment.appointmentId, {
-        status: 'CANCELLED',
-        notes: reason
-      });
+      const response = await appointmentApi.cancel(selectedAppointment.appointmentId, reason);
 
       if (response.success) {
+        success('Lịch hẹn đã được hủy! Email thông báo đã được gửi đến khách hàng.');
         await loadAppointments(true);
         setShowCancelModal(false);
+        setSelectedAppointment(null);
       } else {
-        alert('Lỗi khi hủy lịch hẹn: ' + (response.error || 'Unknown error'));
+        showError(response.error || 'Có lỗi xảy ra khi hủy lịch hẹn');
       }
-    } catch (error) {
-      console.error('Error cancelling appointment:', error);
-      alert('Lỗi khi hủy lịch hẹn');
+    } catch (err) {
+      console.error('Error cancelling appointment:', err);
+      showError('Không thể hủy lịch hẹn. Vui lòng thử lại.');
     }
   };
 

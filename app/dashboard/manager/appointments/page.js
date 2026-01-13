@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
+import { appointmentApi } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 import Pagination from "@/components/ui/Pagination";
 import usePagination from "@/components/ui/usePagination";
@@ -69,13 +70,14 @@ export default function AppointmentsPage() {
   const [formData, setFormData] = useState({
     petId: "",
     employeeId: "",
-    serviceId: "",
+    services: [],
     appointmentDate: new Date().toISOString().split('T')[0],
     startTime: "09:00",
     endTime: "10:00",
     notes: "",
     estimatedCost: 0
   });
+  const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes } }
 
   useEffect(() => {
     loadData();
@@ -155,13 +157,14 @@ export default function AppointmentsPage() {
     setFormData({
       petId: "",
       employeeId: "",
-      serviceId: "",
+      services: [],
       appointmentDate: new Date().toISOString().split('T')[0],
       startTime: "09:00",
       endTime: "10:00",
       notes: "",
       estimatedCost: 0
     });
+    setSelectedServices({});
     setIsModalOpen(true);
   };
 
@@ -175,10 +178,17 @@ export default function AppointmentsPage() {
     try {
       setSaving(true);
 
+      // Convert selectedServices to array
+      const servicesArray = Object.entries(selectedServices).map(([serviceId, data]) => ({
+        serviceId: parseInt(serviceId),
+        quantity: data.quantity,
+        notes: data.notes || undefined
+      }));
+
       const payload = {
         petId: Number(formData.petId),
         employeeId: Number(formData.employeeId),
-        serviceId: Number(formData.serviceId),
+        services: servicesArray,
         appointmentDate: formData.appointmentDate,
         startTime: formData.startTime,
         endTime: formData.endTime,
@@ -201,11 +211,15 @@ export default function AppointmentsPage() {
   const handleConfirm = async (appointment) => {
     const id = appointment.appointmentId || appointment.id;
     try {
-      await apiClient.put(`/appointments/${id}/confirm`);
-      showToast("Đã xác nhận lịch hẹn! 🟢", "success");
-      loadData();
+      const response = await appointmentApi.confirm(id);
+      if (response.success) {
+        showToast("Đã xác nhận lịch hẹn! Email thông báo đã gửi đến khách hàng. 🟢", "success");
+        loadData();
+      } else {
+        showToast(response.error || "Không thể xác nhận lịch hẹn", "error");
+      }
     } catch (error) {
-      showToast("Không thể xác nhận lịch hẹn", "error");
+      showToast("Không thể xác nhận lịch hẹn. Vui lòng thử lại.", "error");
     }
   };
 
@@ -214,11 +228,16 @@ export default function AppointmentsPage() {
     if (!confirm("Bạn có chắc muốn hủy lịch hẹn này?")) return;
     
     try {
-      await apiClient.put(`/appointments/${id}/cancel`);
-      showToast("Đã hủy lịch hẹn! 🔴", "success");
-      loadData();
+      const reason = "Cancelled by manager";
+      const response = await appointmentApi.cancel(id, reason);
+      if (response.success) {
+        showToast("Đã hủy lịch hẹn! Email thông báo đã gửi đến khách hàng. 🔴", "success");
+        loadData();
+      } else {
+        showToast(response.error || "Không thể hủy lịch hẹn", "error");
+      }
     } catch (error) {
-      showToast("Không thể hủy lịch hẹn", "error");
+      showToast("Không thể hủy lịch hẹn. Vui lòng thử lại.", "error");
     }
   };
 
@@ -600,35 +619,127 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Service */}
-                <div>
+                {/* Service Selection */}
+                <div className="md:col-span-2">
                   <Label className="flex items-center gap-2 mb-2">
                     💼 Dịch vụ <span className="text-red-500">*</span>
+                    <span className="text-sm text-gray-500 font-normal">(có thể chọn nhiều)</span>
                   </Label>
-                  <select
-                    value={formData.serviceId}
-                    onChange={(e) => {
-                      const service = services.find(s => (s.serviceId || s.id) == e.target.value);
-                      setFormData({
-                        ...formData, 
-                        serviceId: e.target.value,
-                        estimatedCost: service?.basePrice || 0
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    required
-                  >
-                    <option value="">-- Chọn dịch vụ --</option>
-                    {services.map(service => (
-                      <option key={service.serviceId || service.id} value={service.serviceId || service.id}>
-                        {service.serviceName} - {formatCurrency(service.basePrice)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-[300px] overflow-y-auto space-y-2">
+                    {services.map(service => {
+                      const id = service.serviceId || service.id;
+                      const isSelected = !!selectedServices[id];
+                      return (
+                        <div
+                          key={id}
+                          className={`border rounded-lg p-3 transition-all ${
+                            isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              id={`service-${id}`}
+                              checked={isSelected}
+                              onChange={() => {
+                                setSelectedServices(prev => {
+                                  const newSelected = { ...prev };
+                                  if (newSelected[id]) {
+                                    delete newSelected[id];
+                                  } else {
+                                    newSelected[id] = { quantity: 1, notes: '' };
+                                  }
+                                  // Update estimated cost
+                                  const newCost = Object.entries(newSelected).reduce((total, [sId, data]) => {
+                                    const s = services.find(sv => (sv.serviceId || sv.id)?.toString() === sId);
+                                    return total + ((s?.basePrice || 0) * data.quantity);
+                                  }, 0);
+                                  setFormData(prev => ({ ...prev, estimatedCost: newCost }));
+                                  return newSelected;
+                                });
+                              }}
+                              className="mt-1 w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500"
+                            />
+                            <div className="flex-1">
+                              <label htmlFor={`service-${id}`} className="cursor-pointer">
+                                <div className="font-semibold text-gray-800">
+                                  {service.serviceName}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {formatCurrency(service.basePrice)}
+                                </div>
+                              </label>
+                              
+                              {isSelected && (
+                                <div className="mt-2 space-y-2 pt-2 border-t border-orange-200">
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs font-medium w-20">Số lượng:</label>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={selectedServices[id].quantity}
+                                      onChange={(e) => {
+                                        setSelectedServices(prev => {
+                                          const newSelected = {
+                                            ...prev,
+                                            [id]: { ...prev[id], quantity: Math.max(1, parseInt(e.target.value) || 1) }
+                                          };
+                                          // Update estimated cost
+                                          const newCost = Object.entries(newSelected).reduce((total, [sId, data]) => {
+                                            const s = services.find(sv => (sv.serviceId || sv.id)?.toString() === sId);
+                                            return total + ((s?.basePrice || 0) * data.quantity);
+                                          }, 0);
+                                          setFormData(prev => ({ ...prev, estimatedCost: newCost }));
+                                          return newSelected;
+                                        });
+                                      }}
+                                      className="h-8 w-20 text-sm"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs font-medium w-20">Ghi chú:</label>
+                                    <Input
+                                      type="text"
+                                      placeholder="Ghi chú..."
+                                      value={selectedServices[id].notes}
+                                      onChange={(e) => {
+                                        setSelectedServices(prev => ({
+                                          ...prev,
+                                          [id]: { ...prev[id], notes: e.target.value }
+                                        }));
+                                      }}
+                                      className="h-8 text-sm flex-1"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Total Cost Display */}
+                  {Object.keys(selectedServices).length > 0 && (
+                    <div className="mt-2 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-orange-700">Chi phí dự kiến:</span>
+                          <div className="text-xs text-orange-600">
+                            {Object.keys(selectedServices).length} dịch vụ đã chọn
+                          </div>
+                        </div>
+                        <span className="text-xl font-bold text-orange-600">
+                          {formatCurrency(formData.estimatedCost)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Employee */}
-                <div>
+                <div className="md:col-span-2">
                   <Label className="flex items-center gap-2 mb-2">
                     👨‍⚕️ Nhân viên phụ trách <span className="text-red-500">*</span>
                   </Label>

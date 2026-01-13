@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { validateLogin } from "@/lib/utils/validation";
 import { AccountController } from "@/lib/controllers/AccountController";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,17 @@ export default function LoginPage() {
   const [showAccounts, setShowAccounts] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [isButtonHovered, setIsButtonHovered] = useState(false);
+
+  // Check for registration success
+  useEffect(() => {
+    const registered = searchParams.get('registered');
+    if (registered === 'true') {
+      setMessage({ 
+        type: 'success', 
+        text: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.' 
+      });
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -114,7 +126,7 @@ export default function LoginPage() {
             <span className="text-gray-600 group-hover:text-gray-800 transition-colors">Ghi nhớ đăng nhập</span>
           </label>
           <Link
-            href="/reset-password"
+            href="/forgot-password"
             className="text-amber-600 hover:text-amber-700 font-medium hover:underline transition-all"
           >
             Quên mật khẩu?

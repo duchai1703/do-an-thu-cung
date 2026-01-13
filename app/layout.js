@@ -1,5 +1,6 @@
 // app/layout.js
 import "@/styles/globals.css";
+import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 
 export const metadata = {
   title: "PAW LOVERS - Pet Care Management System",
@@ -17,7 +18,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        {children}
+        <NotificationProvider>
+          {children}
+        </NotificationProvider>
       </body>
     </html>
   );

@@ -48,12 +48,13 @@ export default function AppointmentsPage() {
   const [bookingStep, setBookingStep] = useState(1);
   const [bookingForm, setBookingForm] = useState({
     petId: "",
-    serviceId: "",
+    services: [],
     employeeId: "",
     appointmentDate: "",
     startTime: "",
     notes: ""
   });
+  const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes } }
 
   const filterTabs = [
     { value: "all", label: "Tất cả", icon: "📋", gradient: "from-purple-500 to-pink-500" },
@@ -77,11 +78,12 @@ export default function AppointmentsPage() {
     const serviceId = searchParams.get('serviceId');
     const openDialog = searchParams.get('openDialog');
 
-    if (serviceId) {
-      setBookingForm(prev => ({
-        ...prev,
-        serviceId: serviceId
-      }));
+    if (serviceId && services.length > 0) {
+      const service = services.find(s => (s.serviceId || s.id)?.toString() === serviceId);
+      if (service) {
+        const id = service.serviceId || service.id;
+        setSelectedServices({ [id]: { quantity: 1, notes: '' } });
+      }
     }
 
     if (openDialog === 'true') {
@@ -172,8 +174,8 @@ export default function AppointmentsPage() {
   const handleBookAppointment = async (e) => {
     e.preventDefault();
 
-    if (!bookingForm.petId || !bookingForm.serviceId || !bookingForm.employeeId || !bookingForm.appointmentDate || !bookingForm.startTime) {
-      showToast("Vui lòng điền đầy đủ thông tin", "error");
+    if (!bookingForm.petId || Object.keys(selectedServices).length === 0 || !bookingForm.employeeId || !bookingForm.appointmentDate || !bookingForm.startTime) {
+      showToast("Vui lòng điền đầy đủ thông tin và chọn ít nhất 1 dịch vụ", "error");
       return;
     }
 
@@ -184,13 +186,28 @@ export default function AppointmentsPage() {
     }
 
     try {
+      // Calculate total duration from all selected services
+      const servicesArray = Object.entries(selectedServices).map(([serviceId, data]) => ({
+        serviceId: parseInt(serviceId),
+        quantity: data.quantity,
+        notes: data.notes || undefined
+      }));
+      
+      const totalDuration = servicesArray.reduce((total, item) => {
+        const service = services.find(s => (s.serviceId || s.id) === item.serviceId);
+        return total + ((service?.estimatedDuration || service?.duration || 60) * item.quantity);
+      }, 0);
+      
       const [hours, minutes] = bookingForm.startTime.split(':');
-      const endHour = (parseInt(hours) + 1) % 24;
-      const endTime = `${endHour.toString().padStart(2, '0')}:${minutes}`;
+      const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
+      const endMinutes = startMinutes + totalDuration;
+      const endHour = Math.floor(endMinutes / 60);
+      const endMin = endMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
 
       const payload = {
         petId: parseInt(bookingForm.petId),
-        serviceId: parseInt(bookingForm.serviceId),
+        services: servicesArray,
         employeeId: parseInt(bookingForm.employeeId),
         appointmentDate: bookingForm.appointmentDate,
         startTime: bookingForm.startTime,
@@ -205,12 +222,13 @@ export default function AppointmentsPage() {
       setBookingStep(1);
       setBookingForm({
         petId: "",
-        serviceId: "",
+        services: [],
         employeeId: employees.length > 0 ? (employees[0].employeeId || employees[0].id)?.toString() || "" : "",
         appointmentDate: "",
         startTime: "",
         notes: ""
       });
+      setSelectedServices({});
       loadAppointments();
     } catch (error) {
       console.error("Error booking appointment:", error);
@@ -668,24 +686,109 @@ export default function AppointmentsPage() {
               {/* Service Selection */}
               <div className="space-y-2">
                 <label className="text-base font-semibold flex items-center gap-2">
-                  💉 Chọn dịch vụ
+                  💉 Chọn dịch vụ <span className="text-sm text-gray-500 font-normal">(có thể chọn nhiều)</span>
                 </label>
-                <select
-                  value={bookingForm.serviceId}
-                  onChange={(e) => setBookingForm({...bookingForm, serviceId: e.target.value})}
-                  className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-colors"
-                  required
-                >
-                  <option value="">-- Chọn dịch vụ --</option>
+                <div className="border-2 border-gray-200 rounded-xl p-3 max-h-[350px] overflow-y-auto space-y-2">
                   {services.map((service) => {
                     const id = service.serviceId || service.id;
+                    const isSelected = !!selectedServices[id];
                     return (
-                      <option key={id} value={id}>
-                        {service.serviceName || service.name} - {(service.basePrice || service.price || 0).toLocaleString('vi-VN')}đ
-                      </option>
+                      <div
+                        key={id}
+                        className={`border-2 rounded-lg p-3 transition-all ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            id={`service-${id}`}
+                            checked={isSelected}
+                            onChange={() => {
+                              setSelectedServices(prev => {
+                                const newSelected = { ...prev };
+                                if (newSelected[id]) {
+                                  delete newSelected[id];
+                                } else {
+                                  newSelected[id] = { quantity: 1, notes: '' };
+                                }
+                                return newSelected;
+                              });
+                            }}
+                            className="mt-1 w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <label htmlFor={`service-${id}`} className="cursor-pointer">
+                              <div className="font-semibold text-gray-800">
+                                {service.serviceName || service.name}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {(service.basePrice || service.price || 0).toLocaleString('vi-VN')}đ
+                              </div>
+                            </label>
+                            
+                            {isSelected && (
+                              <div className="mt-2 space-y-2 pt-2 border-t border-blue-200">
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs font-medium w-20">Số lượng:</label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={selectedServices[id].quantity}
+                                    onChange={(e) => {
+                                      setSelectedServices(prev => ({
+                                        ...prev,
+                                        [id]: { ...prev[id], quantity: Math.max(1, parseInt(e.target.value) || 1) }
+                                      }));
+                                    }}
+                                    className="h-8 w-20 text-sm"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs font-medium w-20">Ghi chú:</label>
+                                  <Input
+                                    type="text"
+                                    placeholder="Ghi chú..."
+                                    value={selectedServices[id].notes}
+                                    onChange={(e) => {
+                                      setSelectedServices(prev => ({
+                                        ...prev,
+                                        [id]: { ...prev[id], notes: e.target.value }
+                                      }));
+                                    }}
+                                    className="h-8 text-sm flex-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
-                </select>
+                </div>
+                
+                {/* Tổng chi phí */}
+                {Object.keys(selectedServices).length > 0 && (
+                  <div className="p-3 rounded-xl bg-blue-50 border-2 border-blue-200">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-semibold text-blue-700">Chi phí dự kiến:</span>
+                        <div className="text-xs text-blue-600">
+                          {Object.keys(selectedServices).length} dịch vụ đã chọn
+                        </div>
+                      </div>
+                      <span className="text-xl font-bold text-blue-600">
+                        {Object.entries(selectedServices).reduce((total, [serviceId, data]) => {
+                          const service = services.find(s => (s.serviceId || s.id)?.toString() === serviceId);
+                          return total + ((service?.basePrice || service?.price || 0) * data.quantity);
+                        }, 0).toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Doctor Selection */}

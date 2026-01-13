@@ -29,12 +29,13 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
   const [employees, setEmployees] = useState([]);
   const [formData, setFormData] = useState({
     petId: "",
-    serviceId: "",
+    services: [], // Array of { serviceId, quantity, notes }
     employeeId: "",
     date: "",
     time: "",
     notes: ""
   });
+  const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes } }
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -112,8 +113,8 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
       newErrors.petId = "Vui lòng chọn thú cưng";
     }
 
-    if (!formData.serviceId) {
-      newErrors.serviceId = "Vui lòng chọn dịch vụ";
+    if (Object.keys(selectedServices).length === 0) {
+      newErrors.services = "Vui lòng chọn ít nhất một dịch vụ";
     }
 
     if (!formData.employeeId) {
@@ -142,13 +143,21 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
     setLoading(true);
 
     try {
-      // Calculate end time (assume 1 hour duration if not specified)
-      const selectedService = services.find(s => s.id === parseInt(formData.serviceId));
-      const duration = selectedService?.duration || 60; // default 60 minutes
+      // Calculate total duration from all services
+      const servicesArray = Object.entries(selectedServices).map(([serviceId, data]) => ({
+        serviceId: parseInt(serviceId),
+        quantity: data.quantity,
+        notes: data.notes || undefined
+      }));
+      
+      const totalDuration = servicesArray.reduce((total, item) => {
+        const service = services.find(s => s.id === item.serviceId);
+        return total + ((service?.duration || 60) * item.quantity);
+      }, 0);
       
       const [hours, minutes] = formData.time.split(':').map(Number);
       const startMinutes = hours * 60 + minutes;
-      const endMinutes = startMinutes + duration;
+      const endMinutes = startMinutes + totalDuration;
       const endHours = Math.floor(endMinutes / 60);
       const endMins = endMinutes % 60;
       const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
@@ -156,7 +165,7 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
       const appointmentData = {
         petId: parseInt(formData.petId),
         employeeId: parseInt(formData.employeeId),
-        serviceId: parseInt(formData.serviceId),
+        services: servicesArray,
         appointmentDate: formData.date,
         startTime: formData.time,
         endTime: endTime,
@@ -185,14 +194,51 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
   const handleClose = () => {
     setFormData({
       petId: "",
-      serviceId: "",
+      services: [],
       employeeId: "",
       date: "",
       time: "",
       notes: ""
     });
+    setSelectedServices({});
     setErrors({});
     onClose();
+  };
+
+  const handleServiceToggle = (serviceId) => {
+    setSelectedServices(prev => {
+      const newSelected = { ...prev };
+      if (newSelected[serviceId]) {
+        delete newSelected[serviceId];
+      } else {
+        newSelected[serviceId] = { quantity: 1, notes: '' };
+      }
+      return newSelected;
+    });
+    if (errors.services) {
+      setErrors(prev => ({ ...prev, services: "" }));
+    }
+  };
+
+  const handleServiceQuantityChange = (serviceId, quantity) => {
+    setSelectedServices(prev => ({
+      ...prev,
+      [serviceId]: { ...prev[serviceId], quantity: Math.max(1, parseInt(quantity) || 1) }
+    }));
+  };
+
+  const handleServiceNotesChange = (serviceId, notes) => {
+    setSelectedServices(prev => ({
+      ...prev,
+      [serviceId]: { ...prev[serviceId], notes }
+    }));
+  };
+
+  const calculateTotalCost = () => {
+    return Object.entries(selectedServices).reduce((total, [serviceId, data]) => {
+      const service = services.find(s => s.id === parseInt(serviceId));
+      return total + ((service?.basePrice || 0) * data.quantity);
+    }, 0);
   };
 
   const timeSlots = [
@@ -253,21 +299,75 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }) {
                   Chọn dịch vụ
                   <span className="text-destructive">*</span>
                 </Label>
-                <Select
-                  name="serviceId"
-                  value={formData.serviceId}
-                  onChange={handleChange}
-                  className={cn(errors.serviceId && "border-destructive")}
-                >
-                  <option value="">-- Chọn dịch vụ --</option>
+                <div className={cn(
+                  "border rounded-lg p-3 space-y-3 max-h-[300px] overflow-y-auto",
+                  errors.services && "border-destructive"
+                )}>
                   {services.map(service => (
-                    <option key={formatServiceId(service.id)} value={service.id}>
-                      {service.name} {service.basePrice ? `- ${service.basePrice.toLocaleString('vi-VN')} đ` : ''}
-                    </option>
+                    <div key={formatServiceId(service.id)} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          id={`service-${service.id}`}
+                          checked={!!selectedServices[service.id]}
+                          onChange={() => handleServiceToggle(service.id)}
+                          className="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
+                        />
+                        <div className="flex-1">
+                          <label htmlFor={`service-${service.id}`} className="cursor-pointer">
+                            <div className="font-medium">{service.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {service.basePrice?.toLocaleString('vi-VN')} đ
+                              {service.duration && ` • ${service.duration} phút`}
+                            </div>
+                          </label>
+                          
+                          {selectedServices[service.id] && (
+                            <div className="mt-2 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Số lượng:</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={selectedServices[service.id].quantity}
+                                  onChange={(e) => handleServiceQuantityChange(service.id, e.target.value)}
+                                  className="h-8 w-20 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Ghi chú:</Label>
+                                <Input
+                                  type="text"
+                                  placeholder="Ghi chú cho dịch vụ này..."
+                                  value={selectedServices[service.id].notes}
+                                  onChange={(e) => handleServiceNotesChange(service.id, e.target.value)}
+                                  className="h-8 text-sm mt-1"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Select>
-                {errors.serviceId && (
-                  <p className="text-sm text-destructive">{errors.serviceId}</p>
+                </div>
+                {errors.services && (
+                  <p className="text-sm text-destructive">{errors.services}</p>
+                )}
+                
+                {/* Hiển thị tổng chi phí */}
+                {Object.keys(selectedServices).length > 0 && (
+                  <div className="bg-primary/5 rounded-lg p-3 mt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Tổng chi phí dự kiến:</span>
+                      <span className="text-lg font-bold text-primary">
+                        {calculateTotalCost().toLocaleString('vi-VN')} đ
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {Object.keys(selectedServices).length} dịch vụ đã chọn
+                    </div>
+                  </div>
                 )}
               </div>
 

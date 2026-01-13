@@ -66,10 +66,10 @@ export default function RegistrationForm() {
         confirmPassword: "",
       });
       
-      // Redirect to login after 2 seconds
+      // Show email confirmation notice
       setTimeout(() => {
-        router.push('/login');
-      }, 2000);
+        router.push('/login?registered=true');
+      }, 3000);
     } else {
       setMessage({ type: 'error', text: response.message });
     }
@@ -201,17 +201,24 @@ export default function RegistrationForm() {
 
         {message.text && (
           <div className={cn(
-            "flex items-center gap-2 p-4 rounded-xl text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300",
+            "flex items-start gap-3 p-4 rounded-xl text-sm animate-in fade-in slide-in-from-top-2 duration-300",
             message.type === 'success' 
               ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
               : "bg-red-50 text-red-700 border border-red-200"
           )}>
             {message.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" />
             ) : (
-              <XCircle className="h-4 w-4" />
+              <XCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             )}
-            {message.text}
+            <div>
+              <p className="font-medium">{message.text}</p>
+              {message.type === 'success' && (
+                <p className="text-xs mt-1 text-emerald-600">
+                  📧 Kiểm tra email để xác nhận tài khoản của bạn!
+                </p>
+              )}
+            </div>
           </div>
         )}
 

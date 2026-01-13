@@ -42,7 +42,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     petId: null,
     employeeId: null,
-    serviceId: null,
+    services: [], // Array of { serviceId, quantity, notes }
     appointmentDate: "",
     startTime: "",
     endTime: "",
@@ -52,7 +52,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
   
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedPet, setSelectedPet] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes, service } }
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   useEffect(() => {
@@ -106,14 +106,49 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     setStep(3);
   };
 
-  const handleSelectService = (service) => {
-    setSelectedService(service);
-    setFormData(prev => ({ 
-      ...prev, 
-      serviceId: service.serviceId,
-      estimatedCost: service.price || 0
+  const handleServiceToggle = (service) => {
+    setSelectedServices(prev => {
+      const newSelected = { ...prev };
+      if (newSelected[service.serviceId]) {
+        delete newSelected[service.serviceId];
+      } else {
+        newSelected[service.serviceId] = { quantity: 1, notes: '', service };
+      }
+      return newSelected;
+    });
+    
+    // Update estimated cost
+    const newCost = Object.values({
+      ...selectedServices,
+      ...(selectedServices[service.serviceId] ? {} : { [service.serviceId]: { quantity: 1, service } })
+    }).reduce((total, item) => total + ((item.service?.price || 0) * item.quantity), 0);
+    
+    setFormData(prev => ({ ...prev, estimatedCost: newCost }));
+  };
+
+  const handleServiceQuantityChange = (serviceId, quantity) => {
+    setSelectedServices(prev => {
+      const newSelected = {
+        ...prev,
+        [serviceId]: { ...prev[serviceId], quantity: Math.max(1, parseInt(quantity) || 1) }
+      };
+      
+      // Update estimated cost
+      const newCost = Object.values(newSelected).reduce(
+        (total, item) => total + ((item.service?.price || 0) * item.quantity),
+        0
+      );
+      setFormData(prevForm => ({ ...prevForm, estimatedCost: newCost }));
+      
+      return newSelected;
+    });
+  };
+
+  const handleServiceNotesChange = (serviceId, notes) => {
+    setSelectedServices(prev => ({
+      ...prev,
+      [serviceId]: { ...prev[serviceId], notes }
     }));
-    setStep(4);
   };
 
   const getServiceIcon = (category) => {
@@ -129,11 +164,21 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     try {
       setSubmitting(true);
       
-      // Set default employeeId if not selected
+      // Convert selectedServices to array format
+      const servicesArray = Object.entries(selectedServices).map(([serviceId, data]) => ({
+        serviceId: parseInt(serviceId),
+        quantity: data.quantity,
+        notes: data.notes || undefined
+      }));
+      
       const submitData = {
         ...formData,
+        services: servicesArray,
         employeeId: formData.employeeId || 1 // Default to first employee
       };
+      
+      // Remove old serviceId field
+      delete submitData.serviceId;
       
       const response = await appointmentApi.create(submitData);
       
@@ -156,7 +201,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     setFormData({
       petId: null,
       employeeId: null,
-      serviceId: null,
+      services: [],
       appointmentDate: "",
       startTime: "",
       endTime: "",
@@ -165,7 +210,8 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     });
     setSelectedCustomer(null);
     setSelectedPet(null);
-    setSelectedService(null);
+    setSelectedServices({});
+    setSelectedEmployee(null);
     setCustomerSearch("");
     onClose();
   };
@@ -174,7 +220,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
   };
 
-  const canSubmit = formData.petId && formData.serviceId && formData.appointmentDate && formData.startTime && formData.endTime && formData.employeeId;
+  const canSubmit = formData.petId && Object.keys(selectedServices).length > 0 && formData.appointmentDate && formData.startTime && formData.endTime && formData.employeeId;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -325,7 +371,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                     </Badge>
                   </div>
                   
-                  <h3 className="font-semibold text-gray-800">Chọn dịch vụ:</h3>
+                  <h3 className="font-semibold text-gray-800">Chọn dịch vụ: <span className="text-sm text-gray-500">(có thể chọn nhiều)</span></h3>
                   
                   {services.length === 0 ? (
                     <div className="text-center text-gray-500 py-8">
@@ -333,37 +379,90 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                       <p>Đang tải danh sách dịch vụ...</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
-                      {services.map((service) => {
-                        const ServiceIcon = getServiceIcon(service.serviceCategory?.categoryName);
-                        return (
-                          <div
-                            key={service.serviceId}
-                            onClick={() => handleSelectService(service)}
-                            className={cn(
-                              "p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg",
-                              selectedService?.serviceId === service.serviceId
-                                ? "border-emerald-500 bg-emerald-50"
-                                : "border-gray-100 hover:border-emerald-200"
-                            )}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
-                                <ServiceIcon className="w-6 h-6 text-emerald-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-800">{service.serviceName}</p>
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.description}</p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <span className="text-emerald-600 font-bold">{formatCurrency(service.price)}</span>
-                                  <span className="text-xs text-gray-400">{service.duration || 30} phút</span>
+                    <>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        {services.map((service) => {
+                          const ServiceIcon = getServiceIcon(service.serviceCategory?.categoryName);
+                          const isSelected = !!selectedServices[service.serviceId];
+                          return (
+                            <div
+                              key={service.serviceId}
+                              className={cn(
+                                "p-4 rounded-xl border-2 transition-all",
+                                isSelected
+                                  ? "border-emerald-500 bg-emerald-50"
+                                  : "border-gray-100"
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  id={`service-${service.serviceId}`}
+                                  checked={isSelected}
+                                  onChange={() => handleServiceToggle(service)}
+                                  className="mt-1 w-5 h-5 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
+                                  <ServiceIcon className="w-6 h-6 text-emerald-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <label htmlFor={`service-${service.serviceId}`} className="cursor-pointer">
+                                    <p className="font-semibold text-gray-800">{service.serviceName}</p>
+                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.description}</p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                      <span className="text-emerald-600 font-bold">{formatCurrency(service.price)}</span>
+                                      <span className="text-xs text-gray-400">{service.duration || 30} phút</span>
+                                    </div>
+                                  </label>
+                                  
+                                  {isSelected && (
+                                    <div className="mt-3 space-y-2 pt-3 border-t border-emerald-200">
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-xs font-medium text-gray-700 w-20">Số lượng:</label>
+                                        <Input
+                                          type="number"
+                                          min="1"
+                                          value={selectedServices[service.serviceId].quantity}
+                                          onChange={(e) => handleServiceQuantityChange(service.serviceId, e.target.value)}
+                                          className="h-8 w-20 text-sm"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-xs font-medium text-gray-700 w-20">Ghi chú:</label>
+                                        <Input
+                                          type="text"
+                                          placeholder="Ghi chú cho dịch vụ này..."
+                                          value={selectedServices[service.serviceId].notes}
+                                          onChange={(e) => handleServiceNotesChange(service.serviceId, e.target.value)}
+                                          className="h-8 text-sm flex-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Tổng chi phí */}
+                      {Object.keys(selectedServices).length > 0 && (
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-emerald-700 font-medium">Chi phí dự kiến:</span>
+                              <div className="text-xs text-emerald-600 mt-1">
+                                {Object.keys(selectedServices).length} dịch vụ đã chọn
+                              </div>
+                            </div>
+                            <span className="text-2xl font-bold text-emerald-600">{formatCurrency(formData.estimatedCost)}</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -379,7 +478,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
                       <PawPrint className="w-3 h-3" /> {selectedPet?.name}
                     </Badge>
                     <Badge className="bg-emerald-100 text-emerald-700 border-0 flex items-center gap-1">
-                      <Stethoscope className="w-3 h-3" /> {selectedService?.serviceName}
+                      <Stethoscope className="w-3 h-3" /> {Object.keys(selectedServices).length} dịch vụ
                     </Badge>
                   </div>
                   
@@ -508,12 +607,12 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess }) {
               onClick={() => {
                 if (step === 1 && selectedCustomer) setStep(2);
                 else if (step === 2 && selectedPet) setStep(3);
-                else if (step === 3 && selectedService) setStep(4);
+                else if (step === 3 && Object.keys(selectedServices).length > 0) setStep(4);
               }}
               disabled={
                 (step === 1 && !selectedCustomer) ||
                 (step === 2 && !selectedPet) ||
-                (step === 3 && !selectedService)
+                (step === 3 && Object.keys(selectedServices).length === 0)
               }
               className="flex-1 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
             >
