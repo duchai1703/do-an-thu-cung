@@ -106,7 +106,7 @@ function LoginPageContent() {
         <Input
           label="Mật khẩu"
           name="password"
-          type="text"
+          type="password"
           value={form.password}
           onChange={handleChange}
           onFocus={() => setIsPasswordFocused(true)}

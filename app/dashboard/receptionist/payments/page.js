@@ -43,11 +43,13 @@ import {
   Printer,
   FileText,
   Plus,
-  Smartphone
+  Smartphone,
+  Download
 } from "lucide-react";
 import InvoiceDetailModal from "@/components/receptionist/InvoiceDetailModal";
 import { cn } from "@/lib/utils";
 import { invoiceApi, paymentApi, getToken } from "@/lib/api";
+import jsPDF from "jspdf";
 
 export default function PaymentsPage() {
   const router = useRouter();
@@ -153,6 +155,350 @@ export default function PaymentsPage() {
       case '🛁': return Bath;
       case '✂️': return Scissors;
       default: return ClipboardList;
+    }
+  };
+
+  // Generate printable HTML content for PDF export
+  const generatePrintableContent = () => {
+    const displayData = filteredPayments.slice(0, 50);
+    
+    const filterText = filter === 'all' ? 'Tất cả' : 
+                      filter === 'pending' ? 'Chờ thanh toán' : 
+                      'Đã thanh toán';
+    
+    const methodText = methodFilter === 'all' ? 'Tất cả' :
+                      methodFilter === 'CASH' ? 'Tiền mặt' :
+                      methodFilter === 'BANK_TRANSFER' ? 'Chuyển khoản' :
+                      'VNPay';
+    
+    const paymentRows = displayData.map((payment, idx) => {
+      const statusColor = payment.status === 'paid' ? '#10b981' : '#f59e0b';
+      const statusText = payment.status === 'paid' ? 'Đã thanh toán' : 'Chờ thanh toán';
+      const methodIcon = payment.paymentMethod === 'CASH' ? '💵' :
+                        payment.paymentMethod === 'BANK_TRANSFER' ? '🏦' :
+                        payment.paymentMethod === 'VNPAY' ? '📱' : '💳';
+      const methodName = payment.paymentMethod === 'CASH' ? 'Tiền mặt' :
+                        payment.paymentMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' :
+                        payment.paymentMethod === 'VNPAY' ? 'VNPay' : payment.paymentMethod;
+      
+      return `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb;">${payment.invoiceNumber || 'N/A'}</td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb;">
+            <div style="font-weight: 600;">${payment.customerName || 'N/A'}</div>
+            <div style="font-size: 11px; color: #6b7280;">${payment.phone || ''}</div>
+          </td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb;">${payment.serviceName || payment.service || 'N/A'}</td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;">
+            ${formatCurrency(payment.amount)}
+          </td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+            <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background-color: ${statusColor}20; color: ${statusColor};">
+              ${statusText}
+            </span>
+          </td>
+          <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+            ${methodIcon} ${methodName}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Báo cáo thanh toán</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', 'Arial', sans-serif; 
+            padding: 20px; 
+            max-width: 1000px; 
+            margin: 0 auto;
+            background: white;
+          }
+          .header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 3px solid #10b981; 
+            padding-bottom: 20px; 
+          }
+          .logo { 
+            font-size: 28px; 
+            font-weight: bold; 
+            background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          .report-title { 
+            font-size: 22px; 
+            margin-top: 10px; 
+            color: #111827;
+            font-weight: 700;
+          }
+          .report-date { 
+            color: #6b7280; 
+            margin-top: 5px; 
+            font-size: 13px;
+          }
+          
+          .summary-section {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+          }
+          .summary-card {
+            flex: 1;
+            padding: 20px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+          }
+          .summary-card.revenue {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          }
+          .summary-card.pending {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          }
+          .summary-card.total {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+          }
+          .summary-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+          }
+          .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+          }
+          .summary-detail {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 6px;
+          }
+          
+          .filter-info {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #10b981;
+          }
+          .filter-info h3 {
+            font-size: 14px;
+            color: #374151;
+            margin-bottom: 8px;
+          }
+          .filter-info p {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 4px 0;
+          }
+          
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+          }
+          thead {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+          }
+          th { 
+            padding: 14px 8px; 
+            text-align: left; 
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          th.text-right { text-align: right; }
+          th.text-center { text-align: center; }
+          
+          .footer { 
+            text-align: center; 
+            margin-top: 40px; 
+            padding-top: 20px; 
+            border-top: 2px solid #e5e7eb; 
+            color: #6b7280; 
+            font-size: 12px;
+          }
+          .footer-brand {
+            font-weight: 600;
+            color: #10b981;
+            margin-bottom: 5px;
+          }
+          
+          @media print { 
+            body { padding: 0; }
+            .summary-section { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🐾 PAW LOVERS PET CARE</div>
+          <div class="report-title">BÁO CÁO THANH TOÁN</div>
+          <div class="report-date">Ngày xuất: ${new Date().toLocaleDateString('vi-VN', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</div>
+        </div>
+
+        <div class="summary-section">
+          <div class="summary-card revenue">
+            <div class="summary-label">TỔNG DOANH THU</div>
+            <div class="summary-value">${formatCurrency(totalRevenue)}</div>
+            <div class="summary-detail">✓ ${paidCount} đơn đã thanh toán</div>
+          </div>
+          <div class="summary-card pending">
+            <div class="summary-label">CHỜ THANH TOÁN</div>
+            <div class="summary-value">${formatCurrency(pendingAmount)}</div>
+            <div class="summary-detail">⏳ ${pendingCount} đơn chờ xử lý</div>
+          </div>
+          <div class="summary-card total">
+            <div class="summary-label">TỔNG HÓA ĐƠN</div>
+            <div class="summary-value">${payments.length}</div>
+            <div class="summary-detail">📋 Tất cả đơn hàng</div>
+          </div>
+        </div>
+
+        <div class="filter-info">
+          <h3>📊 Bộ lọc báo cáo</h3>
+          <p><strong>Trạng thái:</strong> ${filterText}</p>
+          <p><strong>Phương thức:</strong> ${methodText}</p>
+          ${searchTerm ? `<p><strong>Tìm kiếm:</strong> "${searchTerm}"</p>` : ''}
+          <p><strong>Kết quả:</strong> ${filteredPayments.length} hóa đơn (Hiển thị ${Math.min(50, filteredPayments.length)} đầu tiên)</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>SỐ HÓA ĐƠN</th>
+              <th>KHÁCH HÀNG</th>
+              <th>DỊCH VỤ</th>
+              <th class="text-right">SỐ TIỀN</th>
+              <th class="text-center">TRẠNG THÁI</th>
+              <th class="text-center">PT THANH TOÁN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${paymentRows}
+          </tbody>
+        </table>
+
+        ${filteredPayments.length > 50 ? `
+          <div style="background: #fef3c7; padding: 12px; border-radius: 8px; text-align: center; color: #92400e; font-size: 13px; margin-top: 15px;">
+            ⚠️ Chỉ hiển thị 50 hóa đơn đầu tiên. Tổng cộng: ${filteredPayments.length} hóa đơn
+          </div>
+        ` : ''}
+
+        <div class="footer">
+          <div class="footer-brand">🐾 PAW LOVERS PET CARE SYSTEM</div>
+          <div>Hotline: 1900-XXXX | Email: support@pawlovers.vn</div>
+          <div style="margin-top: 8px; font-size: 11px;">
+            Báo cáo này được tạo tự động bởi hệ thống quản lý Pet Care
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const exportToPDF = async () => {
+    try {
+      // Try using html2canvas and jspdf
+      let html2canvas;
+      let jsPDF;
+      
+      // Try to import html2canvas (try original first, then pro version)
+      try {
+        const html2canvasModule = await import('html2canvas');
+        html2canvas = html2canvasModule.default;
+      } catch (e1) {
+        try {
+          const html2canvasProModule = await import('html2canvas-pro');
+          html2canvas = html2canvasProModule.default;
+        } catch (e2) {
+          throw new Error('Could not load html2canvas library');
+        }
+      }
+      
+      // Import jsPDF
+      try {
+        const jspdfModule = await import('jspdf');
+        jsPDF = jspdfModule.jsPDF;
+      } catch (e) {
+        throw new Error('Could not load jsPDF library');
+      }
+      
+      // Create a hidden container for rendering
+      const container = document.createElement('div');
+      container.innerHTML = generatePrintableContent();
+      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 1000px; background-color: white; padding: 20px;';
+      document.body.appendChild(container);
+      
+      // Wait a bit for DOM to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Wait for fonts to load
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      
+      // Generate canvas from HTML
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 1000,
+        windowHeight: container.scrollHeight,
+      });
+      
+      // Remove the temporary container
+      document.body.removeChild(container);
+      
+      // Create PDF
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      
+      // Add image to PDF (handle multiple pages if content is long)
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      while (heightLeft > 0) {
+        position = -pageHeight + (imgHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      // Download the PDF
+      const timestamp = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+      const fileName = `BaoCaoThanhToan_${timestamp}.pdf`;
+      pdf.save(fileName);
+      
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('❌ Lỗi khi tạo PDF. Vui lòng thử lại sau.');
     }
   };
 
@@ -345,15 +691,25 @@ export default function PaymentsPage() {
                 </Tabs>
               </div>
               
-              <div className="relative w-full lg:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Tìm theo tên, SĐT, mã hóa đơn..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 h-12 border-gray-200 bg-white rounded-xl"
-                />
+              <div className="flex items-center gap-3 w-full lg:w-auto">
+                <div className="relative flex-1 lg:w-80">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Tìm theo tên, SĐT, mã hóa đơn..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 h-12 border-gray-200 bg-white rounded-xl"
+                  />
+                </div>
+                
+                <Button
+                  onClick={exportToPDF}
+                  className="h-12 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 rounded-xl"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="hidden sm:inline">Xuất PDF</span>
+                </Button>
               </div>
             </div>
             
@@ -554,7 +910,7 @@ export default function PaymentsPage() {
                                   {payment.status === 'paid' && (
                                     <>
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem 
+                                      {/* <DropdownMenuItem 
                                         className="cursor-pointer"
                                         onClick={async () => {
                                           try {
@@ -578,25 +934,12 @@ export default function PaymentsPage() {
                                       >
                                         <Printer className="mr-2 h-4 w-4 text-gray-600" />
                                         <span>In biên nhận</span>
-                                      </DropdownMenuItem>
+                                      </DropdownMenuItem> */}
                                       <DropdownMenuItem 
                                         className="cursor-pointer"
                                         onClick={async () => {
                                           try {
-                                            const pdfResponse = await invoiceApi.generatePdf?.(payment.invoiceId);
-                                            if (pdfResponse?.success && pdfResponse?.data) {
-                                              // Create blob URL and download
-                                              const url = window.URL.createObjectURL(new Blob([pdfResponse.data]));
-                                              const link = document.createElement('a');
-                                              link.href = url;
-                                              link.setAttribute('download', `${payment.invoiceNumber}.pdf`);
-                                              document.body.appendChild(link);
-                                              link.click();
-                                              link.remove();
-                                              alert('✅ Đã xuất PDF');
-                                            } else {
-                                              alert('⚠️ Không thể xuất PDF');
-                                            }
+                                            exportToPDF();
                                           } catch (error) {
                                             console.error(error);
                                             alert('❌ Lỗi khi xuất PDF');

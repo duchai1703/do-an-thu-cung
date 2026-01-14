@@ -23,6 +23,9 @@ export default function HolidaysPage() {
     const [loading, setLoading] = useState(true);
     const [dayOffs, setDayOffs] = useState([]);
     const [persistentDaysOff, setPersistentDaysOff] = useState([]);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [pendingDayOff, setPendingDayOff] = useState(null);
+    const [appointmentInfo, setAppointmentInfo] = useState(null);
 
     // Form states
     const [newHolidayDate, setNewHolidayDate] = useState("");
@@ -71,18 +74,52 @@ export default function HolidaysPage() {
             return;
         }
 
+        // Check for appointments on this date
         try {
-            const result = await dayOffApi.create({
-                date: newHolidayDate,
-                name: newHolidayReason.trim(),
-                description: newHolidayReason.trim()
-            });
+            const appointmentCheck = await dayOffApi.checkAppointments(newHolidayDate);
+            
+            if (appointmentCheck.success) {
+                setAppointmentInfo(appointmentCheck.data);
+            } else {
+                setAppointmentInfo({ hasAppointments: false, count: 0 });
+            }
+        } catch (error) {
+            console.error("Error checking appointments:", error);
+            setAppointmentInfo({ hasAppointments: false, count: 0 });
+        }
+
+        // Show confirmation dialog
+        setPendingDayOff({
+            date: newHolidayDate,
+            name: newHolidayReason.trim(),
+            description: newHolidayReason.trim()
+        });
+        setShowConfirmDialog(true);
+    };
+
+    const handleConfirmAddHoliday = async () => {
+        if (!pendingDayOff) return;
+
+        try {
+            const result = await dayOffApi.create(pendingDayOff);
 
             if (result.success) {
                 await loadDayOffs();
                 setNewHolidayDate("");
                 setNewHolidayReason("");
-                showToast("Đã thêm ngày nghỉ lễ! 🎉", "success");
+                setShowConfirmDialog(false);
+                setPendingDayOff(null);
+                setAppointmentInfo(null);
+                
+                // Show different message based on whether there were appointments
+                if (appointmentInfo?.hasAppointments) {
+                    showToast(
+                        `Đã thêm ngày nghỉ lễ! ⚠️ Có ${appointmentInfo.count} lịch hẹn vào ngày này, lịch làm việc KHÔNG được xóa để đảm bảo phục vụ khách hàng.`,
+                        "warning"
+                    );
+                } else {
+                    showToast("Đã thêm ngày nghỉ lễ! Tất cả lịch làm việc đã được xóa tự động. 🎉", "success");
+                }
             } else {
                 showToast(result.error || "Không thể thêm ngày nghỉ", "error");
             }
@@ -517,6 +554,134 @@ export default function HolidaysPage() {
                 </div>
             </div>
 
+            {/* Confirmation Dialog */}
+            {showConfirmDialog && pendingDayOff && appointmentInfo && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="max-w-md w-full shadow-2xl border-0 animate-scale-in">
+                        <div className={`p-6 border-b bg-gradient-to-r ${appointmentInfo.hasAppointments ? 'from-red-500 to-orange-600' : 'from-amber-500 to-orange-500'}`}>
+                            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                <span className="text-3xl">{appointmentInfo.hasAppointments ? '🚨' : '⚠️'}</span>
+                                {appointmentInfo.hasAppointments ? 'Cảnh báo: Có lịch hẹn!' : 'Xác nhận tạo ngày nghỉ'}
+                            </h2>
+                            <p className="text-white/90 text-sm mt-1">
+                                {appointmentInfo.hasAppointments 
+                                    ? 'Vẫn có thể tạo ngày nghỉ nhưng cần lưu ý'
+                                    : 'Hành động này sẽ ảnh hưởng đến lịch làm việc'}
+                            </p>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-2xl">📅</span>
+                                    <div>
+                                        <p className="font-bold text-blue-900">
+                                            {new Date(pendingDayOff.date).toLocaleDateString('vi-VN', { 
+                                                weekday: 'long', 
+                                                year: 'numeric', 
+                                                month: 'long', 
+                                                day: 'numeric' 
+                                            })}
+                                        </p>
+                                        <p className="text-sm text-blue-700">{pendingDayOff.name}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {appointmentInfo.hasAppointments ? (
+                                // Warning when appointments exist
+                                <div className="bg-red-50 rounded-xl p-4 border-2 border-red-400">
+                                    <h3 className="font-bold text-red-900 mb-2 flex items-center gap-2">
+                                        <span>🚨</span>
+                                        Phát hiện {appointmentInfo.count} lịch hẹn!
+                                    </h3>
+                                    <ul className="space-y-2 text-sm text-red-800">
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-green-600 mt-0.5">✓</span>
+                                            <span>Ngày nghỉ sẽ được tạo thành công</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-red-600 mt-0.5 font-bold">⚠️</span>
+                                            <span><strong>KHÔNG thể xóa lịch làm việc</strong> vì có {appointmentInfo.count} lịch hẹn đang hoạt động</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-blue-600 mt-0.5">✓</span>
+                                            <span>Lịch làm việc sẽ được <strong>giữ nguyên</strong> để phục vụ khách hàng</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-purple-600 mt-0.5">🚫</span>
+                                            <span>Khách hàng vẫn <strong>không thể đặt lịch mới</strong></span>
+                                        </li>
+                                    </ul>
+                                    <div className="mt-3 p-3 bg-red-100 rounded-lg border border-red-300">
+                                        <p className="text-xs text-red-900 font-semibold">
+                                            💡 Khuyến nghị: Liên hệ khách hàng để sắp xếp lại lịch hẹn trước khi tạo ngày nghỉ.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                // Normal flow when no appointments
+                                <div className="bg-green-50 rounded-xl p-4 border-2 border-green-300">
+                                    <h3 className="font-bold text-green-900 mb-2 flex items-center gap-2">
+                                        <span>✅</span>
+                                        Không có lịch hẹn - An toàn xóa lịch
+                                    </h3>
+                                    <ul className="space-y-2 text-sm text-green-800">
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-green-600 mt-0.5">✓</span>
+                                            <span>Ngày nghỉ sẽ được tạo và hiển thị trên hệ thống</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-green-600 mt-0.5">✓</span>
+                                            <span><strong>Tất cả lịch làm việc</strong> sẽ bị <strong>xóa tự động</strong></span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-green-600 mt-0.5">✓</span>
+                                            <span>Không ảnh hưởng đến khách hàng (không có lịch hẹn)</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-purple-600 mt-0.5">🚫</span>
+                                            <span>Khách hàng <strong>không thể đặt lịch mới</strong> vào ngày này</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            )}
+
+                            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+                                💡 <strong>Lưu ý:</strong> Bạn vẫn có thể tạo lịch làm việc thủ công cho nhân viên vào ngày nghỉ nếu cần thiết.
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t bg-gray-50 flex justify-between gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setShowConfirmDialog(false);
+                                    setPendingDayOff(null);
+                                    setAppointmentInfo(null);
+                                }}
+                                className="rounded-xl flex-1"
+                            >
+                                ❌ Hủy
+                            </Button>
+
+                            <Button
+                                type="button"
+                                onClick={handleConfirmAddHoliday}
+                                className={`rounded-xl shadow-lg flex-1 ${
+                                    appointmentInfo.hasAppointments
+                                        ? 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700'
+                                        : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+                                } text-white`}
+                            >
+                                {appointmentInfo.hasAppointments ? '⚠️ Vẫn tạo ngày nghỉ' : '✅ Xác nhận tạo'}
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
             {/* CSS Animation */}
             <style jsx>{`
         @keyframes float {
@@ -525,6 +690,13 @@ export default function HolidaysPage() {
         }
         .animate-float {
           animation: float 4s ease-in-out infinite;
+        }
+        @keyframes scale-in {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-in {
+          animation: scale-in 0.2s ease-out;
         }
       `}</style>
         </div>
