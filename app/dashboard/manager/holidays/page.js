@@ -16,19 +16,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/contexts/ToastContext";
-import {
-    getHolidaySettings,
-    saveHolidaySettings,
-    addHoliday,
-    removeHoliday,
-    getHolidaysInMonth,
-    formatDateVN
-} from "@/lib/utils/holidayUtils";
+import { dayOffApi, systemConfigApi } from "@/lib/api";
 
 export default function HolidaysPage() {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
-    const [settings, setSettings] = useState(null);
+    const [dayOffs, setDayOffs] = useState([]);
+    const [persistentDaysOff, setPersistentDaysOff] = useState([]);
 
     // Form states
     const [newHolidayDate, setNewHolidayDate] = useState("");
@@ -37,56 +31,37 @@ export default function HolidaysPage() {
     // Calendar preview
     const [previewMonth, setPreviewMonth] = useState(new Date().getMonth());
     const [previewYear, setPreviewYear] = useState(new Date().getFullYear());
-    const [monthHolidays, setMonthHolidays] = useState([]);
 
     useEffect(() => {
-        loadSettings();
+        loadDayOffs();
     }, []);
 
-    useEffect(() => {
-        if (settings) {
-            updateMonthPreview();
-        }
-    }, [settings, previewMonth, previewYear]);
-
-    const loadSettings = () => {
+    const loadDayOffs = async () => {
         try {
-            const savedSettings = getHolidaySettings();
-            setSettings(savedSettings);
+            setLoading(true);
+            const [dayOffsResult, persistentResult] = await Promise.all([
+                dayOffApi.getAll(),
+                systemConfigApi.getPersistentDaysOff()
+            ]);
+            
+            if (dayOffsResult.success) {
+                setDayOffs(dayOffsResult.data || []);
+            } else {
+                showToast("Không thể tải danh sách ngày nghỉ", "error");
+            }
+
+            if (persistentResult.success) {
+                setPersistentDaysOff(persistentResult.data || []);
+            }
         } catch (error) {
-            console.error("Error loading settings:", error);
-            showToast("Không thể tải cấu hình ngày nghỉ", "error");
+            console.error("Error loading data:", error);
+            showToast("Không thể tải dữ liệu", "error");
         } finally {
             setLoading(false);
         }
     };
 
-    const updateMonthPreview = () => {
-        const holidays = getHolidaysInMonth(previewYear, previewMonth);
-        setMonthHolidays(holidays);
-    };
-
-    const handleToggleRecurringDay = (day) => {
-        const newSettings = { ...settings };
-        newSettings.recurringDaysOff[day].enabled = !newSettings.recurringDaysOff[day].enabled;
-        setSettings(newSettings);
-        saveHolidaySettings(newSettings);
-        showToast(
-            newSettings.recurringDaysOff[day].enabled
-                ? `Đã bật nghỉ ${day === 'saturday' ? 'Thứ Bảy' : 'Chủ Nhật'}`
-                : `Đã tắt nghỉ ${day === 'saturday' ? 'Thứ Bảy' : 'Chủ Nhật'}`,
-            "success"
-        );
-    };
-
-    const handleUpdateRecurringReason = (day, reason) => {
-        const newSettings = { ...settings };
-        newSettings.recurringDaysOff[day].reason = reason;
-        setSettings(newSettings);
-        saveHolidaySettings(newSettings);
-    };
-
-    const handleAddHoliday = () => {
+    const handleAddHoliday = async () => {
         if (!newHolidayDate) {
             showToast("Vui lòng chọn ngày", "error");
             return;
@@ -96,17 +71,112 @@ export default function HolidaysPage() {
             return;
         }
 
-        const updatedSettings = addHoliday(newHolidayDate, newHolidayReason.trim());
-        setSettings(updatedSettings);
-        setNewHolidayDate("");
-        setNewHolidayReason("");
-        showToast("Đã thêm ngày nghỉ lễ! 🎉", "success");
+        try {
+            const result = await dayOffApi.create({
+                date: newHolidayDate,
+                name: newHolidayReason.trim(),
+                description: newHolidayReason.trim()
+            });
+
+            if (result.success) {
+                await loadDayOffs();
+                setNewHolidayDate("");
+                setNewHolidayReason("");
+                showToast("Đã thêm ngày nghỉ lễ! 🎉", "success");
+            } else {
+                showToast(result.error || "Không thể thêm ngày nghỉ", "error");
+            }
+        } catch (error) {
+            console.error("Error adding holiday:", error);
+            showToast("Không thể thêm ngày nghỉ", "error");
+        }
     };
 
-    const handleRemoveHoliday = (date) => {
-        const updatedSettings = removeHoliday(date);
-        setSettings(updatedSettings);
-        showToast("Đã xóa ngày nghỉ lễ", "success");
+    const handleRemoveHoliday = async (dayOffId) => {
+        try {
+            const result = await dayOffApi.delete(dayOffId);
+
+            if (result.success) {
+                await loadDayOffs();
+                showToast("Đã xóa ngày nghỉ lễ", "success");
+            } else {
+                showToast(result.error || "Không thể xóa ngày nghỉ", "error");
+            }
+        } catch (error) {
+            console.error("Error removing holiday:", error);
+            showToast("Không thể xóa ngày nghỉ", "error");
+        }
+    };
+
+    const handleTogglePersistentDay = async (dayIndex) => {
+        try {
+            const newDaysOff = persistentDaysOff.includes(dayIndex)
+                ? persistentDaysOff.filter(d => d !== dayIndex)
+                : [...persistentDaysOff, dayIndex].sort((a, b) => a - b);
+
+            const result = await systemConfigApi.setPersistentDaysOff(newDaysOff);
+
+            if (result.success) {
+                setPersistentDaysOff(newDaysOff);
+                showToast("Đã cập nhật ngày nghỉ cố định! ✅", "success");
+            } else {
+                showToast(result.error || "Không thể cập nhật ngày nghỉ cố định", "error");
+            }
+        } catch (error) {
+            console.error("Error toggling persistent day:", error);
+            showToast("Không thể cập nhật ngày nghỉ cố định", "error");
+        }
+    };
+
+    const getMonthHolidays = () => {
+        const firstDay = new Date(previewYear, previewMonth, 1);
+        const lastDay = new Date(previewYear, previewMonth + 1, 0);
+        
+        const holidays = [];
+
+        // Add specific day-offs
+        dayOffs.filter(dayOff => {
+            const dayOffDate = new Date(dayOff.date);
+            return dayOffDate >= firstDay && dayOffDate <= lastDay;
+        }).forEach(dayOff => {
+            holidays.push({
+                day: new Date(dayOff.date).getDate(),
+                reason: dayOff.name,
+                type: 'specific'
+            });
+        });
+
+        // Add persistent days off (recurring weekly)
+        if (persistentDaysOff.length > 0) {
+            const daysInMonth = new Date(previewYear, previewMonth + 1, 0).getDate();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(previewYear, previewMonth, day);
+                const dayOfWeek = date.getDay();
+                if (persistentDaysOff.includes(dayOfWeek)) {
+                    // Check if not already added as specific holiday
+                    if (!holidays.find(h => h.day === day)) {
+                        const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+                        holidays.push({
+                            day,
+                            reason: `Nghỉ ${dayNames[dayOfWeek]}`,
+                            type: 'recurring'
+                        });
+                    }
+                }
+            }
+        }
+
+        return holidays.sort((a, b) => a.day - b.day);
+    };
+
+    const formatDateVN = (dateStr) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('vi-VN', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
     };
 
     const handleMonthChange = (direction) => {
@@ -195,81 +265,64 @@ export default function HolidaysPage() {
 
                     {/* Left Column - Settings */}
                     <div className="space-y-6">
-                        {/* 📆 Recurring Days Off */}
+                        {/* 🔁 Recurring Days Off (Persistent) */}
                         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-xl">
-                                    <span className="text-2xl">🔄</span>
-                                    Nghỉ Định Kỳ (Cuối Tuần)
+                                    <span className="text-2xl">🔁</span>
+                                    Ngày Nghỉ Cố Định
                                 </CardTitle>
+                                <p className="text-sm text-gray-500">
+                                    Thiết lập các ngày trong tuần luôn nghỉ (VD: Chủ Nhật)
+                                </p>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {/* Saturday */}
-                                <div className={`p-4 rounded-xl border-2 transition-all ${settings?.recurringDaysOff?.saturday?.enabled
-                                        ? 'border-purple-400 bg-purple-50'
-                                        : 'border-gray-200 bg-gray-50'
-                                    }`}>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">📅</span>
-                                            <div>
-                                                <p className="font-bold text-gray-800">Thứ Bảy</p>
-                                                <p className="text-sm text-gray-500">Nghỉ hàng tuần</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => handleToggleRecurringDay('saturday')}
-                                            className={`relative w-14 h-7 rounded-full transition-colors ${settings?.recurringDaysOff?.saturday?.enabled
-                                                    ? 'bg-purple-500'
-                                                    : 'bg-gray-300'
+                                <div className="grid grid-cols-1 gap-2">
+                                    {[
+                                        { index: 0, name: 'Chủ Nhật', emoji: '🌙', color: 'red' },
+                                        { index: 1, name: 'Thứ Hai', emoji: '📅', color: 'gray' },
+                                        { index: 2, name: 'Thứ Ba', emoji: '📅', color: 'gray' },
+                                        { index: 3, name: 'Thứ Tư', emoji: '📅', color: 'gray' },
+                                        { index: 4, name: 'Thứ Năm', emoji: '📅', color: 'gray' },
+                                        { index: 5, name: 'Thứ Sáu', emoji: '📅', color: 'gray' },
+                                        { index: 6, name: 'Thứ Bảy', emoji: '🌙', color: 'blue' },
+                                    ].map((day) => {
+                                        const isSelected = persistentDaysOff.includes(day.index);
+                                        return (
+                                            <button
+                                                key={day.index}
+                                                onClick={() => handleTogglePersistentDay(day.index)}
+                                                className={`p-3 rounded-lg border-2 transition-all text-left flex items-center justify-between ${
+                                                    isSelected
+                                                        ? day.color === 'red'
+                                                            ? 'bg-red-50 border-red-400 text-red-800'
+                                                            : day.color === 'blue'
+                                                            ? 'bg-blue-50 border-blue-400 text-blue-800'
+                                                            : 'bg-purple-50 border-purple-400 text-purple-800'
+                                                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
                                                 }`}
-                                        >
-                                            <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-all ${settings?.recurringDaysOff?.saturday?.enabled ? 'left-7' : 'left-0.5'
-                                                }`} />
-                                        </button>
-                                    </div>
-                                    {settings?.recurringDaysOff?.saturday?.enabled && (
-                                        <Input
-                                            placeholder="Lý do nghỉ (VD: Nghỉ cuối tuần)"
-                                            value={settings?.recurringDaysOff?.saturday?.reason || ''}
-                                            onChange={(e) => handleUpdateRecurringReason('saturday', e.target.value)}
-                                            className="border-purple-200 focus:border-purple-400"
-                                        />
-                                    )}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl">{day.emoji}</span>
+                                                    <span className="font-medium">{day.name}</span>
+                                                </div>
+                                                {isSelected && (
+                                                    <span className="text-lg">✅</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-
-                                {/* Sunday */}
-                                <div className={`p-4 rounded-xl border-2 transition-all ${settings?.recurringDaysOff?.sunday?.enabled
-                                        ? 'border-rose-400 bg-rose-50'
-                                        : 'border-gray-200 bg-gray-50'
-                                    }`}>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-3xl">🌟</span>
-                                            <div>
-                                                <p className="font-bold text-gray-800">Chủ Nhật</p>
-                                                <p className="text-sm text-gray-500">Nghỉ hàng tuần</p>
-                                            </div>
+                                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+                                    <div className="flex items-start gap-2">
+                                        <span>💡</span>
+                                        <div>
+                                            <p className="font-medium mb-1">Lưu ý:</p>
+                                            <p className="text-blue-700">
+                                                Ngày nghỉ cố định sẽ áp dụng hàng tuần. Hệ thống sẽ <strong>không cho phép</strong> tạo lịch làm việc cho nhân viên vào những ngày này.
+                                            </p>
                                         </div>
-                                        <button
-                                            onClick={() => handleToggleRecurringDay('sunday')}
-                                            className={`relative w-14 h-7 rounded-full transition-colors ${settings?.recurringDaysOff?.sunday?.enabled
-                                                    ? 'bg-rose-500'
-                                                    : 'bg-gray-300'
-                                                }`}
-                                        >
-                                            <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-all ${settings?.recurringDaysOff?.sunday?.enabled ? 'left-7' : 'left-0.5'
-                                                }`} />
-                                        </button>
                                     </div>
-                                    {settings?.recurringDaysOff?.sunday?.enabled && (
-                                        <Input
-                                            placeholder="Lý do nghỉ (VD: Nghỉ cuối tuần)"
-                                            value={settings?.recurringDaysOff?.sunday?.reason || ''}
-                                            onChange={(e) => handleUpdateRecurringReason('sunday', e.target.value)}
-                                            className="border-rose-200 focus:border-rose-400"
-                                        />
-                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -279,14 +332,14 @@ export default function HolidaysPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-xl">
                                     <span className="text-2xl">🎄</span>
-                                    Ngày Lễ Cụ Thể
+                                    Ngày Lễ & Ngày Nghỉ
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Add new holiday form */}
                                 <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200">
                                     <p className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
-                                        ➕ Thêm ngày nghỉ lễ mới
+                                        ➕ Thêm ngày nghỉ mới
                                     </p>
                                     <div className="space-y-3">
                                         <Input
@@ -306,39 +359,41 @@ export default function HolidaysPage() {
                                             onClick={handleAddHoliday}
                                             className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
                                         >
-                                            ➕ Thêm Ngày Lễ
+                                            ➕ Thêm Ngày Nghỉ
                                         </Button>
                                     </div>
                                 </div>
 
                                 {/* List of holidays */}
-                                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                                    {settings?.holidays?.length > 0 ? (
-                                        settings.holidays.map((holiday, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-2xl">🎊</span>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-800">{holiday.reason}</p>
-                                                        <p className="text-sm text-gray-500">{formatDateVN(holiday.date)}</p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleRemoveHoliday(holiday.date)}
-                                                    className="p-2 text-red-500 hover:bg-red-100 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    title="Xóa ngày lễ"
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                    {dayOffs?.length > 0 ? (
+                                        dayOffs
+                                            .sort((a, b) => new Date(a.date) - new Date(b.date))
+                                            .map((holiday) => (
+                                                <div
+                                                    key={holiday.dayOffId}
+                                                    className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group"
                                                 >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        ))
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-2xl">🎊</span>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800">{holiday.name}</p>
+                                                            <p className="text-sm text-gray-500">{formatDateVN(holiday.date)}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveHoliday(holiday.dayOffId)}
+                                                        className="p-2 text-red-500 hover:bg-red-100 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        title="Xóa ngày nghỉ"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            ))
                                     ) : (
                                         <div className="text-center py-8 text-gray-500">
                                             <span className="text-4xl block mb-2">📭</span>
-                                            <p>Chưa có ngày lễ nào được thiết lập</p>
+                                            <p>Chưa có ngày nghỉ nào được thiết lập</p>
                                         </div>
                                     )}
                                 </div>
@@ -388,6 +443,7 @@ export default function HolidaysPage() {
                                         const firstDay = new Date(previewYear, previewMonth, 1).getDay();
                                         const daysInMonth = new Date(previewYear, previewMonth + 1, 0).getDate();
                                         const days = [];
+                                        const monthHolidays = getMonthHolidays();
 
                                         // Empty cells before first day
                                         for (let i = 0; i < firstDay; i++) {
@@ -396,18 +452,17 @@ export default function HolidaysPage() {
 
                                         // Days of month
                                         for (let day = 1; day <= daysInMonth; day++) {
-                                            const dateStr = `${previewYear}-${String(previewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                             const holiday = monthHolidays.find(h => h.day === day);
+                                            const bgColor = holiday?.type === 'recurring' 
+                                                ? 'bg-purple-100 text-purple-800 font-bold ring-2 ring-purple-300'
+                                                : holiday?.type === 'specific'
+                                                ? 'bg-amber-100 text-amber-800 font-bold ring-2 ring-amber-300'
+                                                : 'hover:bg-gray-100';
 
                                             days.push(
                                                 <div
                                                     key={day}
-                                                    className={`p-2 text-center rounded-lg text-sm transition-all ${holiday
-                                                            ? holiday.type === 'specific'
-                                                                ? 'bg-amber-100 text-amber-800 font-bold ring-2 ring-amber-300'
-                                                                : 'bg-purple-100 text-purple-800 font-bold ring-2 ring-purple-300'
-                                                            : 'hover:bg-gray-100'
-                                                        }`}
+                                                    className={`p-2 text-center rounded-lg text-sm transition-all ${bgColor}`}
                                                     title={holiday?.reason || ''}
                                                 >
                                                     {day}
@@ -423,31 +478,39 @@ export default function HolidaysPage() {
                                 <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                                     <div className="flex items-center gap-2">
                                         <div className="w-4 h-4 rounded bg-purple-200 ring-2 ring-purple-300"></div>
-                                        <span className="text-sm text-gray-600">Nghỉ cuối tuần</span>
+                                        <span className="text-sm text-gray-600">Nghỉ cố định</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="w-4 h-4 rounded bg-amber-200 ring-2 ring-amber-300"></div>
-                                        <span className="text-sm text-gray-600">Ngày lễ cụ thể</span>
+                                        <span className="text-sm text-gray-600">Ngày lễ</span>
                                     </div>
                                 </div>
 
                                 {/* Holidays this month */}
-                                {monthHolidays.length > 0 && (
-                                    <div className="mt-4 pt-4 border-t border-gray-200">
-                                        <p className="font-semibold text-gray-700 mb-2">
-                                            📋 Ngày nghỉ tháng này ({monthHolidays.length})
-                                        </p>
-                                        <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                            {monthHolidays.map((h, idx) => (
-                                                <div key={idx} className="flex items-center gap-2 text-sm p-2 rounded-lg bg-gray-50">
-                                                    <span>{h.type === 'specific' ? '🎊' : '📅'}</span>
-                                                    <span className="font-medium">Ngày {h.day}:</span>
-                                                    <span className="text-gray-600">{h.reason}</span>
-                                                </div>
-                                            ))}
+                                {(() => {
+                                    const monthHolidays = getMonthHolidays();
+                                    return monthHolidays.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                            <p className="font-semibold text-gray-700 mb-2">
+                                                📋 Ngày nghỉ tháng này ({monthHolidays.length})
+                                            </p>
+                                            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                                {monthHolidays.map((h, idx) => (
+                                                    <div 
+                                                        key={idx} 
+                                                        className={`flex items-center gap-2 text-sm p-2 rounded-lg ${
+                                                            h.type === 'recurring' ? 'bg-purple-50' : 'bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <span>{h.type === 'recurring' ? '🔁' : '🎊'}</span>
+                                                        <span className="font-medium">Ngày {h.day}:</span>
+                                                        <span className="text-gray-600">{h.reason}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                             </CardContent>
                         </Card>
                     </div>

@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import apiClient from "@/lib/api/client";
+import { systemConfigApi, dayOffApi } from "@/lib/api";
 import { useToast } from "@/lib/contexts/ToastContext";
 import Pagination from "@/components/ui/Pagination";
 import usePagination from "@/components/ui/usePagination";
@@ -39,6 +40,8 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true);
   const [schedules, setSchedules] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [persistentDaysOff, setPersistentDaysOff] = useState([]);
+  const [dayOffs, setDayOffs] = useState([]);
   const [selectedWeek, setSelectedWeek] = useState(getMonday(new Date()));
   const [selectedEmployee, setSelectedEmployee] = useState("all");
   const [viewMode, setViewMode] = useState("week"); // 'week' or 'list'
@@ -100,11 +103,13 @@ export default function SchedulesPage() {
       endOfWeek.setDate(endOfWeek.getDate() + 6);
       const endDate = endOfWeek.toISOString().split('T')[0];
       
-      const [schedulesRes, employeesRes] = await Promise.all([
+      const [schedulesRes, employeesRes, persistentRes, dayOffsRes] = await Promise.all([
         apiClient.get(`/schedules?startDate=${startDate}&endDate=${endDate}`).catch(() => 
           apiClient.get('/schedules').catch(() => ({ data: [] }))
         ),
-        apiClient.get('/employees').catch(() => ({ data: [] }))
+        apiClient.get('/employees').catch(() => ({ data: [] })),
+        systemConfigApi.getPersistentDaysOff().catch(() => ({ success: false, data: [] })),
+        dayOffApi.getAll({ startDate, endDate }).catch(() => ({ success: false, data: [] }))
       ]);
 
       const schedulesData = Array.isArray(schedulesRes.data) ? schedulesRes.data : 
@@ -114,6 +119,14 @@ export default function SchedulesPage() {
 
       setSchedules(schedulesData);
       setEmployees(employeesData);
+      
+      if (persistentRes.success) {
+        setPersistentDaysOff(persistentRes.data || []);
+      }
+      
+      if (dayOffsRes.success) {
+        setDayOffs(dayOffsRes.data || []);
+      }
     } catch (error) {
       console.error("Error loading data:", error);
       showToast("Không thể tải dữ liệu", "error");
@@ -194,6 +207,17 @@ export default function SchedulesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check if the selected date is a day-off
+    const selectedDate = new Date(formData.workDate);
+    if (isAnyDayOff(selectedDate)) {
+      const specificDayOff = getSpecificDayOff(selectedDate);
+      const dayOffMessage = specificDayOff 
+        ? `Không thể tạo lịch làm việc vào ngày lễ: ${specificDayOff.name}` 
+        : 'Không thể tạo lịch làm việc vào ngày nghỉ cố định';
+      showToast(dayOffMessage, "error");
+      return;
+    }
     
     try {
       setSaving(true);
@@ -322,6 +346,43 @@ export default function SchedulesPage() {
     return date.toDateString() === today.toDateString();
   };
 
+  const isPersistentDayOff = (date) => {
+    const dayOfWeek = date.getDay();
+    return persistentDaysOff.includes(dayOfWeek);
+  };
+
+  const isSpecificDayOff = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return dayOffs.some(dayOff => {
+      const dayOffDate = dayOff.date.split('T')[0];
+      return dayOffDate === dateStr;
+    });
+  };
+
+  const getSpecificDayOff = (date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return dayOffs.find(dayOff => {
+      const dayOffDate = dayOff.date.split('T')[0];
+      return dayOffDate === dateStr;
+    });
+  };
+
+  const isAnyDayOff = (date) => {
+    return isPersistentDayOff(date) || isSpecificDayOff(date);
+  };
+
+  const getDayOffLabel = (date) => {
+    const specificDayOff = getSpecificDayOff(date);
+    if (specificDayOff) {
+      return `🎊 ${specificDayOff.name}`;
+    }
+    if (isPersistentDayOff(date)) {
+      const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+      return `🔒 Nghỉ ${dayNames[date.getDay()]}`;
+    }
+    return null;
+  };
+
   const weekDates = getWeekDates(selectedWeek);
 
   if (loading) {
@@ -361,6 +422,46 @@ export default function SchedulesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 -mt-20 pb-8">
+        {/* Day-Off Info Banner */}
+        {(persistentDaysOff.length > 0 || dayOffs.length > 0) && (
+          <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 shadow-lg mb-4">
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                {persistentDaysOff.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🔒</span>
+                    <div>
+                      <p className="font-semibold text-purple-900">Ngày nghỉ cố định:</p>
+                      <p className="text-sm text-purple-700">
+                        {persistentDaysOff.map(day => {
+                          const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+                          return dayNames[day];
+                        }).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {dayOffs.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🎊</span>
+                    <div>
+                      <p className="font-semibold text-purple-900">Ngày lễ trong tuần này:</p>
+                      <p className="text-sm text-purple-700">
+                        {dayOffs.map((d, idx) => (
+                          <span key={idx}>
+                            {new Date(d.date).getDate()}/{new Date(d.date).getMonth() + 1} - {d.name}
+                            {idx < dayOffs.length - 1 ? ', ' : ''}
+                          </span>
+                        ))}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Week Navigation & Filters */}
         <Card className="bg-white shadow-xl mb-6">
           <CardContent className="p-4">
@@ -436,30 +537,53 @@ export default function SchedulesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gradient-to-r from-green-500 to-emerald-500 text-white">
-                    {weekDates.map((date, idx) => (
-                      <th 
-                        key={idx} 
-                        className={`p-4 text-center min-w-[140px] ${isToday(date) ? 'bg-white/20' : ''}`}
-                      >
-                        <div className="text-lg font-bold">{getDayName(date)}</div>
-                        <div className="text-sm opacity-90">{date.getDate()}/{date.getMonth() + 1}</div>
-                        {isToday(date) && <div className="text-xs mt-1">📍 Hôm nay</div>}
-                      </th>
-                    ))}
+                    {weekDates.map((date, idx) => {
+                      const isDayOff = isAnyDayOff(date);
+                      return (
+                        <th 
+                          key={idx} 
+                          className={`p-4 text-center min-w-[140px] ${
+                            isToday(date) ? 'bg-white/20' : ''
+                          } ${isDayOff ? 'opacity-60' : ''}`}
+                        >
+                          <div className="text-lg font-bold">{getDayName(date)}</div>
+                          <div className="text-sm opacity-90">{date.getDate()}/{date.getMonth() + 1}</div>
+                          {isToday(date) && <div className="text-xs mt-1">📍 Hôm nay</div>}
+                          {isDayOff && <div className="text-xs mt-1">🔒 Nghỉ</div>}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     {weekDates.map((date, idx) => {
                       const daySchedules = getSchedulesForDate(date);
+                      const isDayOff = isAnyDayOff(date);
+                      const isSpecific = isSpecificDayOff(date);
+                      const dayOffLabel = getDayOffLabel(date);
+                      
                       return (
                         <td 
                           key={idx} 
                           className={`p-2 align-top border-r last:border-r-0 min-h-[200px] ${
-                            isToday(date) ? 'bg-green-50' : 'bg-white'
+                            isToday(date) ? 'bg-green-50' : 
+                            isDayOff ? (isSpecific ? 'bg-amber-50' : 'bg-gray-100') : 'bg-white'
                           }`}
                         >
                           <div className="space-y-2 min-h-[180px]">
+                            {isDayOff && (
+                              <div className={`p-2 rounded-lg border-2 text-center ${
+                                isSpecific 
+                                  ? 'bg-amber-100 border-amber-300' 
+                                  : 'bg-gray-200 border-gray-300'
+                              }`}>
+                                <span className={`text-sm font-medium ${
+                                  isSpecific ? 'text-amber-800' : 'text-gray-600'
+                                }`}>{dayOffLabel}</span>
+                              </div>
+                            )}
+                            
                             {daySchedules.map((schedule, sIdx) => {
                               const shift = getScheduleShiftConfig(schedule);
                               const emp = schedule.employee || employees.find(e => 
@@ -483,13 +607,15 @@ export default function SchedulesPage() {
                               );
                             })}
                             
-                            {/* Add button */}
-                            <button
-                              onClick={() => handleOpenModal(null, date)}
-                              className="w-full p-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 hover:border-green-400 hover:text-green-500 transition-colors text-sm"
-                            >
-                              ➕ Thêm ca
-                            </button>
+                            {/* Add button - disabled on persistent day off */}
+                            {!isDayOff && (
+                              <button
+                                onClick={() => handleOpenModal(null, date)}
+                                className="w-full p-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 hover:border-green-400 hover:text-green-500 transition-colors text-sm"
+                              >
+                                ➕ Thêm ca
+                              </button>
+                            )}
                           </div>
                         </td>
                       );
@@ -639,6 +765,35 @@ export default function SchedulesPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Warning for day off */}
+              {formData.workDate && isAnyDayOff(new Date(formData.workDate)) && (() => {
+                const selectedDate = new Date(formData.workDate);
+                const specificDayOff = getSpecificDayOff(selectedDate);
+                const isSpecific = isSpecificDayOff(selectedDate);
+                
+                return (
+                  <div className={`p-4 rounded-xl border-2 ${
+                    isSpecific ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-300'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <span className="text-2xl">{isSpecific ? '🎊' : '⚠️'}</span>
+                      <div>
+                        <p className={`font-bold mb-1 ${
+                          isSpecific ? 'text-amber-800' : 'text-red-800'
+                        }`}>
+                          {isSpecific ? `Ngày lễ: ${specificDayOff?.name}` : 'Cảnh báo: Ngày nghỉ cố định'}
+                        </p>
+                        <p className={`text-sm ${
+                          isSpecific ? 'text-amber-700' : 'text-red-700'
+                        }`}>
+                          Ngày này được cấu hình là ngày nghỉ. Hệ thống có thể không cho phép tạo lịch làm việc vào ngày này.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Employee */}
               <div>
                 <Label className="flex items-center gap-2 mb-2">

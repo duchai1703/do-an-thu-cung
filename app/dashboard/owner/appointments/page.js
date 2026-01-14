@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
-import { appointmentApi } from "@/lib/api";
+import { appointmentApi, dayOffApi } from "@/lib/api";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { getHolidayInfo } from "@/lib/utils/holidayUtils";
 
@@ -42,6 +42,7 @@ export default function AppointmentsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [holidayWarning, setHolidayWarning] = useState(null);
+  const [apiDaysOff, setApiDaysOff] = useState([]);
 
   // For booking form
   const [pets, setPets] = useState([]);
@@ -68,6 +69,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     loadAppointments();
     loadPetsAndServices();
+    loadDaysOff();
   }, []);
 
   useEffect(() => {
@@ -94,21 +96,15 @@ export default function AppointmentsPage() {
     }
   }, [services, searchParams]);
 
-  // Re-check holiday whenever appointmentDate changes
+  // Re-check holiday/day-off whenever appointmentDate or apiDaysOff changes
   useEffect(() => {
     if (bookingForm.appointmentDate) {
-      console.log('[useEffect] Re-checking holiday for date:', bookingForm.appointmentDate);
-      const holidayInfo = getHolidayInfo(bookingForm.appointmentDate);
-      console.log('[useEffect] Holiday check result:', holidayInfo);
-      if (holidayInfo.isHoliday) {
-        setHolidayWarning({ date: bookingForm.appointmentDate, reason: holidayInfo.reason });
-      } else {
-        setHolidayWarning(null);
-      }
+      console.log('[useEffect] Re-checking holiday/day-off for date:', bookingForm.appointmentDate);
+      checkSelectedDate(bookingForm.appointmentDate);
     } else {
       setHolidayWarning(null);
     }
-  }, [bookingForm.appointmentDate]);
+  }, [bookingForm.appointmentDate, apiDaysOff]);
 
   const loadAppointments = async () => {
     try {
@@ -146,6 +142,20 @@ export default function AppointmentsPage() {
     }
   };
 
+  const loadDaysOff = async () => {
+    try {
+      // Fetch all day-offs from the API
+      const response = await dayOffApi.getAll();
+      if (response.success && response.data) {
+        setApiDaysOff(response.data);
+        console.log('[Appointments] Loaded day-offs from API:', response.data);
+      }
+    } catch (error) {
+      console.error("Error loading day-offs:", error);
+      // Silently fail - day-offs are optional
+    }
+  };
+
   const filterAppointments = () => {
     let filtered = appointments;
 
@@ -179,13 +189,27 @@ export default function AppointmentsPage() {
     setDateRange({ start, end });
   };
 
-  // Check if selected date is a holiday
+  // Check if selected date is a holiday or day-off
   const checkSelectedDate = (dateString) => {
-    console.log('[Appointments] Checking date for holiday:', dateString);
+    console.log('[Appointments] Checking date for holiday/day-off:', dateString);
+    
+    // Check API day-offs first (higher priority)
+    const apiDayOff = apiDaysOff.find(d => d.date === dateString);
+    if (apiDayOff) {
+      console.log('[Appointments] Found API day-off:', apiDayOff);
+      setHolidayWarning({ 
+        date: dateString, 
+        reason: `${apiDayOff.name}${apiDayOff.description ? ': ' + apiDayOff.description : ''}`,
+        type: 'api'
+      });
+      return;
+    }
+    
+    // Check local holiday settings
     const holidayInfo = getHolidayInfo(dateString);
     console.log('[Appointments] Holiday info result:', holidayInfo);
     if (holidayInfo.isHoliday) {
-      setHolidayWarning({ date: dateString, reason: holidayInfo.reason });
+      setHolidayWarning({ date: dateString, reason: holidayInfo.reason, type: 'local' });
     } else {
       setHolidayWarning(null);
     }
@@ -886,6 +910,11 @@ export default function AppointmentsPage() {
                   <p className="mt-2 text-red-600 pl-8">
                     📅 <strong>Lý do:</strong> {holidayWarning.reason}
                   </p>
+                  {holidayWarning.type === 'api' && (
+                    <p className="mt-1 text-red-500 text-sm pl-8">
+                      🏥 Phòng khám nghỉ vào ngày này theo lịch của quản lý.
+                    </p>
+                  )}
                   <p className="mt-1 text-red-500 text-sm pl-8">
                     Vui lòng chọn ngày khác để tiếp tục đặt lịch.
                   </p>
