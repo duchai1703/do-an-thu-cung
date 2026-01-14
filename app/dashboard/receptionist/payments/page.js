@@ -80,7 +80,8 @@ export default function PaymentsPage() {
 
       const response = await invoiceApi.getAll({
         includePetOwner: true,
-        includeAppointment: true
+        includeAppointment: true,
+        includePayment: true,
       });
 
       if (response.success && response.data) {
@@ -91,14 +92,14 @@ export default function PaymentsPage() {
           console.log("petOwner:", response.data[0].petOwner);
           console.log("appointment:", response.data[0].appointment);
         }
+        console.log(response.data);
         
         const formattedPayments = response.data.map(invoice => {
           const isPaid = invoice.status === 'PAID';
-          const paymentMethod = invoice.payments && invoice.payments.length > 0
-            ? (invoice.payments[0].paymentMethod === 'CASH' ? 'CASH' :
-              invoice.payments[0].paymentMethod === 'BANK_TRANSFER' ? 'BANK_TRANSFER' :
-                invoice.payments[0].paymentMethod)
-            : null;
+          
+          // Get payment method from successful payments only
+          const successfulPayment = invoice.payments?.find(p => p.paymentStatus === 'SUCCESS');
+          const paymentMethod = successfulPayment?.paymentMethod || null;
 
           return {
             id: invoice.invoiceId || invoice.id,
@@ -164,27 +165,32 @@ export default function PaymentsPage() {
     try {
       setProcessing(true);
       
-      // Handle VNPay separately
+      // Handle VNPay separately - online payment gateway
       if (selectedMethod === "VNPay") {
-        const vnpayData = {
-          invoiceId: selectedPayment.invoiceId,
-          paymentMethod: "VNPAY",
-          returnUrl: `${window.location.origin}/dashboard/receptionist/payments?success=true`,
-          cancelUrl: `${window.location.origin}/dashboard/receptionist/payments?cancelled=true`
-        };
+        // Build return URL for VNPay callback
+        const baseUrl = window.location.origin;
+        const returnUrl = `${baseUrl}/dashboard/receptionist/payments/vnpay-return`;
         
-        const response = await paymentApi.initiateOnline?.(vnpayData);
-        if (response?.success && response?.data?.paymentUrl) {
-          window.open(response.data.paymentUrl, '_blank');
-          alert('Đã mở trang thanh toán VNPay. Vui lòng hoàn tất thanh toán.');
-          setShowPaymentModal(false);
-          setSelectedPayment(null);
-          setSelectedMethod("");
-          return;
+        console.log("🔄 Initiating VNPay payment with return URL:", returnUrl);
+        
+        const response = await paymentApi.initiateOnline({
+          invoiceId: selectedPayment.invoiceId,
+          paymentMethod: 'VNPAY',
+          returnUrl: returnUrl,
+          locale: 'vn'
+        });
+
+        const data = response.data || response;
+        
+        if (data.paymentUrl) {
+          alert('✅ Đang chuyển đến VNPay...');
+          // Redirect to VNPay payment page
+          window.location.href = data.paymentUrl;
         } else {
-          alert('Lỗi khi khởi tạo thanh toán VNPay');
-          return;
+          alert('❌ Không thể khởi tạo thanh toán VNPay');
+          setProcessing(false);
         }
+        return;
       }
       
       const methodMap = {
@@ -356,25 +362,33 @@ export default function PaymentsPage() {
               <span className="text-sm text-gray-500 font-medium">Phương thức:</span>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { value: 'all', label: 'Tất cả', color: 'gray' },
-                  { value: 'CASH', label: '💵 Tiền mặt', color: 'emerald' },
-                  { value: 'BANK_TRANSFER', label: '🏦 Chuyển khoản', color: 'blue' },
-                  { value: 'VNPAY', label: '📱 VNPay', color: 'rose' },
+                  { value: 'all', label: 'Tất cả', color: 'gray', count: payments.length },
+                  { value: 'CASH', label: '💵 Tiền mặt', color: 'emerald', count: payments.filter(p => p.paymentMethod === 'CASH').length },
+                  { value: 'BANK_TRANSFER', label: '🏦 Chuyển khoản', color: 'blue', count: payments.filter(p => p.paymentMethod === 'BANK_TRANSFER').length },
+                  { value: 'VNPAY', label: '📱 VNPay', color: 'rose', count: payments.filter(p => p.paymentMethod === 'VNPAY').length },
                 ].map((method) => (
                   <button
                     key={method.value}
                     onClick={() => setMethodFilter(method.value)}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+                      "px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5",
                       methodFilter === method.value
-                        ? method.value === 'CASH' ? "bg-emerald-500 text-white" :
-                          method.value === 'BANK_TRANSFER' ? "bg-blue-500 text-white" :
-                          method.value === 'VNPAY' ? "bg-rose-500 text-white" :
-                          "bg-gray-800 text-white"
+                        ? method.value === 'CASH' ? "bg-emerald-500 text-white shadow-lg" :
+                          method.value === 'BANK_TRANSFER' ? "bg-blue-500 text-white shadow-lg" :
+                          method.value === 'VNPAY' ? "bg-rose-500 text-white shadow-lg" :
+                          "bg-gray-800 text-white shadow-lg"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     )}
                   >
-                    {method.label}
+                    <span>{method.label}</span>
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-full text-xs font-bold",
+                      methodFilter === method.value 
+                        ? "bg-white/30" 
+                        : "bg-gray-200 text-gray-700"
+                    )}>
+                      {method.count}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -412,13 +426,14 @@ export default function PaymentsPage() {
                     <TableHead className="font-bold text-gray-700">Ngày lập</TableHead>
                     <TableHead className="font-bold text-gray-700 text-right">Số tiền</TableHead>
                     <TableHead className="font-bold text-gray-700 text-center">Trạng thái</TableHead>
+                    <TableHead className="font-bold text-gray-700 text-center">PT Thanh toán</TableHead>
                     <TableHead className="font-bold text-gray-700 text-center">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPayments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-40">
+                      <TableCell colSpan={7} className="h-40">
                         <div className="flex flex-col items-center justify-center text-gray-400">
                           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                             <CreditCard className="w-8 h-8" />
@@ -480,6 +495,24 @@ export default function PaymentsPage() {
                                 <><Clock className="w-3 h-3 mr-1" /> Chờ thanh toán</>
                               )}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {payment.paymentMethod ? (
+                              <Badge className={cn(
+                                "shadow-sm font-medium",
+                                payment.paymentMethod === 'CASH' ? "bg-emerald-100 text-emerald-700 border border-emerald-300" :
+                                payment.paymentMethod === 'BANK_TRANSFER' ? "bg-blue-100 text-blue-700 border border-blue-300" :
+                                payment.paymentMethod === 'VNPAY' ? "bg-rose-100 text-rose-700 border border-rose-300" :
+                                "bg-gray-100 text-gray-600"
+                              )}>
+                                {payment.paymentMethod === 'CASH' ? '💵 Tiền mặt' :
+                                 payment.paymentMethod === 'BANK_TRANSFER' ? '🏦 Chuyển khoản' :
+                                 payment.paymentMethod === 'VNPAY' ? '📱 VNPay' :
+                                 payment.paymentMethod}
+                              </Badge>
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center items-center gap-2">
@@ -684,21 +717,25 @@ export default function PaymentsPage() {
                   <button
                     onClick={() => setSelectedMethod("VNPay")}
                     className={cn(
-                      "w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4",
+                      "w-full p-4 rounded-xl border-2 transition-all flex items-center gap-4 hover:shadow-lg",
                       selectedMethod === "VNPay" 
-                        ? "border-rose-500 bg-rose-50" 
-                        : "border-gray-200 hover:border-gray-300 bg-white"
+                        ? "border-rose-500 bg-gradient-to-r from-rose-50 to-pink-50 shadow-lg" 
+                        : "border-gray-200 hover:border-rose-300 bg-white"
                     )}
                   >
                     <div className={cn(
-                      "w-14 h-14 rounded-xl flex items-center justify-center",
-                      selectedMethod === "VNPay" ? "bg-rose-500 text-white" : "bg-gray-100"
+                      "w-14 h-14 rounded-xl flex items-center justify-center shadow-md",
+                      selectedMethod === "VNPay" ? "bg-gradient-to-r from-rose-500 to-pink-500 text-white" : "bg-gray-100"
                     )}>
                       <Smartphone className="w-7 h-7" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-bold text-gray-800">VNPay</p>
-                      <p className="text-sm text-gray-500">Thanh toán online qua VNPay</p>
+                      <p className="font-bold text-gray-800 flex items-center gap-2">
+                        VNPay 
+                        <span className="text-xs px-2 py-0.5 bg-rose-500 text-white rounded-full">Online</span>
+                      </p>
+                      <p className="text-sm text-gray-500">Thanh toán online qua cổng VNPay</p>
+                      <p className="text-xs text-gray-400 mt-1">💳 Hỗ trợ thẻ ATM, visa, QR code</p>
                     </div>
                     {selectedMethod === "VNPay" && (
                       <CheckCircle2 className="w-6 h-6 text-rose-500" />
@@ -712,9 +749,17 @@ export default function PaymentsPage() {
                   <textarea 
                     value={paymentNotes}
                     onChange={(e) => setPaymentNotes(e.target.value)}
-                    placeholder="Nhập ghi chú cho thanh toán..."
+                    placeholder={selectedMethod === "VNPay" 
+                      ? "Ghi chú sẽ được lưu khi thanh toán hoàn tất..." 
+                      : "Nhập ghi chú cho thanh toán..."}
                     className="w-full h-20 px-4 py-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    disabled={selectedMethod === "VNPay"}
                   />
+                  {selectedMethod === "VNPay" && (
+                    <p className="text-xs text-blue-600 flex items-center gap-1">
+                      ℹ️ Khách hàng sẽ được chuyển đến trang VNPay để hoàn tất thanh toán
+                    </p>
+                  )}
                 </div>
 
                 <DialogFooter className="gap-3">
@@ -734,11 +779,25 @@ export default function PaymentsPage() {
                     className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg"
                   >
                     {processing ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {selectedMethod === "VNPay" ? "Đang chuyển hướng..." : "Đang xử lý..."}
+                      </>
                     ) : (
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      <>
+                        {selectedMethod === "VNPay" ? (
+                          <>
+                            <Wallet className="w-4 h-4 mr-2" />
+                            Thanh toán VNPay 💳
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Xác nhận thanh toán
+                          </>
+                        )}
+                      </>
                     )}
-                    Xác nhận thanh toán
                   </Button>
                 </DialogFooter>
               </div>
