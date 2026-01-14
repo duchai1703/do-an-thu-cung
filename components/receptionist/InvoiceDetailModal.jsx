@@ -20,9 +20,11 @@ import {
   Receipt
 } from "lucide-react";
 import { invoiceApi, paymentApi, appointmentApi, petOwnerApi, petApi } from "@/lib/api";
+import apiClient from "@/lib/api/client";
 
 export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
   const [invoice, setInvoice] = useState(null);
+  const [cageAssignment, setCageAssignment] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,28 +43,38 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
 
         // Manually fetch related data since backend doesn't support generic inclusion
         if (invoiceData.appointmentId) {
-            try {
-                const apptResponse = await appointmentApi.getById(invoiceData.appointmentId);
-                // console.log("FETCHED APPT:", apptResponse);
+          try {
+            const apptResponse = await appointmentApi.getById(invoiceData.appointmentId);
 
-                if (apptResponse.success && apptResponse.data) {
-                    invoiceData.appointment = apptResponse.data;
+            if (apptResponse.success && apptResponse.data) {
+              invoiceData.appointment = apptResponse.data;
 
-                    // Data Mapping: Use nested owner data from appointment if available
-                    // Note: AppointmentService relations include 'pet.owner' and 'pet.owner.account'
-                    if (invoiceData.appointment.pet?.owner) {
-                        invoiceData.petOwner = invoiceData.appointment.pet.owner;
-                        // Map account if available (for email)
-                        if (invoiceData.appointment.pet.owner.account) {
-                            if (!invoiceData.petOwner.account) {
-                                invoiceData.petOwner.account = invoiceData.appointment.pet.owner.account;
-                            }
-                        }
-                    }
+              // Data Mapping: Use nested owner data from appointment if available
+              if (invoiceData.appointment.pet?.owner) {
+                invoiceData.petOwner = invoiceData.appointment.pet.owner;
+                // Map account if available (for email)
+                if (invoiceData.appointment.pet.owner.account) {
+                  if (!invoiceData.petOwner.account) {
+                    invoiceData.petOwner.account = invoiceData.appointment.pet.owner.account;
+                  }
                 }
-            } catch (err) {
-                console.error("Error fetching related appointment/owner:", err);
+              }
+
+              // Fetch cage assignment if exists
+              if (invoiceData.appointment?.cageAssignmentId) {
+                try {
+                  const cageRes = await apiClient.get(`/cages/assignments/${invoiceData.appointment.cageAssignmentId}`);
+                  if (cageRes.data) {
+                    setCageAssignment(cageRes.data);
+                  }
+                } catch (cageErr) {
+                  console.log("No cage assignment or error:", cageErr);
+                }
+              }
             }
+          } catch (err) {
+            console.error("Error fetching related appointment/owner:", err);
+          }
         }
 
         setInvoice(invoiceData);
@@ -309,7 +321,36 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
                           <p className="font-semibold text-gray-800">{invoice.appointment?.service?.serviceName || 'Dịch vụ'}</p>
                           <p className="text-xs text-gray-500">Phí dịch vụ</p>
                       </div>
-                      <p className="font-medium">{formatCurrency(invoice.subtotal)}</p>
+                      <p className="font-medium">{formatCurrency(invoice.subtotal - (cageAssignment?.totalCost || 0))}</p>
+                  </div>
+                )}
+
+                {/* Cage Boarding Cost Breakdown */}
+                {cageAssignment && (
+                  <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-purple-800 flex items-center gap-2">
+                          🏠 Phí lưu trú chuồng {cageAssignment.cage?.cageNumber || ''}
+                        </p>
+                        <p className="text-xs text-purple-600 mt-1">
+                          {formatCurrency(cageAssignment.dailyRate)}/ngày × {(() => {
+                            const checkIn = new Date(cageAssignment.checkInDate);
+                            const checkOut = cageAssignment.checkOutDate 
+                              ? new Date(cageAssignment.checkOutDate) 
+                              : new Date(cageAssignment.expectedCheckOutDate || new Date());
+                            const days = Math.max(1, Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)));
+                            return days;
+                          })()} ngày
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {new Date(cageAssignment.checkInDate).toLocaleDateString('vi-VN')} → {cageAssignment.checkOutDate 
+                            ? new Date(cageAssignment.checkOutDate).toLocaleDateString('vi-VN')
+                            : new Date(cageAssignment.expectedCheckOutDate).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <p className="font-bold text-purple-700">{formatCurrency(cageAssignment.totalCost || 0)}</p>
+                    </div>
                   </div>
                 )}
 
