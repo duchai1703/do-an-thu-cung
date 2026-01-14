@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Calendar, Plus, X, Eye, Clock, CheckCircle, XCircle,
   User, Stethoscope, DollarSign, Sparkles, CalendarCheck, CalendarX, Heart,
-  ChevronLeft, ChevronRight, Users
+  ChevronLeft, ChevronRight, Users, RefreshCw
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
-import { appointmentApi, dayOffApi } from "@/lib/api";
+import { appointmentApi, dayOffApi, systemConfigApi } from "@/lib/api";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
 import { getHolidayInfo } from "@/lib/utils/holidayUtils";
 
@@ -45,6 +45,8 @@ export default function AppointmentsPage() {
   const [holidayWarning, setHolidayWarning] = useState(null);
   const [apiDaysOff, setApiDaysOff] = useState([]);
   const [loadingDaysOff, setLoadingDaysOff] = useState(false);
+  const [lastDayOffUpdate, setLastDayOffUpdate] = useState(null);
+  const [persistentDaysOff, setPersistentDaysOff] = useState([]); // Weekly recurring days [0-6]
 
   // For booking form
   const [pets, setPets] = useState([]);
@@ -76,7 +78,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     loadAppointments();
     loadPetsAndServices();
-    loadDaysOff();
+    loadDaysOff(true); // Load from cache first
   }, []);
 
   useEffect(() => {
@@ -149,21 +151,95 @@ export default function AppointmentsPage() {
     }
   };
 
-  const loadDaysOff = async () => {
+  const loadDaysOff = async (useCache = false) => {
     try {
-      setLoadingDaysOff(true);
-      // Fetch all day-offs from the API
-      const response = await dayOffApi.getAll();
-      if (response.success && response.data) {
-        setApiDaysOff(response.data);
-        console.log('[Appointments] Loaded day-offs from API:', response.data);
+      // Try to load from localStorage cache first if requested or available
+      const cached = localStorage.getItem('pet_care_day_offs');
+      const cacheTime = localStorage.getItem('pet_care_day_offs_time');
+      const cachedPersistent = localStorage.getItem('pet_care_persistent_days_off');
+      
+      if (cached) {
+        // Immediately set cached data for instant blocking (even if stale)
+        const cachedData = JSON.parse(cached);
+        setApiDaysOff(cachedData);
+        if (cacheTime) {
+          setLastDayOffUpdate(new Date(parseInt(cacheTime)));
+        }
+        console.log('[Day-offs] Immediately applied cached data:', cachedData.length, 'items');
       }
+      
+      if (cachedPersistent) {
+        const cachedPersistentData = JSON.parse(cachedPersistent);
+        setPersistentDaysOff(cachedPersistentData);
+        console.log('[Persistent Days Off] Immediately applied cached data:', cachedPersistentData);
+      }
+      
+      setLoadingDaysOff(true);
+      
+      // Check if cache is fresh enough
+      if (useCache && cached && cacheTime) {
+        const cacheAge = Date.now() - parseInt(cacheTime);
+        // Use cache if less than 5 minutes old
+        if (cacheAge < 5 * 60 * 1000) {
+          console.log('[Day-offs] Cache is fresh, fetching in background');
+          setLoadingDaysOff(false);
+          // Still fetch in background to update cache
+          fetchAndCacheDaysOff();
+          return;
+        }
+      }
+      
+      // Fetch fresh data if cache is old or not available
+      await fetchAndCacheDaysOff();
     } catch (error) {
       console.error("Error loading day-offs:", error);
-      // Silently fail - day-offs are optional
+      // Try to use any cache as fallback
+      const cached = localStorage.getItem('pet_care_day_offs');
+      if (cached && apiDaysOff.length === 0) {
+        const cachedData = JSON.parse(cached);
+        setApiDaysOff(cachedData);
+        console.log('[Day-offs] Using stale cache as fallback:', cachedData.length, 'items');
+      }
     } finally {
       setLoadingDaysOff(false);
     }
+  };
+  
+  const fetchAndCacheDaysOff = async () => {
+    const [daysOffResponse, persistentResponse] = await Promise.all([
+      dayOffApi.getAll(),
+      systemConfigApi.getPersistentDaysOff().catch(() => ({ success: false, data: [] }))
+    ]);
+    
+    if (daysOffResponse.success && daysOffResponse.data) {
+      const daysOff = daysOffResponse.data;
+      setApiDaysOff(daysOff);
+      // Cache to localStorage
+      localStorage.setItem('pet_care_day_offs', JSON.stringify(daysOff));
+      localStorage.setItem('pet_care_day_offs_time', Date.now().toString());
+      setLastDayOffUpdate(new Date());
+      console.log('[Day-offs] Fetched and cached:', daysOff.length, 'items');
+    }
+    
+    if (persistentResponse.success && persistentResponse.data) {
+      const persistentDays = persistentResponse.data;
+      setPersistentDaysOff(persistentDays);
+      localStorage.setItem('pet_care_persistent_days_off', JSON.stringify(persistentDays));
+      console.log('[Persistent Days Off] Fetched and cached:', persistentDays);
+    }
+  };
+  
+  // Helper function to check if a date is blocked by persistent days off
+  const isPersistentDayOff = (date) => {
+    if (!date || persistentDaysOff.length === 0) return false;
+    const dayOfWeek = new Date(date).getDay(); // 0=Sunday, 6=Saturday
+    return persistentDaysOff.includes(dayOfWeek);
+  };
+  
+  // Helper function to get day name
+  const getDayName = (dayNum) => {
+    const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+    return days[dayNum] || '';
   };
 
   const loadAvailableEmployees = async (date, time) => {
@@ -216,6 +292,23 @@ export default function AppointmentsPage() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
+    
+    // Check persistent days off (weekly recurring)
+    if (isPersistentDayOff(dateStr)) {
+      const dayOfWeek = new Date(dateStr).getDay();
+      console.log('[Date Select] Blocked - Persistent day off:', getDayName(dayOfWeek));
+      showToast(`Phòng khám nghỉ vào ${getDayName(dayOfWeek)} hàng tuần`, "error");
+      return;
+    }
+    
+    // Check if this is a day-off BEFORE setting the date
+    const isDayOff = apiDaysOff.some(d => d.date === dateStr);
+    if (isDayOff) {
+      const dayOff = apiDaysOff.find(d => d.date === dateStr);
+      console.log('[Date Select] Blocked - Day off detected:', dayOff);
+      showToast(`Không thể chọn ngày này: ${dayOff.name || 'Ngày nghỉ'}`, "error");
+      return;
+    }
     
     setSelectedDate(date);
     setBookingForm(prev => ({ ...prev, appointmentDate: dateStr }));
@@ -323,8 +416,19 @@ export default function AppointmentsPage() {
   const checkSelectedDate = (dateString) => {
     console.log('[Appointments] Checking date for holiday/day-off:', dateString);
     
-    // Check API day-offs first (higher priority)
-    // These are set by managers and override any other settings
+    // Check persistent days off first (weekly recurring)
+    if (isPersistentDayOff(dateString)) {
+      const dayOfWeek = new Date(dateString).getDay();
+      console.log('[Appointments] Found persistent day-off:', getDayName(dayOfWeek));
+      setHolidayWarning({ 
+        date: dateString, 
+        reason: `Phòng khám nghỉ vào ${getDayName(dayOfWeek)} hàng tuần`,
+        type: 'persistent'
+      });
+      return;
+    }
+    
+    // Check API day-offs (higher priority than local holidays)
     const apiDayOff = apiDaysOff.find(d => d.date === dateString);
     if (apiDayOff) {
       console.log('[Appointments] Found API day-off:', apiDayOff);
@@ -543,14 +647,30 @@ export default function AppointmentsPage() {
                 </div>
               </div>
 
-              <Button
-                onClick={() => setIsBookModalOpen(true)}
-                className="bg-white text-blue-600 hover:bg-white/90 shadow-xl hover:scale-105 transition-transform"
-                size="lg"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Đặt Lịch Mới
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    loadDaysOff(false); // Refresh day-offs
+                    setIsBookModalOpen(true);
+                  }}
+                  className="bg-white text-blue-600 hover:bg-white/90 shadow-xl hover:scale-105 transition-transform"
+                  size="lg"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Đặt Lịch Mới
+                </Button>
+                {lastDayOffUpdate && (
+                  <Button
+                    onClick={() => loadDaysOff(false)}
+                    variant="outline"
+                    className="bg-white/80 border-white/50 text-white hover:bg-white/90 hover:text-blue-600 shadow-lg"
+                    size="icon"
+                    title={`Cập nhật lần cuối: ${lastDayOffUpdate.toLocaleTimeString('vi-VN')}`}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loadingDaysOff ? 'animate-spin' : ''}`} />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -980,6 +1100,28 @@ export default function AppointmentsPage() {
 
               {/* Date & Time with Calendar */}
               <div className="space-y-4">
+                {/* Day-off Cache Status */}
+                {(lastDayOffUpdate || apiDaysOff.length > 0) && (
+                  <div className="flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${loadingDaysOff ? 'bg-blue-500' : 'bg-green-500'} animate-pulse`}></span>
+                      <span>
+                        {apiDaysOff.length > 0 ? `${apiDaysOff.length} ngày nghỉ` : 'Không có ngày nghỉ'}
+                        {lastDayOffUpdate && ` • Cập nhật ${lastDayOffUpdate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadDaysOff(false)}
+                      disabled={loadingDaysOff}
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${loadingDaysOff ? 'animate-spin' : ''}`} />
+                      {loadingDaysOff ? 'Đang tải...' : 'Làm mới'}
+                    </button>
+                  </div>
+                )}
+                
                 {/* Day-off Information Banner */}
                 {apiDaysOff.length > 0 && (() => {
                   const currentMonthDaysOff = apiDaysOff.filter(d => {
@@ -1077,17 +1219,25 @@ export default function AppointmentsPage() {
                         const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
                         const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                         const isDayOff = apiDaysOff.some(d => d.date === dateStr);
+                        const isPersistentOff = isPersistentDayOff(new Date(dateStr)  );
+                        const isBlocked = isDayOff || isPersistentOff;
                         
                         return (
                           <button
                             key={idx}
                             type="button"
-                            onClick={() => !isPast && !isDayOff && handleDateSelect(date)}
-                            disabled={isPast || isDayOff}
-                            title={isDayOff ? 'Phòng khám nghỉ trong ngày này' : ''}
+                            onClick={() => !isPast && !isBlocked && handleDateSelect(date)}
+                            disabled={isPast || isBlocked}
+                            title={
+                              isBlocked 
+                                ? (isPersistentOff 
+                                    ? `Phòng khám nghỉ vào ${getDayName(date.getDay())} hàng tuần` 
+                                    : 'Phòng khám nghỉ trong ngày này')
+                                : ''
+                            }
                             className={`
                               aspect-square p-1 rounded-lg text-sm font-medium transition-all relative
-                              ${isDayOff
+                              ${isBlocked
                                 ? 'bg-red-100 text-red-400 cursor-not-allowed border-2 border-red-300 line-through' 
                                 : isPast
                                   ? 'text-gray-300 cursor-not-allowed bg-gray-50'
@@ -1101,8 +1251,8 @@ export default function AppointmentsPage() {
                           >
                             <div className="flex flex-col items-center justify-center h-full">
                               <span>{date.getDate()}</span>
-                              {isToday && !isDayOff && <span className="text-[8px]">Hôm nay</span>}
-                              {isDayOff && <span className="text-[10px]">🚫</span>}
+                              {isToday && !isBlocked && <span className="text-[8px]">Hôm nay</span>}
+                              {isBlocked && <span className="text-[10px]">{isPersistentOff ? '🔒' : '🚫'}</span>}
                             </div>
                           </button>
                         );
@@ -1267,7 +1417,13 @@ export default function AppointmentsPage() {
                         <p className="text-red-600">
                           📅 <strong>Lý do:</strong> {holidayWarning.reason}
                         </p>
-                        {holidayWarning.type === 'api' ? (
+                        {holidayWarning.type === 'persistent' ? (
+                          <p className="text-red-700 font-medium bg-red-100 p-2 rounded">
+                            🔒 Phòng khám nghỉ vào ngày này hàng tuần theo cài đặt hệ thống.
+                            <br />
+                            <span className="text-sm">Đây là lịch nghỉ cố định (persistent day-off).</span>
+                          </p>
+                        ) : holidayWarning.type === 'api' ? (
                           <p className="text-red-700 font-medium bg-red-100 p-2 rounded">
                             🏥 Phòng khám nghỉ vào ngày này theo lịch quản lý đã thiết lập.
                             <br />
