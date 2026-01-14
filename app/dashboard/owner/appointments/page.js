@@ -12,10 +12,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
+import {
   Calendar, Plus, X, Eye, Clock, CheckCircle, XCircle,
-  User, Stethoscope, DollarSign, Sparkles, CalendarCheck, CalendarX, Heart,
-  ChevronLeft, ChevronRight, Users
+  User, Stethoscope, DollarSign, Sparkles, CalendarCheck, CalendarX, Heart
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,12 +24,13 @@ import apiClient from "@/lib/api/client";
 import { useToast } from "@/lib/contexts/ToastContext";
 import { appointmentApi } from "@/lib/api";
 import DateRangeFilter from "@/components/ui/DateRangeFilter";
+import { getHolidayInfo } from "@/lib/utils/holidayUtils";
 
 export default function AppointmentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
@@ -41,7 +41,8 @@ export default function AppointmentsPage() {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  
+  const [holidayWarning, setHolidayWarning] = useState(null);
+
   // For booking form
   const [pets, setPets] = useState([]);
   const [services, setServices] = useState([]);
@@ -56,12 +57,6 @@ export default function AppointmentsPage() {
     notes: ""
   });
   const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes } }
-  const [availableEmployees, setAvailableEmployees] = useState([]);
-  // const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-  const [employeeAvailability, setEmployeeAvailability] = useState([]);
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const filterTabs = [
     { value: "all", label: "Tất cả", icon: "📋", gradient: "from-purple-500 to-pink-500" },
@@ -120,12 +115,12 @@ export default function AppointmentsPage() {
         apiClient.get('/services'),
         apiClient.get('/employees').catch(() => ({ data: [] }))
       ]);
-      
+
       setPets(petsRes.data || petsRes || []);
       setServices(servicesRes.data || servicesRes || []);
       const employeesData = employeesRes.data || employeesRes || [];
       setEmployees(employeesData);
-      
+
       if (employeesData.length > 0 && !bookingForm.employeeId) {
         const firstEmployeeId = employeesData[0].employeeId || employeesData[0].id;
         setBookingForm(prev => ({ ...prev, employeeId: firstEmployeeId?.toString() || "" }));
@@ -135,74 +130,12 @@ export default function AppointmentsPage() {
     }
   };
 
-  const loadAvailableEmployees = async (date, time) => {
-    if (!date) return;
-    
-    try {
-      setLoadingAvailability(true);
-      const params = { date };
-      if (time) params.startTime = time;
-      
-      const response = await apiClient.get('schedules/available/employees', { params });
-      const data = response.data || response || [];
-      setAvailableEmployees(data);
-    } catch (error) {
-      console.error("Error loading available employees:", error);
-      setAvailableEmployees([]);
-    } finally {
-      setLoadingAvailability(false);
-    }
-  };
-
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
-    const days = [];
-    
-    // Add empty cells for days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-    
-    // Add all days in month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
-    }
-    
-    return days;
-  };
-
-  const handleDateSelect = async (date) => {
-    if (!date || date < new Date().setHours(0, 0, 0, 0)) return;
-    
-    // Format date in local timezone to avoid timezone shift
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    
-    setSelectedDate(date);
-    setBookingForm(prev => ({ ...prev, appointmentDate: dateStr }));
-    await loadAvailableEmployees(dateStr, bookingForm.startTime);
-  };
-
-  useEffect(() => {
-    if (bookingForm.appointmentDate && bookingForm.startTime) {
-      loadAvailableEmployees(bookingForm.appointmentDate, bookingForm.startTime);
-    }
-  }, [bookingForm.startTime]);
-
   const filterAppointments = () => {
     let filtered = appointments;
 
     // Status filter
     if (filter === "upcoming") {
-      filtered = filtered.filter(apt => 
+      filtered = filtered.filter(apt =>
         apt.status === 'PENDING' || apt.status === 'CONFIRMED'
       );
     } else if (filter === "completed") {
@@ -222,7 +155,7 @@ export default function AppointmentsPage() {
     }
 
     filtered.sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
-    
+
     setFilteredAppointments(filtered);
   };
 
@@ -230,54 +163,18 @@ export default function AppointmentsPage() {
     setDateRange({ start, end });
   };
 
-  const loadEmployeeAvailability = async (employeeId, date) => {
-    if (!employeeId || !date) {
-      setEmployeeAvailability([]);
-      return;
-    }
-
-    try {
-      setLoadingAvailability(true);
-      const response = await apiClient.get(`/employees/${employeeId}/availability`, {
-        params: { date }
-      });
-      const slots = response.data || response || [];
-      setEmployeeAvailability(slots);
-    } catch (error) {
-      console.error("Error loading availability:", error);
-      // If API doesn't exist, generate default time slots
-      const defaultSlots = generateDefaultTimeSlots();
-      setEmployeeAvailability(defaultSlots);
-    } finally {
-      setLoadingAvailability(false);
-    }
-  };
-
-  const generateDefaultTimeSlots = () => {
-    const slots = [];
-    for (let hour = 8; hour < 18; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push({
-          time,
-          available: true,
-          isBooked: false
-        });
-      }
-    }
-    return slots;
-  };
-
-  useEffect(() => {
-    if (bookingForm.employeeId && bookingForm.appointmentDate) {
-      loadEmployeeAvailability(bookingForm.employeeId, bookingForm.appointmentDate);
+  // Check if selected date is a holiday
+  const checkSelectedDate = (dateString) => {
+    const holidayInfo = getHolidayInfo(dateString);
+    if (holidayInfo.isHoliday) {
+      setHolidayWarning({ date: dateString, reason: holidayInfo.reason });
     } else {
-      setEmployeeAvailability([]);
+      setHolidayWarning(null);
     }
-  }, [bookingForm.employeeId, bookingForm.appointmentDate]);
+  };
 
   const getStats = () => {
-    const upcoming = appointments.filter(apt => 
+    const upcoming = appointments.filter(apt =>
       apt.status === 'PENDING' || apt.status === 'CONFIRMED'
     ).length;
     const completed = appointments.filter(apt => apt.status === 'COMPLETED').length;
@@ -307,20 +204,17 @@ export default function AppointmentsPage() {
         quantity: data.quantity,
         notes: data.notes || undefined
       }));
-      
+
       const totalDuration = servicesArray.reduce((total, item) => {
         const service = services.find(s => (s.serviceId || s.id) === item.serviceId);
         return total + ((service?.estimatedDuration || service?.duration || 60) * item.quantity);
       }, 0);
-      
+
       const [hours, minutes] = bookingForm.startTime.split(':');
       const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
       const endMinutes = startMinutes + totalDuration;
-      
-      // Cap endTime at 23:59 to avoid invalid time format
-      const cappedEndMinutes = Math.min(endMinutes, 23 * 60 + 59);
-      const endHour = Math.floor(cappedEndMinutes / 60);
-      const endMin = cappedEndMinutes % 60;
+      const endHour = Math.floor(endMinutes / 60);
+      const endMin = endMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
 
       const payload = {
@@ -332,10 +226,6 @@ export default function AppointmentsPage() {
         endTime: endTime,
         notes: bookingForm.notes || null
       };
-
-      console.log('📦 Booking payload:', payload);
-      console.log('📦 Selected services:', selectedServices);
-      console.log('📦 Services array:', servicesArray);
 
       await apiClient.post('/appointments', payload);
 
@@ -393,9 +283,9 @@ export default function AppointmentsPage() {
     try {
       setCancelling(true);
       const appointmentId = selectedAppointment.appointmentId || selectedAppointment.id;
-      
+
       await appointmentApi.cancel(appointmentId, cancelReason.trim());
-      
+
       showToast("Đã hủy lịch hẹn thành công!", "success");
       setIsCancelModalOpen(false);
       setSelectedAppointment(null);
@@ -425,9 +315,9 @@ export default function AppointmentsPage() {
           </div>
           <p className="text-gray-600 text-lg mt-4 font-medium">Đang tải lịch hẹn...</p>
           <div className="flex justify-center gap-1 mt-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
           </div>
         </div>
       </div>
@@ -439,11 +329,11 @@ export default function AppointmentsPage() {
       {/* 🌈 Premium Gradient Header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500"></div>
-        
+
         {/* Floating decorations */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {[...Array(6)].map((_, i) => (
-            <span 
+            <span
               key={i}
               className="absolute text-white/10 text-3xl animate-float"
               style={{
@@ -493,7 +383,7 @@ export default function AppointmentsPage() {
         {/* 📊 Premium Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white border-0 shadow-xl hover:scale-105 transition-transform cursor-pointer"
-                onClick={() => setFilter('upcoming')}>
+            onClick={() => setFilter('upcoming')}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -507,7 +397,7 @@ export default function AppointmentsPage() {
           </Card>
 
           <Card className="bg-gradient-to-br from-green-500 to-emerald-500 text-white border-0 shadow-xl hover:scale-105 transition-transform cursor-pointer"
-                onClick={() => setFilter('completed')}>
+            onClick={() => setFilter('completed')}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -521,7 +411,7 @@ export default function AppointmentsPage() {
           </Card>
 
           <Card className="bg-gradient-to-br from-red-500 to-pink-500 text-white border-0 shadow-xl hover:scale-105 transition-transform cursor-pointer"
-                onClick={() => setFilter('cancelled')}>
+            onClick={() => setFilter('cancelled')}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -535,7 +425,7 @@ export default function AppointmentsPage() {
           </Card>
 
           <Card className="bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 shadow-xl hover:scale-105 transition-transform cursor-pointer"
-                onClick={() => setFilter('all')}>
+            onClick={() => setFilter('all')}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -557,19 +447,18 @@ export default function AppointmentsPage() {
               onClick={() => setFilter(tab.value)}
               className={`
                 flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all duration-300
-                ${filter === tab.value 
-                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105` 
+                ${filter === tab.value
+                  ? `bg-gradient-to-r ${tab.gradient} text-white shadow-lg scale-105`
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200 shadow-sm'}
               `}
             >
               <span className="text-xl">{tab.icon}</span>
               <span>{tab.label}</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                filter === tab.value ? 'bg-white/30' : 'bg-gray-100'
-              }`}>
-                {tab.value === 'all' ? stats.total : 
-                 tab.value === 'upcoming' ? stats.upcoming :
-                 tab.value === 'completed' ? stats.completed : stats.cancelled}
+              <span className={`px-2 py-0.5 rounded-full text-xs ${filter === tab.value ? 'bg-white/30' : 'bg-gray-100'
+                }`}>
+                {tab.value === 'all' ? stats.total :
+                  tab.value === 'upcoming' ? stats.upcoming :
+                    tab.value === 'completed' ? stats.completed : stats.cancelled}
               </span>
             </button>
           ))}
@@ -596,20 +485,19 @@ export default function AppointmentsPage() {
             {filteredAppointments.map((apt, idx) => {
               const status = getStatusBadge(apt.status);
               const aptDate = new Date(apt.appointmentDate);
-              
+
               return (
-                <Card 
+                <Card
                   key={apt.appointmentId}
                   className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden"
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <div className="flex">
                     {/* Date Box */}
-                    <div className={`w-24 flex-shrink-0 bg-gradient-to-br ${
-                      apt.status === 'COMPLETED' ? 'from-green-500 to-emerald-500' :
+                    <div className={`w-24 flex-shrink-0 bg-gradient-to-br ${apt.status === 'COMPLETED' ? 'from-green-500 to-emerald-500' :
                       apt.status === 'CANCELLED' ? 'from-red-500 to-pink-500' :
-                      'from-blue-500 to-cyan-500'
-                    } flex flex-col items-center justify-center text-white py-6`}>
+                        'from-blue-500 to-cyan-500'
+                      } flex flex-col items-center justify-center text-white py-6`}>
                       <span className="text-3xl font-bold">{aptDate.getDate()}</span>
                       <span className="text-sm uppercase">{aptDate.toLocaleDateString('vi-VN', { month: 'short' })}</span>
                       <span className="text-xs mt-1 opacity-80">{aptDate.getFullYear()}</span>
@@ -697,18 +585,18 @@ export default function AppointmentsPage() {
                               </p>
                             </div>
                           )}
-                        {/* Cancel Button for pending/confirmed appointments */}
-                        {canCancelAppointment(apt) && (
-                          <Button
-                            onClick={() => handleOpenCancelModal(apt)}
-                            variant="outline"
-                            size="sm"
-                            className="mt-4 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Hủy lịch
-                          </Button>
-                        )}                        </div>
+                          {/* Cancel Button for pending/confirmed appointments */}
+                          {canCancelAppointment(apt) && (
+                            <Button
+                              onClick={() => handleOpenCancelModal(apt)}
+                              variant="outline"
+                              size="sm"
+                              className="mt-4 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Hủy lịch
+                            </Button>
+                          )}                        </div>
                       </div>
                     </CardContent>
                   </div>
@@ -724,7 +612,7 @@ export default function AppointmentsPage() {
                 {filter === "all" ? "Chưa có lịch hẹn" : "Không có lịch hẹn"}
               </h3>
               <p className="text-gray-500 mb-6">
-                {filter === "all" 
+                {filter === "all"
                   ? "Đặt lịch hẹn đầu tiên cho bé yêu của bạn!"
                   : "Không tìm thấy lịch hẹn phù hợp với bộ lọc"}
               </p>
@@ -788,7 +676,7 @@ export default function AppointmentsPage() {
                       <button
                         key={id}
                         type="button"
-                        onClick={() => setBookingForm({...bookingForm, petId: id})}
+                        onClick={() => setBookingForm({ ...bookingForm, petId: id })}
                         className={`
                           p-3 rounded-xl border-2 transition-all duration-200 text-left
                           ${bookingForm.petId === id
@@ -817,9 +705,8 @@ export default function AppointmentsPage() {
                     return (
                       <div
                         key={id}
-                        className={`border-2 rounded-lg p-3 transition-all ${
-                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                        }`}
+                        className={`border-2 rounded-lg p-3 transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           <input
@@ -848,7 +735,7 @@ export default function AppointmentsPage() {
                                 {(service.basePrice || service.price || 0).toLocaleString('vi-VN')}đ
                               </div>
                             </label>
-                            
+
                             {isSelected && (
                               <div className="mt-2 space-y-2 pt-2 border-t border-blue-200">
                                 <div className="flex items-center gap-2">
@@ -891,7 +778,7 @@ export default function AppointmentsPage() {
                     );
                   })}
                 </div>
-                
+
                 {/* Tổng chi phí */}
                 {Object.keys(selectedServices).length > 0 && (
                   <div className="p-3 rounded-xl bg-blue-50 border-2 border-blue-200">
@@ -913,241 +800,75 @@ export default function AppointmentsPage() {
                 )}
               </div>
 
-              {/* Date & Time with Calendar */}
-              <div className="space-y-4">
-                {/* Calendar Header */}
+              {/* Doctor Selection */}
+              <div className="space-y-2">
+                <label className="text-base font-semibold flex items-center gap-2">
+                  👨‍⚕️ Chọn bác sĩ
+                </label>
+                <select
+                  value={bookingForm.employeeId}
+                  onChange={(e) => setBookingForm({ ...bookingForm, employeeId: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-colors"
+                  required
+                >
+                  <option value="">-- Chọn bác sĩ --</option>
+                  {employees.map((emp) => {
+                    const id = emp.employeeId || emp.id;
+                    return (
+                      <option key={id} value={id}>
+                        {emp.fullName || emp.name || `Bác sĩ #${id}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-base font-semibold flex items-center gap-2">
-                    📅 Chọn ngày hẹn
+                    📅 Ngày hẹn
                   </label>
-                  
-                  {/* Month Navigation */}
-                  <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-xl border-2 border-blue-200">
-                    <button
-                      type="button"
-                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
-                      className="p-2 hover:bg-white rounded-lg transition-colors"
-                    >
-                      <ChevronLeft className="h-5 w-5 text-blue-600" />
-                    </button>
-                    <h3 className="font-bold text-blue-700">
-                      Tháng {calendarMonth.getMonth() + 1}, {calendarMonth.getFullYear()}
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
-                      className="p-2 hover:bg-white rounded-lg transition-colors"
-                    >
-                      <ChevronRight className="h-5 w-5 text-blue-600" />
-                    </button>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className="border-2 border-gray-200 rounded-xl p-3 bg-white">
-                    {/* Day headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(day => (
-                        <div key={day} className="text-center text-xs font-semibold text-gray-500 py-1">
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Calendar days */}
-                    <div className="grid grid-cols-7 gap-1">
-                      {getDaysInMonth(calendarMonth).map((date, idx) => {
-                        if (!date) {
-                          return <div key={`empty-${idx}`} className="aspect-square" />;
-                        }
-                        
-                        const isToday = date.toDateString() === new Date().toDateString();
-                        const isPast = date < new Date().setHours(0, 0, 0, 0);
-                        const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
-                        const dateStr = date.toISOString().split('T')[0];
-                        
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => !isPast && handleDateSelect(date)}
-                            disabled={isPast}
-                            className={`
-                              aspect-square p-1 rounded-lg text-sm font-medium transition-all
-                              ${isPast 
-                                ? 'text-gray-300 cursor-not-allowed' 
-                                : isSelected
-                                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-110'
-                                  : isToday
-                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                    : 'hover:bg-gray-100 text-gray-700'
-                              }
-                            `}
-                          >
-                            <div className="flex flex-col items-center justify-center h-full">
-                              <span>{date.getDate()}</span>
-                              {isToday && <span className="text-[8px]">Hôm nay</span>}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <Input
+                    type="date"
+                    value={bookingForm.appointmentDate}
+                    onChange={(e) => {
+                      setBookingForm({ ...bookingForm, appointmentDate: e.target.value });
+                      checkSelectedDate(e.target.value);
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    className={`h-12 rounded-xl border-2 focus:border-blue-500 ${holidayWarning ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                      }`}
+                    required
+                  />
                 </div>
-
-                {/* Time Selection */}
-                {/* <div className="space-y-2">
+                <div className="space-y-2">
                   <label className="text-base font-semibold flex items-center gap-2">
                     🕐 Giờ hẹn
                   </label>
                   <Input
                     type="time"
                     value={bookingForm.startTime}
-                    onChange={(e) => setBookingForm({...bookingForm, startTime: e.target.value})}
+                    onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
                     className="h-12 rounded-xl border-2 border-gray-200 focus:border-blue-500"
                     required
                   />
-                </div> */}
-
-                {/* Available Employees Display */}
-                {bookingForm.appointmentDate && (
-                  <div className="space-y-2">
-                    <label className="text-base font-semibold flex items-center gap-2">
-                      <Users className="h-5 w-5 text-blue-500" />
-                      Bác sĩ có sẵn ({availableEmployees.length})
-                    </label>
-                    
-                    {loadingAvailability ? (
-                      <div className="flex items-center justify-center p-6 bg-gray-50 rounded-xl">
-                        <div className="text-center">
-                          <Clock className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Đang kiểm tra lịch trống...</p>
-                        </div>
-                      </div>
-                    ) : availableEmployees.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-gray-50 rounded-xl border border-gray-200">
-                        {availableEmployees.map((emp) => {
-                          const id = (emp.employeeId || emp.id)?.toString();
-                          const isSelected = bookingForm.employeeId === id;
-                          return (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => setBookingForm({...bookingForm, employeeId: id})}
-                              className={`
-                                p-3 rounded-lg border-2 transition-all text-left
-                                ${isSelected
-                                  ? "border-blue-500 bg-blue-50 shadow-md"
-                                  : "border-gray-200 hover:border-blue-300 bg-white"}
-                              `}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-gray-800 text-sm truncate">
-                                    {emp.fullName || emp.name}
-                                  </div>
-                                  <div className="text-xs text-gray-500 truncate">
-                                    {emp.specialization || 'Bác sĩ'}
-                                  </div>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-6 bg-amber-50 rounded-xl border-2 border-amber-200 text-center">
-                        <CalendarX className="h-12 w-12 text-amber-500 mx-auto mb-2" />
-                        <p className="font-semibold text-amber-700">Không có bác sĩ trống</p>
-                        <p className="text-sm text-amber-600 mt-1">
-                          Vui lòng chọn ngày hoặc giờ khác
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                </div>
               </div>
 
-              {/* Available Time Slots Calendar */}
-              {bookingForm.employeeId && bookingForm.appointmentDate && (
-                <div className="space-y-2">
-                  <label className="text-base font-semibold flex items-center gap-2">
-                    📅 Lịch trống của bác sĩ
-                  </label>
-                  
-                  {loadingAvailability ? (
-                    <div className="text-center py-8">
-                      <div className="inline-block animate-spin text-4xl mb-2">⏰</div>
-                      <p className="text-gray-500">Đang tải lịch trống...</p>
-                    </div>
-                  ) : employeeAvailability.length > 0 ? (
-                    <div className="border-2 border-gray-200 rounded-xl p-4 bg-gradient-to-br from-blue-50 to-cyan-50">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-sm text-gray-600">
-                          🗓️ {new Date(bookingForm.appointmentDate).toLocaleDateString('vi-VN', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                        </p>
-                        <div className="flex gap-2 text-xs">
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                            Còn trống
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-3 rounded-full bg-gray-300"></span>
-                            Đã đặt
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-                        {employeeAvailability.map((slot) => {
-                          const isSelected = bookingForm.startTime === slot.time;
-                          const isAvailable = slot.available !== false && !slot.isBooked;
-                          
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              onClick={() => {
-                                if (isAvailable) {
-                                  setBookingForm({...bookingForm, startTime: slot.time});
-                                }
-                              }}
-                              disabled={!isAvailable}
-                              className={`
-                                p-2 rounded-lg font-semibold text-sm transition-all duration-200
-                                ${isSelected 
-                                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-105 ring-2 ring-blue-300' 
-                                  : isAvailable
-                                    ? 'bg-white border-2 border-green-500 text-green-700 hover:bg-green-50 hover:scale-105'
-                                    : 'bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
-                                }
-                              `}
-                            >
-                              {slot.time}
-                              {isSelected && <span className="ml-1">✓</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      
-                      {employeeAvailability.filter(s => s.available !== false && !s.isBooked).length === 0 && (
-                        <div className="text-center py-4">
-                          <p className="text-gray-500">❌ Không có lịch trống trong ngày này</p>
-                          <p className="text-sm text-gray-400">Vui lòng chọn ngày khác</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center text-gray-400">
-                      <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Chọn bác sĩ và ngày hẹn để xem lịch trống</p>
-                    </div>
-                  )}
+              {/* Holiday Warning */}
+              {holidayWarning && (
+                <div className="p-4 bg-red-50 border-2 border-red-300 rounded-xl animate-pulse">
+                  <div className="flex items-center gap-2 font-bold text-red-700">
+                    <span className="text-2xl">⚠️</span>
+                    <span>Không thể đặt lịch vào ngày này!</span>
+                  </div>
+                  <p className="mt-2 text-red-600 pl-8">
+                    📅 <strong>Lý do:</strong> {holidayWarning.reason}
+                  </p>
+                  <p className="mt-1 text-red-500 text-sm pl-8">
+                    Vui lòng chọn ngày khác để tiếp tục đặt lịch.
+                  </p>
                 </div>
               )}
 
@@ -1158,7 +879,7 @@ export default function AppointmentsPage() {
                 </label>
                 <textarea
                   value={bookingForm.notes}
-                  onChange={(e) => setBookingForm({...bookingForm, notes: e.target.value})}
+                  onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
                   placeholder="Triệu chứng, yêu cầu đặc biệt..."
                   rows={3}
                   className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-colors"
@@ -1184,10 +905,14 @@ export default function AppointmentsPage() {
               <Button
                 type="submit"
                 onClick={handleBookAppointment}
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl shadow-lg"
+                disabled={!!holidayWarning}
+                className={`rounded-xl shadow-lg ${holidayWarning
+                    ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                    : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
+                  }`}
               >
                 <Heart className="h-4 w-4 mr-2 fill-white" />
-                Đặt Lịch Ngay! 🎉
+                {holidayWarning ? 'Chọn ngày khác' : 'Đặt Lịch Ngay! 🎉'}
               </Button>
             </div>
           </Card>
