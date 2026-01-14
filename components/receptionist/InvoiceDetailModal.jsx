@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,16 @@ import {
   MapPin,
   Receipt
 } from "lucide-react";
-import { invoiceApi, paymentApi, appointmentApi, petOwnerApi, petApi } from "@/lib/api";
+import { invoiceApi, appointmentApi } from "@/lib/api";
 import apiClient from "@/lib/api/client";
 
 export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
   const [invoice, setInvoice] = useState(null);
   const [cageAssignment, setCageAssignment] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const printContentRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && invoiceId) {
@@ -94,37 +97,275 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
-  const handlePrint = async () => {
-    if (invoice?.payments?.[0]?.paymentId) {
-      try {
-        const response = await paymentApi.generateReceipt(invoice.payments[0].paymentId);
-        if (response.success) {
-          window.print();
-        }
-      } catch (error) {
-        console.error(error);
-        alert("Lỗi khi in biên nhận");
-      }
-    }
-  };
+  // Generate printable HTML content
+  const generatePrintableContent = useCallback(() => {
+    if (!invoice) return '';
+    
+    const isPaid = invoice.status === 'PAID';
+    const otherFees = (Number(invoice.totalAmount) || 0) - (Number(invoice.subtotal) || 0) + (Number(invoice.discount) || 0) - (Number(invoice.tax) || 0);
+    const displayedTax = Number(invoice.tax) || 0;
+    const showOtherFees = otherFees > 1000;
+    
+    const servicesHtml = invoice.services?.length > 0 
+      ? invoice.services.map((service, idx) => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee;">${service.serviceName || service.name || 'Dịch vụ'}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(Number(service.basePrice) || 0)}</td>
+        </tr>
+      `).join('')
+      : `<tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee;">${invoice.appointment?.service?.serviceName || 'Dịch vụ'}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(invoice.subtotal - (cageAssignment?.totalCost || 0))}</td>
+        </tr>`;
 
-  const handleDownloadPDF = async () => {
+    const cageHtml = cageAssignment ? `
+      <tr style="background-color: #f3e8ff;">
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">🏠 Phí lưu trú chuồng ${cageAssignment.cage?.cageNumber || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(cageAssignment.totalCost || 0)}</td>
+      </tr>
+    ` : '';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Hóa đơn ${invoice.invoiceNumber}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #10b981; padding-bottom: 20px; }
+          .logo { font-size: 24px; font-weight: bold; color: #10b981; }
+          .invoice-title { font-size: 20px; margin-top: 10px; color: #333; }
+          .invoice-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .info-box { background: #f9fafb; padding: 15px; border-radius: 8px; flex: 1; margin: 0 5px; }
+          .info-box h3 { font-size: 14px; color: #6b7280; margin-bottom: 8px; }
+          .info-box p { font-size: 14px; color: #111827; margin: 4px 0; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+          .status-paid { background: #d1fae5; color: #065f46; }
+          .status-pending { background: #fef3c7; color: #92400e; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th { background: #f3f4f6; padding: 10px; text-align: left; font-weight: 600; }
+          .total-row { font-weight: bold; font-size: 16px; background: #ecfdf5; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🐾 PAW LOVERS</div>
+          <div class="invoice-title">HÓA ĐƠN DỊCH VỤ</div>
+          <p style="color: #6b7280; margin-top: 5px;">Pet Care System</p>
+        </div>
+
+        <div class="invoice-info">
+          <div class="info-box">
+            <h3>Thông tin hóa đơn</h3>
+            <p><strong>Mã HĐ:</strong> ${invoice.invoiceNumber}</p>
+            <p><strong>Ngày:</strong> ${formatDate(invoice.issueDate)}</p>
+            <p><strong>Trạng thái:</strong> <span class="status-badge ${isPaid ? 'status-paid' : 'status-pending'}">${isPaid ? 'Đã thanh toán' : 'Chờ thanh toán'}</span></p>
+          </div>
+          <div class="info-box">
+            <h3>Khách hàng</h3>
+            <p><strong>Họ tên:</strong> ${invoice.petOwner?.fullName || 'N/A'}</p>
+            <p><strong>SĐT:</strong> ${invoice.petOwner?.phoneNumber || 'N/A'}</p>
+            <p><strong>Địa chỉ:</strong> ${invoice.petOwner?.address || 'N/A'}</p>
+          </div>
+          <div class="info-box">
+            <h3>Thú cưng</h3>
+            <p><strong>Tên:</strong> ${invoice.appointment?.pet?.name || 'N/A'}</p>
+            <p><strong>Loài:</strong> ${invoice.appointment?.pet?.species || 'N/A'}</p>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Dịch vụ</th>
+              <th style="text-align: right;">Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${servicesHtml}
+            ${cageHtml}
+            <tr>
+              <td style="padding: 8px;">Tạm tính</td>
+              <td style="padding: 8px; text-align: right;">${formatCurrency(invoice.subtotal)}</td>
+            </tr>
+            ${Number(invoice.discount) > 0 ? `
+            <tr style="color: #d97706;">
+              <td style="padding: 8px;">🏷️ Giảm giá</td>
+              <td style="padding: 8px; text-align: right;">-${formatCurrency(invoice.discount)}</td>
+            </tr>` : ''}
+            ${displayedTax > 0 ? `
+            <tr>
+              <td style="padding: 8px;">📋 Thuế (10%)</td>
+              <td style="padding: 8px; text-align: right;">+${formatCurrency(displayedTax)}</td>
+            </tr>` : ''}
+            ${showOtherFees ? `
+            <tr>
+              <td style="padding: 8px;">📦 Phí khác</td>
+              <td style="padding: 8px; text-align: right;">+${formatCurrency(otherFees)}</td>
+            </tr>` : ''}
+            <tr class="total-row">
+              <td style="padding: 12px;">TỔNG THANH TOÁN</td>
+              <td style="padding: 12px; text-align: right; color: #059669;">${formatCurrency(invoice.totalAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${invoice.payments?.length > 0 ? `
+        <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-top: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Thông tin thanh toán</h3>
+          <p><strong>Phương thức:</strong> ${invoice.payments[0].paymentMethod === 'CASH' ? 'Tiền mặt' : invoice.payments[0].paymentMethod === 'VNPAY' ? 'VNPay' : invoice.payments[0].paymentMethod}</p>
+          <p><strong>Số tiền:</strong> ${formatCurrency(invoice.payments[0].amount)}</p>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          <p>Cảm ơn quý khách đã sử dụng dịch vụ của PAW LOVERS!</p>
+          <p>Hotline: 1900-XXXX | Email: support@pawlovers.vn</p>
+        </div>
+      </body>
+      </html>
+    `;
+  }, [invoice, cageAssignment, formatCurrency, formatDate]);
+
+  // Handle Print - Opens new window with printable content
+  const handlePrint = useCallback(() => {
+    if (!invoice) return;
+    
+    setIsPrinting(true);
+    
     try {
-      const response = await invoiceApi.generatePdf(invoiceId);
-      if (response?.success && response?.data) {
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `${invoice.invoiceNumber}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+      const printContent = generatePrintableContent();
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        // Wait for content to load then print
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+          // Close after print dialog is closed
+          printWindow.onafterprint = () => printWindow.close();
+        };
+        
+        // Fallback for browsers that don't support onafterprint
+        setTimeout(() => {
+          if (!printWindow.closed) {
+            printWindow.print();
+          }
+        }, 500);
       }
     } catch (error) {
-      console.error(error);
-      alert("Lỗi khi xuất PDF");
+      console.error('Print error:', error);
+      alert('Lỗi khi in hóa đơn');
+    } finally {
+      setIsPrinting(false);
     }
-  };
+  }, [invoice, generatePrintableContent]);
+
+  // Handle PDF Download - Uses html2canvas + jspdf with fallback
+  const handleDownloadPDF = useCallback(async () => {
+    if (!invoice) return;
+    
+    setIsGeneratingPdf(true);
+    
+    try {
+      // Try using html2canvas and jspdf
+      let html2canvas;
+      let jsPDF;
+      
+      // Try to import html2canvas (try original first, then pro version)
+      try {
+        const html2canvasModule = await import('html2canvas');
+        html2canvas = html2canvasModule.default;
+      } catch (e1) {
+        try {
+          const html2canvasProModule = await import('html2canvas-pro');
+          html2canvas = html2canvasProModule.default;
+        } catch (e2) {
+          throw new Error('Could not load html2canvas library');
+        }
+      }
+      
+      // Import jsPDF
+      try {
+        const jspdfModule = await import('jspdf');
+        jsPDF = jspdfModule.jsPDF;
+      } catch (e) {
+        throw new Error('Could not load jsPDF library');
+      }
+      
+      // Create a hidden container for rendering
+      const container = document.createElement('div');
+      container.innerHTML = generatePrintableContent();
+      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 800px; background-color: white; padding: 20px;';
+      document.body.appendChild(container);
+      
+      // Wait a bit for DOM to render
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Wait for fonts to load
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      
+      // Generate canvas from HTML
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 800,
+        windowHeight: container.scrollHeight,
+      });
+      
+      // Remove the temporary container
+      document.body.removeChild(container);
+      
+      // Create PDF
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      
+      // Add image to PDF (handle multiple pages if content is long)
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      while (heightLeft > 0) {
+        position = -pageHeight + (imgHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      // Download the PDF
+      const fileName = `${invoice.invoiceNumber || 'hoa-don'}.pdf`;
+      pdf.save(fileName);
+      
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      // Fallback: open print dialog (user can save as PDF)
+      try {
+        handlePrint();
+        alert('Lỗi khi tạo PDF. Vui lòng sử dụng tính năng "Save as PDF" trong hộp thoại in.');
+      } catch (printError) {
+        alert('Lỗi khi tạo PDF. Vui lòng thử lại.');
+      }
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [invoice, generatePrintableContent, handlePrint]);
 
   const isPaid = invoice?.status === 'PAID';
   const otherFees = (Number(invoice?.totalAmount) || 0) - (Number(invoice?.subtotal) || 0) + (Number(invoice?.discount) || 0) - (Number(invoice?.tax) || 0);
@@ -143,18 +384,32 @@ export default function InvoiceDetailModal({ isOpen, onClose, invoiceId }) {
             <span>Chi tiết hóa đơn</span>
             {invoice && (
               <div className="flex gap-2">
-                {isPaid && (
-                  <>
-                    <Button onClick={handlePrint} variant="outline" size="sm">
-                      <Printer className="w-4 h-4 mr-2" />
-                      In
-                    </Button>
-                    <Button onClick={handleDownloadPDF} size="sm" className="bg-gradient-to-r from-violet-500 to-purple-600">
-                      <Download className="w-4 h-4 mr-2" />
-                      PDF
-                    </Button>
-                  </>
-                )}
+                <Button 
+                  onClick={handlePrint} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={isPrinting}
+                >
+                  {isPrinting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4 mr-2" />
+                  )}
+                  In
+                </Button>
+                <Button 
+                  onClick={handleDownloadPDF} 
+                  size="sm" 
+                  className="bg-gradient-to-r from-violet-500 to-purple-600"
+                  disabled={isGeneratingPdf}
+                >
+                  {isGeneratingPdf ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  PDF
+                </Button>
               </div>
             )}
           </DialogTitle>
