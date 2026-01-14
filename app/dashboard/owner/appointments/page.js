@@ -94,6 +94,22 @@ export default function AppointmentsPage() {
     }
   }, [services, searchParams]);
 
+  // Re-check holiday whenever appointmentDate changes
+  useEffect(() => {
+    if (bookingForm.appointmentDate) {
+      console.log('[useEffect] Re-checking holiday for date:', bookingForm.appointmentDate);
+      const holidayInfo = getHolidayInfo(bookingForm.appointmentDate);
+      console.log('[useEffect] Holiday check result:', holidayInfo);
+      if (holidayInfo.isHoliday) {
+        setHolidayWarning({ date: bookingForm.appointmentDate, reason: holidayInfo.reason });
+      } else {
+        setHolidayWarning(null);
+      }
+    } else {
+      setHolidayWarning(null);
+    }
+  }, [bookingForm.appointmentDate]);
+
   const loadAppointments = async () => {
     try {
       setLoading(true);
@@ -165,7 +181,9 @@ export default function AppointmentsPage() {
 
   // Check if selected date is a holiday
   const checkSelectedDate = (dateString) => {
+    console.log('[Appointments] Checking date for holiday:', dateString);
     const holidayInfo = getHolidayInfo(dateString);
+    console.log('[Appointments] Holiday info result:', holidayInfo);
     if (holidayInfo.isHoliday) {
       setHolidayWarning({ date: dateString, reason: holidayInfo.reason });
     } else {
@@ -241,6 +259,7 @@ export default function AppointmentsPage() {
         notes: ""
       });
       setSelectedServices({});
+      setHolidayWarning(null);
       loadAppointments();
     } catch (error) {
       console.error("Error booking appointment:", error);
@@ -652,6 +671,7 @@ export default function AppointmentsPage() {
                   onClick={() => {
                     setIsBookModalOpen(false);
                     setBookingStep(1);
+                    setHolidayWarning(null);
                   }}
                   variant="ghost"
                   className="text-white hover:bg-white/20"
@@ -895,6 +915,7 @@ export default function AppointmentsPage() {
                 onClick={() => {
                   setIsBookModalOpen(false);
                   setBookingStep(1);
+                  setHolidayWarning(null);
                 }}
                 className="rounded-xl"
               >
@@ -907,8 +928,8 @@ export default function AppointmentsPage() {
                 onClick={handleBookAppointment}
                 disabled={!!holidayWarning}
                 className={`rounded-xl shadow-lg ${holidayWarning
-                    ? 'bg-gray-400 cursor-not-allowed text-gray-200'
-                    : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
+                  ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
                   }`}
               >
                 <Heart className="h-4 w-4 mr-2 fill-white" />
