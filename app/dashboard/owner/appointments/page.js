@@ -14,7 +14,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Calendar, Plus, X, Eye, Clock, CheckCircle, XCircle,
-  User, Stethoscope, DollarSign, Sparkles, CalendarCheck, CalendarX, Heart
+  User, Stethoscope, DollarSign, Sparkles, CalendarCheck, CalendarX, Heart,
+  ChevronLeft, ChevronRight, Users
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export default function AppointmentsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [holidayWarning, setHolidayWarning] = useState(null);
   const [apiDaysOff, setApiDaysOff] = useState([]);
+  const [loadingDaysOff, setLoadingDaysOff] = useState(false);
 
   // For booking form
   const [pets, setPets] = useState([]);
@@ -58,6 +60,11 @@ export default function AppointmentsPage() {
     notes: ""
   });
   const [selectedServices, setSelectedServices] = useState({}); // { serviceId: { quantity, notes } }
+  const [availableEmployees, setAvailableEmployees] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [employeeAvailability, setEmployeeAvailability] = useState([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const filterTabs = [
     { value: "all", label: "Tất cả", icon: "📋", gradient: "from-purple-500 to-pink-500" },
@@ -144,6 +151,7 @@ export default function AppointmentsPage() {
 
   const loadDaysOff = async () => {
     try {
+      setLoadingDaysOff(true);
       // Fetch all day-offs from the API
       const response = await dayOffApi.getAll();
       if (response.success && response.data) {
@@ -153,8 +161,73 @@ export default function AppointmentsPage() {
     } catch (error) {
       console.error("Error loading day-offs:", error);
       // Silently fail - day-offs are optional
+    } finally {
+      setLoadingDaysOff(false);
     }
   };
+
+  const loadAvailableEmployees = async (date, time) => {
+    if (!date) return;
+    
+    try {
+      setLoadingAvailability(true);
+      const params = { date };
+      if (time) params.startTime = time;
+      
+      const response = await apiClient.get('schedules/available/employees', { params });
+      const data = response.data || response || [];
+      setAvailableEmployees(data);
+    } catch (error) {
+      console.error("Error loading available employees:", error);
+      setAvailableEmployees([]);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const days = [];
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    // Add all days in month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+    
+    return days;
+  };
+
+  const handleDateSelect = async (date) => {
+    if (!date || date < new Date().setHours(0, 0, 0, 0)) return;
+    
+    // Format date in local timezone to avoid timezone shift
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    setSelectedDate(date);
+    setBookingForm(prev => ({ ...prev, appointmentDate: dateStr }));
+    checkSelectedDate(dateStr);
+    await loadAvailableEmployees(dateStr, bookingForm.startTime);
+  };
+
+  useEffect(() => {
+    if (bookingForm.appointmentDate && bookingForm.startTime) {
+      loadAvailableEmployees(bookingForm.appointmentDate, bookingForm.startTime);
+    }
+  }, [bookingForm.startTime]);
 
   const filterAppointments = () => {
     let filtered = appointments;
@@ -189,11 +262,69 @@ export default function AppointmentsPage() {
     setDateRange({ start, end });
   };
 
-  // Check if selected date is a holiday or day-off
+  const loadEmployeeAvailability = async (employeeId, date) => {
+    if (!employeeId || !date) {
+      setEmployeeAvailability([]);
+      return;
+    }
+
+    try {
+      setLoadingAvailability(true);
+      const response = await apiClient.get(`/employees/${employeeId}/availability`, {
+        params: { date }
+      });
+      const slots = response.data || response || [];
+      setEmployeeAvailability(slots);
+    } catch (error) {
+      console.error("Error loading availability:", error);
+      // If API doesn't exist, generate default time slots
+      const defaultSlots = generateDefaultTimeSlots();
+      setEmployeeAvailability(defaultSlots);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  };
+
+  const generateDefaultTimeSlots = () => {
+    const slots = [];
+    for (let hour = 8; hour < 18; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push({
+          time,
+          available: true,
+          isBooked: false
+        });
+      }
+    }
+    return slots;
+  };
+
+  useEffect(() => {
+    if (bookingForm.employeeId && bookingForm.appointmentDate) {
+      loadEmployeeAvailability(bookingForm.employeeId, bookingForm.appointmentDate);
+    } else {
+      setEmployeeAvailability([]);
+    }
+  }, [bookingForm.employeeId, bookingForm.appointmentDate]);
+
+  /**
+   * Check if selected date is a holiday or day-off
+   * 
+   * Day-off Blocking Logic:
+   * 1. API day-offs (set by manager) have highest priority - these block all pet owner bookings
+   * 2. Local holiday settings (system-wide) also block bookings
+   * 3. Calendar UI visually disables day-off dates with red styling and 🚫 emoji
+   * 4. Submit button is disabled when a day-off date is selected
+   * 5. Warning message explains why booking is blocked and suggests selecting another date
+   * 
+   * Note: Only managers can create schedules on day-off dates. Pet owners are completely blocked.
+   */
   const checkSelectedDate = (dateString) => {
     console.log('[Appointments] Checking date for holiday/day-off:', dateString);
     
     // Check API day-offs first (higher priority)
+    // These are set by managers and override any other settings
     const apiDayOff = apiDaysOff.find(d => d.date === dateString);
     if (apiDayOff) {
       console.log('[Appointments] Found API day-off:', apiDayOff);
@@ -255,8 +386,11 @@ export default function AppointmentsPage() {
       const [hours, minutes] = bookingForm.startTime.split(':');
       const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
       const endMinutes = startMinutes + totalDuration;
-      const endHour = Math.floor(endMinutes / 60);
-      const endMin = endMinutes % 60;
+      
+      // Cap endTime at 23:59 to avoid invalid time format
+      const cappedEndMinutes = Math.min(endMinutes, 23 * 60 + 59);
+      const endHour = Math.floor(cappedEndMinutes / 60);
+      const endMin = cappedEndMinutes % 60;
       const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
 
       const payload = {
@@ -844,80 +978,312 @@ export default function AppointmentsPage() {
                 )}
               </div>
 
-              {/* Doctor Selection */}
-              <div className="space-y-2">
-                <label className="text-base font-semibold flex items-center gap-2">
-                  👨‍⚕️ Chọn bác sĩ
-                </label>
-                <select
-                  value={bookingForm.employeeId}
-                  onChange={(e) => setBookingForm({ ...bookingForm, employeeId: e.target.value })}
-                  className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-colors"
-                  required
-                >
-                  <option value="">-- Chọn bác sĩ --</option>
-                  {employees.map((emp) => {
-                    const id = emp.employeeId || emp.id;
-                    return (
-                      <option key={id} value={id}>
-                        {emp.fullName || emp.name || `Bác sĩ #${id}`}
-                      </option>
-                    );
-                  })}
-                </select>
+              {/* Date & Time with Calendar */}
+              <div className="space-y-4">
+                {/* Day-off Information Banner */}
+                {apiDaysOff.length > 0 && (() => {
+                  const currentMonthDaysOff = apiDaysOff.filter(d => {
+                    const date = new Date(d.date);
+                    return date.getMonth() === calendarMonth.getMonth() && 
+                           date.getFullYear() === calendarMonth.getFullYear();
+                  });
+                  return currentMonthDaysOff.length > 0 ? (
+                    <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">ℹ️</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-amber-800 mb-1">
+                            Thông báo lịch nghỉ tháng {calendarMonth.getMonth() + 1}
+                          </p>
+                          <p className="text-sm text-amber-700">
+                            Phòng khám nghỉ vào các ngày: {currentMonthDaysOff.map(d => new Date(d.date).getDate()).join(', ')}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-1">
+                            Các ngày này không thể đặt lịch hẹn.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Calendar Header */}
+                <div className="space-y-2">
+                  <label className="text-base font-semibold flex items-center gap-2">
+                    📅 Chọn ngày hẹn
+                  </label>
+                  
+                  {/* Month Navigation */}
+                  <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-cyan-50 p-3 rounded-xl border-2 border-blue-200">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
+                      className="p-2 hover:bg-white rounded-lg transition-colors"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-blue-600" />
+                    </button>
+                    <h3 className="font-bold text-blue-700">
+                      Tháng {calendarMonth.getMonth() + 1}, {calendarMonth.getFullYear()}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
+                      className="p-2 hover:bg-white rounded-lg transition-colors"
+                    >
+                      <ChevronRight className="h-5 w-5 text-blue-600" />
+                    </button>
+                  </div>
+
+                  {/* Calendar Legend */}
+                  <div className="flex flex-wrap gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+                      <span className="text-gray-600">Đã chọn</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-blue-100"></div>
+                      <span className="text-gray-600">Hôm nay</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-gray-50 border border-gray-300"></div>
+                      <span className="text-gray-600">Quá khứ</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-red-100 border border-red-300 flex items-center justify-center text-[8px]">🚫</div>
+                      <span className="text-red-600 font-medium">Ngày nghỉ</span>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div className="border-2 border-gray-200 rounded-xl p-3 bg-white">
+                    {/* Day headers */}
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(day => (
+                        <div key={day} className="text-center text-xs font-semibold text-gray-500 py-1">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Calendar days */}
+                    <div className="grid grid-cols-7 gap-1">
+                      {getDaysInMonth(calendarMonth).map((date, idx) => {
+                        if (!date) {
+                          return <div key={`empty-${idx}`} className="aspect-square" />;
+                        }
+                        
+                        const isToday = date.toDateString() === new Date().toDateString();
+                        const isPast = date < new Date().setHours(0, 0, 0, 0);
+                        const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        const isDayOff = apiDaysOff.some(d => d.date === dateStr);
+                        
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => !isPast && !isDayOff && handleDateSelect(date)}
+                            disabled={isPast || isDayOff}
+                            title={isDayOff ? 'Phòng khám nghỉ trong ngày này' : ''}
+                            className={`
+                              aspect-square p-1 rounded-lg text-sm font-medium transition-all relative
+                              ${isDayOff
+                                ? 'bg-red-100 text-red-400 cursor-not-allowed border-2 border-red-300 line-through' 
+                                : isPast
+                                  ? 'text-gray-300 cursor-not-allowed bg-gray-50'
+                                  : isSelected
+                                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-110'
+                                    : isToday
+                                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                      : 'hover:bg-gray-100 text-gray-700'
+                              }
+                            `}
+                          >
+                            <div className="flex flex-col items-center justify-center h-full">
+                              <span>{date.getDate()}</span>
+                              {isToday && !isDayOff && <span className="text-[8px]">Hôm nay</span>}
+                              {isDayOff && <span className="text-[10px]">🚫</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Available Employees Display */}
+                {bookingForm.appointmentDate && !holidayWarning && (
+                  <div className="space-y-2">
+                    <label className="text-base font-semibold flex items-center gap-2">
+                      <Users className="h-5 w-5 text-blue-500" />
+                      Bác sĩ có sẵn ({availableEmployees.length})
+                    </label>
+                    
+                    {loadingAvailability ? (
+                      <div className="flex items-center justify-center p-6 bg-gray-50 rounded-xl">
+                        <div className="text-center">
+                          <Clock className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Đang kiểm tra lịch trống...</p>
+                        </div>
+                      </div>
+                    ) : availableEmployees.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-gray-50 rounded-xl border border-gray-200">
+                        {availableEmployees.map((emp) => {
+                          const id = (emp.employeeId || emp.id)?.toString();
+                          const isSelected = bookingForm.employeeId === id;
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setBookingForm({...bookingForm, employeeId: id})}
+                              className={`
+                                p-3 rounded-lg border-2 transition-all text-left
+                                ${isSelected
+                                  ? "border-blue-500 bg-blue-50 shadow-md"
+                                  : "border-gray-200 hover:border-blue-300 bg-white"}
+                              `}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-gray-800 text-sm truncate">
+                                    {emp.fullName || emp.name}
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate">
+                                    {emp.specialization || 'Bác sĩ'}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-amber-50 rounded-xl border-2 border-amber-200 text-center">
+                        <CalendarX className="h-12 w-12 text-amber-500 mx-auto mb-2" />
+                        <p className="font-semibold text-amber-700">Không có bác sĩ trống</p>
+                        <p className="text-sm text-amber-600 mt-1">
+                          Vui lòng chọn ngày hoặc giờ khác
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Available Time Slots Calendar */}
+              {bookingForm.employeeId && bookingForm.appointmentDate && !holidayWarning && (
                 <div className="space-y-2">
                   <label className="text-base font-semibold flex items-center gap-2">
-                    📅 Ngày hẹn
+                    📅 Lịch trống của bác sĩ
                   </label>
-                  <Input
-                    type="date"
-                    value={bookingForm.appointmentDate}
-                    onChange={(e) => {
-                      setBookingForm({ ...bookingForm, appointmentDate: e.target.value });
-                      checkSelectedDate(e.target.value);
-                    }}
-                    min={new Date().toISOString().split('T')[0]}
-                    className={`h-12 rounded-xl border-2 focus:border-blue-500 ${holidayWarning ? 'border-red-400 bg-red-50' : 'border-gray-200'
-                      }`}
-                    required
-                  />
+                  
+                  {loadingAvailability ? (
+                    <div className="text-center py-8">
+                      <div className="inline-block animate-spin text-4xl mb-2">⏰</div>
+                      <p className="text-gray-500">Đang tải lịch trống...</p>
+                    </div>
+                  ) : employeeAvailability.length > 0 ? (
+                    <div className="border-2 border-gray-200 rounded-xl p-4 bg-gradient-to-br from-blue-50 to-cyan-50">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-sm text-gray-600">
+                          🗓️ {new Date(bookingForm.appointmentDate).toLocaleDateString('vi-VN', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                        <div className="flex gap-2 text-xs">
+                          <span className="flex items-center gap-1">
+                            <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                            Còn trống
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-3 h-3 rounded-full bg-gray-300"></span>
+                            Đã đặt
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+                        {employeeAvailability.map((slot) => {
+                          const isSelected = bookingForm.startTime === slot.time;
+                          const isAvailable = slot.available !== false && !slot.isBooked;
+                          
+                          return (
+                            <button
+                              key={slot.time}
+                              type="button"
+                              onClick={() => {
+                                if (isAvailable) {
+                                  setBookingForm({...bookingForm, startTime: slot.time});
+                                }
+                              }}
+                              disabled={!isAvailable}
+                              className={`
+                                p-2 rounded-lg font-semibold text-sm transition-all duration-200
+                                ${isSelected 
+                                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg scale-105 ring-2 ring-blue-300' 
+                                  : isAvailable
+                                    ? 'bg-white border-2 border-green-500 text-green-700 hover:bg-green-50 hover:scale-105'
+                                    : 'bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed opacity-50'
+                                }
+                              `}
+                            >
+                              {slot.time}
+                              {isSelected && <span className="ml-1">✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      {employeeAvailability.filter(s => s.available !== false && !s.isBooked).length === 0 && (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500">❌ Không có lịch trống trong ngày này</p>
+                          <p className="text-sm text-gray-400">Vui lòng chọn ngày khác</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center text-gray-400">
+                      <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Chọn bác sĩ và ngày hẹn để xem lịch trống</p>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-base font-semibold flex items-center gap-2">
-                    🕐 Giờ hẹn
-                  </label>
-                  <Input
-                    type="time"
-                    value={bookingForm.startTime}
-                    onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
-                    className="h-12 rounded-xl border-2 border-gray-200 focus:border-blue-500"
-                    required
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Holiday Warning */}
               {holidayWarning && (
-                <div className="p-4 bg-red-50 border-2 border-red-300 rounded-xl animate-pulse">
-                  <div className="flex items-center gap-2 font-bold text-red-700">
-                    <span className="text-2xl">⚠️</span>
-                    <span>Không thể đặt lịch vào ngày này!</span>
+                <div className="p-4 bg-red-50 border-2 border-red-400 rounded-xl shadow-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl animate-bounce">🚫</span>
+                    <div className="flex-1">
+                      <div className="font-bold text-red-700 text-lg mb-2">
+                        Không thể đặt lịch vào ngày này!
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-red-600">
+                          📅 <strong>Lý do:</strong> {holidayWarning.reason}
+                        </p>
+                        {holidayWarning.type === 'api' ? (
+                          <p className="text-red-700 font-medium bg-red-100 p-2 rounded">
+                            🏥 Phòng khám nghỉ vào ngày này theo lịch quản lý đã thiết lập.
+                            <br />
+                            <span className="text-sm">Chỉ quản lý mới có thể tạo lịch làm việc trong ngày nghỉ.</span>
+                          </p>
+                        ) : (
+                          <p className="text-red-600 text-sm">
+                            🎊 Đây là ngày lễ/nghỉ theo cài đặt hệ thống.
+                          </p>
+                        )}
+                        <p className="text-red-600 font-medium">
+                          👉 Vui lòng chọn ngày khác để tiếp tục đặt lịch.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-2 text-red-600 pl-8">
-                    📅 <strong>Lý do:</strong> {holidayWarning.reason}
-                  </p>
-                  {holidayWarning.type === 'api' && (
-                    <p className="mt-1 text-red-500 text-sm pl-8">
-                      🏥 Phòng khám nghỉ vào ngày này theo lịch của quản lý.
-                    </p>
-                  )}
-                  <p className="mt-1 text-red-500 text-sm pl-8">
-                    Vui lòng chọn ngày khác để tiếp tục đặt lịch.
-                  </p>
                 </div>
               )}
 
